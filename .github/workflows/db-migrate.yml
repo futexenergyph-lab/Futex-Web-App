@@ -1,0 +1,31 @@
+name: DB Migrate
+
+# Applies pending schema changes directly via the Supabase Management API
+# (works regardless of GitHub-integration sync timing). Idempotent.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    env:
+      SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Apply installer-flow columns
+        run: |
+          set -e
+          REF="$REF_IN"
+          if [ -z "$REF" ]; then
+            REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
+          fi
+          echo "project ref: $REF"
+          SQL='alter table public.bookings add column if not exists installer_confirmed_at timestamptz, add column if not exists installer_declined_at timestamptz, add column if not exists installation_done_at timestamptz;'
+          RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
+            -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
+            -d "$(jq -nc --arg q "$SQL" '{query:$q}')")
+          echo "HTTP $(echo "$RESP" | tail -n1)"
+          echo "$RESP" | sed '$d' | head -c 500
+          echo
+          echo "Done."
