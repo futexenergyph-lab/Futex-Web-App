@@ -2,9 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Pencil } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { createUser, updateUser } from "@/app/(app)/admin/settings/actions";
+import {
+  createUser,
+  updateUser,
+  deleteUser,
+} from "@/app/(app)/admin/settings/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +33,15 @@ import { ROLE_LABELS, type Profile, type UserRole } from "@/lib/types";
 
 const ROLES: UserRole[] = ["admin", "field_officer", "installer", "accounting"];
 
-export function UserManager({ users }: { users: Profile[] }) {
+type UserRow = Profile & { email?: string };
+
+export function UserManager({
+  users,
+  currentUserId,
+}: {
+  users: UserRow[];
+  currentUserId: string;
+}) {
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
@@ -40,16 +52,20 @@ export function UserManager({ users }: { users: Profile[] }) {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Edit</TableHead>
+              <TableHead className="text-right">Manage</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {users.map((u) => (
               <TableRow key={u.id}>
                 <TableCell className="font-medium">{u.full_name}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {u.email || "—"}
+                </TableCell>
                 <TableCell>{ROLE_LABELS[u.role]}</TableCell>
                 <TableCell>{u.phone ?? "—"}</TableCell>
                 <TableCell>
@@ -60,7 +76,7 @@ export function UserManager({ users }: { users: Profile[] }) {
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                  <UserDialog user={u} />
+                  <UserDialog user={u} isSelf={u.id === currentUserId} />
                 </TableCell>
               </TableRow>
             ))}
@@ -71,9 +87,16 @@ export function UserManager({ users }: { users: Profile[] }) {
   );
 }
 
-function UserDialog({ user }: { user?: Profile }) {
+function UserDialog({
+  user,
+  isSelf,
+}: {
+  user?: UserRow;
+  isSelf?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
+  const [deleting, startDelete] = useTransition();
   const router = useRouter();
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -87,6 +110,8 @@ function UserDialog({ user }: { user?: Profile }) {
             role: f.get("role") as UserRole,
             phone: String(f.get("phone") ?? ""),
             active: f.get("active") === "on",
+            email: String(f.get("email") ?? "") || undefined,
+            password: String(f.get("password") ?? "") || undefined,
           })
         : await createUser({
             email: String(f.get("email")),
@@ -98,6 +123,25 @@ function UserDialog({ user }: { user?: Profile }) {
       if (res?.error) toast.error(res.error);
       else {
         toast.success(user ? "User updated" : "User created");
+        setOpen(false);
+        router.refresh();
+      }
+    });
+  }
+
+  function onDelete() {
+    if (!user) return;
+    if (
+      !confirm(
+        `Remove ${user.full_name}'s account and credentials? This cannot be undone.`,
+      )
+    )
+      return;
+    startDelete(async () => {
+      const res = await deleteUser(user.id);
+      if (res?.error) toast.error(res.error);
+      else {
+        toast.success("Account removed");
         setOpen(false);
         router.refresh();
       }
@@ -131,24 +175,29 @@ function UserDialog({ user }: { user?: Profile }) {
               required
             />
           </div>
-          {!user && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Temporary password</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="text"
-                  minLength={6}
-                  required
-                />
-              </div>
-            </>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={user?.email ?? ""}
+              required={!user}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">
+              {user ? "New password (leave blank to keep)" : "Temporary password"}
+            </Label>
+            <Input
+              id="password"
+              name="password"
+              type="text"
+              minLength={user ? undefined : 6}
+              placeholder={user ? "••••••••" : ""}
+              required={!user}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
@@ -181,8 +230,26 @@ function UserDialog({ user }: { user?: Profile }) {
               Active
             </label>
           )}
-          <DialogFooter>
-            <Button type="submit" disabled={pending}>
+          <DialogFooter className="sm:justify-between">
+            {user ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={onDelete}
+                disabled={deleting || pending || isSelf}
+                title={isSelf ? "You can't remove your own account" : undefined}
+              >
+                {deleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                Remove account
+              </Button>
+            ) : (
+              <span />
+            )}
+            <Button type="submit" disabled={pending || deleting}>
               {pending && <Loader2 className="h-4 w-4 animate-spin" />}
               Save
             </Button>

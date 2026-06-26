@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireRole } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +16,7 @@ export const metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
+  const me = await requireRole(["admin"]);
   const supabase = createClient();
   const [
     { data: packages },
@@ -30,6 +33,20 @@ export default async function SettingsPage() {
   ]);
 
   const wireRate = Number(wireSetting?.value ?? 200);
+
+  // Merge auth emails into the profile rows (emails live in auth.users).
+  const emailById = new Map<string, string>();
+  try {
+    const admin = createAdminClient();
+    const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    for (const u of list?.users ?? []) if (u.email) emailById.set(u.id, u.email);
+  } catch {
+    // Service role not configured — fall back to no emails.
+  }
+  const usersWithEmail = ((users as Profile[]) ?? []).map((u) => ({
+    ...u,
+    email: emailById.get(u.id) ?? "",
+  }));
 
   return (
     <div>
@@ -99,7 +116,7 @@ export default async function SettingsPage() {
               <CardTitle>User accounts &amp; roles</CardTitle>
             </CardHeader>
             <CardContent>
-              <UserManager users={(users as Profile[]) ?? []} />
+              <UserManager users={usersWithEmail} currentUserId={me.id} />
             </CardContent>
           </Card>
         </TabsContent>
