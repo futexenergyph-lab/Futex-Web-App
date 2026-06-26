@@ -40,4 +40,11 @@ jobs:
           run_sql 'alter table public.expenses enable row level security;'
           run_sql 'drop policy if exists expenses_all on public.expenses; create policy expenses_all on public.expenses for all using (public.is_admin() or public.is_accounting()) with check (public.is_admin() or public.is_accounting());'
 
+          # Pricing images (idempotent)
+          run_sql 'alter table public.packages add column if not exists image_url text; alter table public.enclosures add column if not exists image_url text; alter table public.addons add column if not exists image_url text;'
+          run_sql "insert into storage.buckets (id, name, public) values ('pricing','pricing',true) on conflict (id) do nothing;"
+          run_sql 'drop policy if exists "pricing insert admin" on storage.objects; create policy "pricing insert admin" on storage.objects for insert to authenticated with check (bucket_id = '"'"'pricing'"'"' and public.is_admin());'
+          run_sql 'drop policy if exists "pricing update admin" on storage.objects; create policy "pricing update admin" on storage.objects for update to authenticated using (bucket_id = '"'"'pricing'"'"' and public.is_admin());'
+          run_sql 'drop policy if exists "pricing read public" on storage.objects; create policy "pricing read public" on storage.objects for select using (bucket_id = '"'"'pricing'"'"');'
+
           echo "Done."
