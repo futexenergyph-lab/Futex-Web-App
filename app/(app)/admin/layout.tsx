@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { AppShell, type NavItem } from "@/components/app/app-shell";
+import { DebugError, isNextControlFlow } from "@/lib/debug-error";
 
 const nav: NavItem[] = [
   { href: "/admin", label: "Bookings Kanban", icon: LayoutDashboard },
@@ -25,7 +26,13 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const profile = await requireRole(["admin"]);
+  let profile;
+  try {
+    profile = await requireRole(["admin"]);
+  } catch (e) {
+    if (isNextControlFlow(e)) throw e;
+    return <DebugError where="admin layout (requireRole)" error={e} />;
+  }
   return (
     <AppShell profile={profile} nav={nav} areaLabel="Management">
       {children}
