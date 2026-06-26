@@ -20,6 +20,29 @@ export async function updateBookingStatus(
   return { ok: true };
 }
 
+/**
+ * Approve a field officer's request to change/void a locked job order.
+ * After approval the officer can edit or void it on their booking page.
+ */
+export async function approveJobOrderChange(input: {
+  bookingId: string;
+  jobOrderId: string;
+}) {
+  const profile = await requireRole(["admin"]);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("job_orders")
+    .update({
+      change_approved_at: new Date().toISOString(),
+      change_approved_by: profile.id,
+    })
+    .eq("id", input.jobOrderId);
+  if (error) return { error: error.message };
+  revalidatePath("/admin");
+  revalidatePath(`/field/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
 export async function deployBooking(input: {
   bookingId: string;
   fieldOfficerId: string | null;

@@ -14,11 +14,14 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { toast } from "sonner";
-import { MapPin, User, Calendar } from "lucide-react";
+import { MapPin, User, Calendar, Loader2, Unlock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { updateBookingStatus } from "@/app/(app)/admin/actions";
+import {
+  updateBookingStatus,
+  approveJobOrderChange,
+} from "@/app/(app)/admin/actions";
 import { StatusBadge } from "@/components/status-badge";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, php } from "@/lib/utils";
 import {
   BOOKING_STATUSES,
   BOOKING_STATUS_LABELS,
@@ -27,9 +30,34 @@ import {
 } from "@/lib/types";
 
 function BookingCard({ booking }: { booking: BookingWithRelations }) {
+  const router = useRouter();
+  const [approving, setApproving] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: booking.id,
   });
+
+  // A pending change request = a job order the officer asked to unlock that
+  // management hasn't approved yet.
+  const pending = (booking.job_orders ?? []).find(
+    (jo) => jo.change_requested_at && !jo.change_approved_at,
+  );
+
+  async function approve() {
+    if (!pending) return;
+    setApproving(true);
+    const res = await approveJobOrderChange({
+      bookingId: booking.id,
+      jobOrderId: pending.id,
+    });
+    setApproving(false);
+    if (res?.error) {
+      toast.error(res.error);
+    } else {
+      toast.success("Change request approved");
+      router.refresh();
+    }
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -38,6 +66,7 @@ function BookingCard({ booking }: { booking: BookingWithRelations }) {
       className={cn(
         "cursor-grab rounded-lg border bg-background p-3 shadow-sm active:cursor-grabbing",
         isDragging && "opacity-40",
+        pending && "border-amber-400 ring-1 ring-amber-300",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -69,6 +98,36 @@ function BookingCard({ booking }: { booking: BookingWithRelations }) {
           <User className="h-3 w-3" />
           {booking.assigned_field_officer.full_name}
         </p>
+      )}
+
+      {pending && (
+        // Keep clicks/drags here from starting a card drag.
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-2"
+        >
+          <p className="text-[11px] font-semibold text-amber-800">
+            Change requested · {php(pending.final_total)}
+          </p>
+          {pending.change_request_reason && (
+            <p className="mt-0.5 text-[11px] text-amber-700">
+              &ldquo;{pending.change_request_reason}&rdquo;
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={approve}
+            disabled={approving}
+            className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-amber-500 px-2 py-1 text-[11px] font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
+          >
+            {approving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Unlock className="h-3 w-3" />
+            )}
+            Allow request
+          </button>
+        </div>
       )}
     </div>
   );
@@ -130,6 +189,11 @@ export function KanbanBoard({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "bookings" },
+        () => router.refresh(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "job_orders" },
         () => router.refresh(),
       )
       .subscribe();

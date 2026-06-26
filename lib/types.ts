@@ -121,8 +121,23 @@ export interface JobOrder {
   notes: string | null;
   status: JobOrderStatus;
   submitted_at: string | null;
+  change_requested_at: string | null;
+  change_request_reason: string | null;
+  change_approved_at: string | null;
+  change_approved_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Lightweight job-order shape embedded in booking queries so the Kanban can
+// flag pending "request to change" approvals without a second round-trip.
+export interface JobOrderChangeFlag {
+  id: string;
+  final_total: number;
+  change_requested_at: string | null;
+  change_request_reason: string | null;
+  change_approved_at: string | null;
+  created_at: string;
 }
 
 export interface Attendance {
@@ -177,6 +192,7 @@ export interface BookingWithRelations extends Booking {
   preferred_enclosure?: Pick<Enclosure, "id" | "name" | "price"> | null;
   assigned_field_officer?: Pick<Profile, "id" | "full_name"> | null;
   assigned_installer?: Pick<Profile, "id" | "full_name"> | null;
+  job_orders?: JobOrderChangeFlag[] | null;
 }
 
 export const BOOKING_STATUSES: BookingStatus[] = [
