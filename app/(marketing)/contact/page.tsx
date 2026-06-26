@@ -8,18 +8,20 @@ export const revalidate = 60;
 
 export default async function ContactPage() {
   const supabase = createPublicClient();
-  const [{ data: packages }, { data: enclosures }] = await Promise.all([
-    supabase
-      .from("packages")
-      .select("id,name")
-      .eq("active", true)
-      .order("sort_order"),
-    supabase
-      .from("enclosures")
-      .select("id,name")
-      .eq("active", true)
-      .order("sort_order"),
-  ]);
+  const [{ data: packages }, { data: enclosures }] = supabase
+    ? await Promise.all([
+        supabase
+          .from("packages")
+          .select("id,name")
+          .eq("active", true)
+          .order("sort_order"),
+        supabase
+          .from("enclosures")
+          .select("id,name")
+          .eq("active", true)
+          .order("sort_order"),
+      ])
+    : [{ data: [] }, { data: [] }];
 
   return (
     <>

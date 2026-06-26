@@ -1,0 +1,97 @@
+name: Deploy to Vercel
+
+# Manual deploy that runs on GitHub's runners (which have open network access,
+# unlike some sandboxed dev environments). Tokens can be supplied either as
+# repository secrets (preferred) or, for a one-time bootstrap, as run inputs.
+#
+# If a Supabase access token (+ optional project ref) is provided, the workflow
+# pulls the project URL + anon/service keys from the Supabase Management API and
+# sets them as Vercel env vars so the full app (auth/dashboards) works. Without
+# them, the marketing site still deploys.
+
+on:
+  workflow_dispatch:
+    inputs:
+      vercel_token:
+        description: "Vercel token (leave blank to use secrets.VERCEL_TOKEN)"
+        required: false
+      supabase_access_token:
+        description: "Supabase access token (optional; enables full app)"
+        required: false
+      supabase_project_ref:
+        description: "Supabase project ref (optional; defaults to first project)"
+        required: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+
+      - name: Resolve Supabase env (optional)
+        env:
+          SAT: ${{ github.event.inputs.supabase_access_token || secrets.SUPABASE_ACCESS_TOKEN }}
+          REF_IN: ${{ github.event.inputs.supabase_project_ref || secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -e
+          if [ -z "$SAT" ]; then
+            echo "No Supabase token supplied — deploying marketing site only."
+            exit 0
+          fi
+          REF="$REF_IN"
+          if [ -z "$REF" ]; then
+            REF=$(curl -s https://api.supabase.com/v1/projects \
+              -H "Authorization: Bearer $SAT" | jq -r '.[0].id')
+          fi
+          echo "Using Supabase project ref: $REF"
+          KEYS=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" \
+            -H "Authorization: Bearer $SAT")
+          ANON=$(echo "$KEYS" | jq -r '.[] | select(.name=="anon") | .api_key')
+          SERVICE=$(echo "$KEYS" | jq -r '.[] | select(.name=="service_role") | .api_key')
+          {
+            echo "SB_URL=https://$REF.supabase.co"
+            echo "SB_ANON=$ANON"
+            echo "SB_SERVICE=$SERVICE"
+          } >> "$GITHUB_ENV"
+
+      - name: Link / create Vercel project
+        env:
+          VT: ${{ github.event.inputs.vercel_token || secrets.VERCEL_TOKEN }}
+        run: |
+          set -e
+          if [ -z "$VT" ]; then
+            echo "::error::No Vercel token (input vercel_token or secret VERCEL_TOKEN)"; exit 1
+          fi
+          vercel link --yes --project futex-web-app --token "$VT" \
+            || vercel link --yes --token "$VT"
+
+      - name: Set Vercel env vars (if Supabase resolved)
+        if: env.SB_URL != ''
+        env:
+          VT: ${{ github.event.inputs.vercel_token || secrets.VERCEL_TOKEN }}
+        run: |
+          set -e
+          for TARGET in production preview development; do
+            printf '%s' "$SB_URL"     | vercel env add NEXT_PUBLIC_SUPABASE_URL "$TARGET"      --token "$VT" --force >/dev/null 2>&1 || true
+            printf '%s' "$SB_ANON"    | vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY "$TARGET" --token "$VT" --force >/dev/null 2>&1 || true
+            printf '%s' "$SB_SERVICE" | vercel env add SUPABASE_SERVICE_ROLE_KEY "$TARGET"     --token "$VT" --force >/dev/null 2>&1 || true
+          done
+          echo "Supabase env vars set on Vercel."
+
+      - name: Deploy (production)
+        env:
+          VT: ${{ github.event.inputs.vercel_token || secrets.VERCEL_TOKEN }}
+        run: |
+          set -e
+          URL=$(vercel deploy --prod --yes --token "$VT")
+          echo "Deployed: $URL"
+          echo "### ✅ Deployed to Vercel" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Live URL:** $URL" >> "$GITHUB_STEP_SUMMARY"
