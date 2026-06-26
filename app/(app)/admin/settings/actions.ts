@@ -124,11 +124,53 @@ export async function updateUser(input: {
   role: UserRole;
   phone: string;
   active: boolean;
+  email?: string;
+  password?: string;
 }) {
   await requireRole(["admin"]);
-  const supabase = createClient();
-  const { id, ...fields } = input;
-  const { error } = await supabase.from("profiles").update(fields).eq("id", id);
+  const admin = createAdminClient();
+
+  // Update the profile row.
+  const { error } = await admin
+    .from("profiles")
+    .update({
+      full_name: input.full_name,
+      role: input.role,
+      phone: input.phone,
+      active: input.active,
+    })
+    .eq("id", input.id);
+  if (error) return { error: error.message };
+
+  // Update auth credentials (email / password) when provided.
+  const authUpdate: { email?: string; password?: string; email_confirm?: boolean } =
+    {};
+  if (input.email) {
+    authUpdate.email = input.email;
+    authUpdate.email_confirm = true;
+  }
+  if (input.password) authUpdate.password = input.password;
+  if (Object.keys(authUpdate).length > 0) {
+    const { error: authErr } = await admin.auth.admin.updateUserById(
+      input.id,
+      authUpdate,
+    );
+    if (authErr) return { error: authErr.message };
+  }
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/hr");
+  return { ok: true };
+}
+
+export async function deleteUser(id: string) {
+  const me = await requireRole(["admin"]);
+  if (me.id === id) {
+    return { error: "You can't delete your own account while signed in." };
+  }
+  const admin = createAdminClient();
+  // Deleting the auth user cascades to the profile row.
+  const { error } = await admin.auth.admin.deleteUser(id);
   if (error) return { error: error.message };
   revalidatePath("/admin/settings");
   revalidatePath("/admin/hr");
