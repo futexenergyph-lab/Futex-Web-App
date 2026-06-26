@@ -32,9 +32,14 @@ export interface Profile {
   phone: string | null;
   photo_url: string | null;
   active: boolean;
+  deletion_requested_at: string | null;
+  deletion_requested_by: string | null;
   created_at: string;
   updated_at: string;
 }
+
+// Roles only the Owner may grant or modify.
+export const ELEVATED_ROLES: UserRole[] = ["owner", "admin"];
 
 export interface Package {
   id: string;

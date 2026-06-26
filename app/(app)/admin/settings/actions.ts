@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth";
-import type { UserRole } from "@/lib/types";
+import { ELEVATED_ROLES, type UserRole } from "@/lib/types";
+
+const isElevated = (role: UserRole) => ELEVATED_ROLES.includes(role);
 
 function revalidatePricing() {
   revalidatePath("/admin/settings");
@@ -106,6 +108,12 @@ export async function updateSetting(key: string, value: unknown) {
 }
 
 // ---- User management (service role) ----
+// Access model:
+//   - Only the OWNER may grant/modify elevated roles (owner, management/admin).
+//   - Management/Admin may assign non-elevated roles (accounting, hr,
+//     field officer, installer) and may not touch elevated accounts.
+//   - Only the OWNER may delete an account directly. Management/Admin must
+//     raise a removal request that the OWNER approves.
 export async function createUser(input: {
   email: string;
   password: string;
@@ -113,7 +121,10 @@ export async function createUser(input: {
   role: UserRole;
   phone: string;
 }) {
-  await requireRole(["admin"]);
+  const me = await requireRole(["admin"]);
+  if (me.role !== "owner" && isElevated(input.role)) {
+    return { error: "Only the owner can assign the Owner or Management role." };
+  }
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.createUser({
     email: input.email,
@@ -148,8 +159,27 @@ export async function updateUser(input: {
   email?: string;
   password?: string;
 }) {
-  await requireRole(["admin"]);
+  const me = await requireRole(["admin"]);
   const admin = createAdminClient();
+
+  // Read the target's current role to enforce elevated-account protections.
+  const { data: target } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", input.id)
+    .single();
+  const currentRole = target?.role as UserRole | undefined;
+
+  if (me.role !== "owner") {
+    if (currentRole && isElevated(currentRole)) {
+      return { error: "Only the owner can modify an Owner/Management account." };
+    }
+    if (isElevated(input.role)) {
+      return {
+        error: "Only the owner can assign the Owner or Management role.",
+      };
+    }
+  }
 
   // Update the profile row.
   const { error } = await admin
@@ -184,8 +214,15 @@ export async function updateUser(input: {
   return { ok: true };
 }
 
+/** Owner-only: permanently delete an account (also used to approve a request). */
 export async function deleteUser(id: string) {
   const me = await requireRole(["admin"]);
+  if (me.role !== "owner") {
+    return {
+      error:
+        "Only the owner can remove an account. Use 'Request removal' to ask the owner to approve.",
+    };
+  }
   if (me.id === id) {
     return { error: "You can't delete your own account while signed in." };
   }
@@ -195,5 +232,45 @@ export async function deleteUser(id: string) {
   if (error) return { error: error.message };
   revalidatePath("/admin/settings");
   revalidatePath("/admin/hr");
+  return { ok: true };
+}
+
+/** Management/Admin: raise a removal request for the owner to approve. */
+export async function requestUserDeletion(id: string) {
+  const me = await requireRole(["admin"]);
+  if (me.id === id) {
+    return { error: "You can't request removal of your own account." };
+  }
+  const admin = createAdminClient();
+  const { data: target } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", id)
+    .single();
+  if (target && isElevated(target.role as UserRole) && me.role !== "owner") {
+    return { error: "You can't request removal of an Owner/Management account." };
+  }
+  const { error } = await admin
+    .from("profiles")
+    .update({
+      deletion_requested_at: new Date().toISOString(),
+      deletion_requested_by: me.id,
+    })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
+/** Clear a pending removal request (owner rejects, or requester cancels). */
+export async function cancelUserDeletion(id: string) {
+  await requireRole(["admin"]);
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("profiles")
+    .update({ deletion_requested_at: null, deletion_requested_by: null })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/settings");
   return { ok: true };
 }
