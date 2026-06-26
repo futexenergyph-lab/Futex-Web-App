@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, MapPin, Phone, Navigation, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, MapPin, Navigation, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,12 +56,6 @@ export function InstallerBookingView({
             <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
             <span className="flex-1">{b.address}</span>
             <Navigation className="h-4 w-4 text-primary" />
-          </a>
-          <a
-            href={`tel:${b.contact_number}`}
-            className="flex items-center gap-2 hover:text-primary"
-          >
-            <Phone className="h-4 w-4" /> {b.contact_number}
           </a>
           {b.preferred_date && (
             <p className="text-muted-foreground">
