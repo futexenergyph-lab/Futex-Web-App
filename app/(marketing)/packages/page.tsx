@@ -12,20 +12,25 @@ export const revalidate = 60; // refresh pricing from DB at most once a minute
 
 export default async function PackagesPage() {
   const supabase = createPublicClient();
-  const [{ data: packages }, { data: enclosures }, { data: addons }] =
-    await Promise.all([
-      supabase
-        .from("packages")
-        .select("*")
-        .eq("active", true)
-        .order("sort_order"),
-      supabase
-        .from("enclosures")
-        .select("*")
-        .eq("active", true)
-        .order("sort_order"),
-      supabase.from("addons").select("*").eq("active", true).order("sort_order"),
-    ]);
+  const [{ data: packages }, { data: enclosures }, { data: addons }] = supabase
+    ? await Promise.all([
+        supabase
+          .from("packages")
+          .select("*")
+          .eq("active", true)
+          .order("sort_order"),
+        supabase
+          .from("enclosures")
+          .select("*")
+          .eq("active", true)
+          .order("sort_order"),
+        supabase
+          .from("addons")
+          .select("*")
+          .eq("active", true)
+          .order("sort_order"),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }];
 
   const pkgs = (packages ?? []) as Package[];
   const promos = pkgs.filter((p) => p.is_promo);
