@@ -1,0 +1,101 @@
+name: Create Admin User
+
+# One-off: creates (or updates) an admin login for the FUTEX app.
+# Runs on GitHub's runners, which can reach Supabase. Uses the existing
+# SUPABASE_ACCESS_TOKEN secret to fetch the service-role key, then creates an
+# auth user with role=admin. Leave the password blank to auto-generate one
+# (it's printed to the run summary so you can copy it, then change it after
+# first login).
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Admin email"
+        required: true
+      full_name:
+        description: "Full name"
+        required: false
+        default: "Management Admin"
+      password:
+        description: "Password (blank = auto-generate)"
+        required: false
+
+jobs:
+  create-admin:
+    runs-on: ubuntu-latest
+    env:
+      SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
+      EMAIL: ${{ github.event.inputs.email }}
+      FULL_NAME: ${{ github.event.inputs.full_name }}
+      PASSWORD_IN: ${{ github.event.inputs.password }}
+    steps:
+      - name: Create / update admin user
+        run: |
+          set -e
+          if [ -z "$SAT" ]; then
+            echo "::error::Missing SUPABASE_ACCESS_TOKEN secret"; exit 1
+          fi
+          REF="$REF_IN"
+          if [ -z "$REF" ]; then
+            REF=$(curl -s https://api.supabase.com/v1/projects \
+              -H "Authorization: Bearer $SAT" \
+              | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
+          fi
+          if [ -z "$REF" ]; then echo "::error::Could not resolve Supabase project ref"; exit 1; fi
+          URL="https://$REF.supabase.co"
+          SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" \
+            -H "Authorization: Bearer $SAT" \
+            | jq -r 'if type=="array" then (.[] | select(.name=="service_role") | .api_key) else empty end')
+          if [ -z "$SERVICE" ]; then echo "::error::Could not read service_role key"; exit 1; fi
+
+          PASS="$PASSWORD_IN"
+          if [ -z "$PASS" ]; then
+            PASS="Futex$(openssl rand -base64 12 | tr -dc 'A-Za-z0-9' | head -c 10)!"
+          fi
+
+          # Create the user (email pre-confirmed, role baked into metadata).
+          RESP=$(curl -s -w $'\n%{http_code}' -X POST "$URL/auth/v1/admin/users" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"email_confirm\":true,\"user_metadata\":{\"full_name\":\"$FULL_NAME\",\"role\":\"admin\"}}")
+          CODE=$(echo "$RESP" | tail -n1); BODY=$(echo "$RESP" | sed '$d')
+          echo "create-user HTTP $CODE"
+          UID=$(echo "$BODY" | jq -r '.id // empty')
+
+          if [ -z "$UID" ]; then
+            echo "User may already exist — looking it up and resetting password…"
+            UID=$(curl -s "$URL/auth/v1/admin/users?per_page=500" \
+              -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+              | jq -r --arg E "$EMAIL" '(.users // [])[] | select(.email==$E) | .id' | head -n1)
+            if [ -n "$UID" ]; then
+              curl -s -X PUT "$URL/auth/v1/admin/users/$UID" \
+                -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+                -H "Content-Type: application/json" \
+                -d "{\"password\":\"$PASS\",\"email_confirm\":true,\"user_metadata\":{\"full_name\":\"$FULL_NAME\",\"role\":\"admin\"}}" >/dev/null
+            fi
+          fi
+
+          if [ -z "$UID" ]; then
+            echo "::error::Failed to create/find user. API said: $(echo "$BODY" | head -c 300)"; exit 1
+          fi
+
+          # Ensure the profile row is admin + active.
+          curl -s -X PATCH "$URL/rest/v1/profiles?id=eq.$UID" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+            -H "Content-Type: application/json" -H "Prefer: return=minimal" \
+            -d "{\"role\":\"admin\",\"full_name\":\"$FULL_NAME\",\"active\":true}" >/dev/null
+
+          echo "ADMIN_READY email=$EMAIL password=$PASS"
+          {
+            echo "### ✅ Admin user ready"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Email | \`$EMAIL\` |"
+            echo "| Password | \`$PASS\` |"
+            echo "| Role | admin |"
+            echo ""
+            echo "Sign in at /login, then change your password."
+          } >> "$GITHUB_STEP_SUMMARY"
