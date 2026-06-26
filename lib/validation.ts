@@ -2,6 +2,11 @@ import { z } from "zod";
 
 export const bookingFormSchema = z.object({
   client_name: z.string().min(2, "Please enter your name"),
+  email: z
+    .string()
+    .email("Please enter a valid email")
+    .optional()
+    .or(z.literal("")),
   address: z.string().min(5, "Please enter the installation address"),
   contact_number: z
     .string()

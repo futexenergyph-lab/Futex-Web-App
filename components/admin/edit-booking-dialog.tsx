@@ -42,7 +42,9 @@ export function EditBookingDialog({
     start(async () => {
       const res = await updateBooking({
         id: booking.id,
+        client_number: (f.get("client_number") as string) || null,
         client_name: String(f.get("client_name")),
+        email: (f.get("email") as string) || null,
         address: String(f.get("address")),
         contact_number: String(f.get("contact_number")),
         preferred_date: (f.get("preferred_date") as string) || null,
@@ -79,12 +81,30 @@ export function EditBookingDialog({
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
+            <Label htmlFor="client_number">Client number</Label>
+            <Input
+              id="client_number"
+              name="client_number"
+              placeholder="e.g. FX-2026-0001"
+              defaultValue={booking.client_number ?? ""}
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="client_name">Client name</Label>
             <Input
               id="client_name"
               name="client_name"
               required
               defaultValue={booking.client_name}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              defaultValue={booking.email ?? ""}
             />
           </div>
           <div className="space-y-2">

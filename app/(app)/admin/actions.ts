@@ -48,7 +48,9 @@ export async function approveJobOrderChange(input: {
  */
 export async function updateBooking(input: {
   id: string;
+  client_number: string | null;
   client_name: string;
+  email: string | null;
   address: string;
   contact_number: string;
   preferred_date: string | null;
@@ -65,6 +67,8 @@ export async function updateBooking(input: {
     .from("bookings")
     .update({
       ...fields,
+      client_number: fields.client_number || null,
+      email: fields.email || null,
       preferred_date: fields.preferred_date || null,
       preferred_time: fields.preferred_time || null,
       preferred_package_id: fields.preferred_package_id || null,
@@ -73,6 +77,7 @@ export async function updateBooking(input: {
     .eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/admin");
+  revalidatePath("/admin/clients");
   return { ok: true };
 }
 
@@ -112,7 +117,9 @@ export async function deployBooking(input: {
 }
 
 export async function createManualBooking(input: {
+  client_number: string | null;
   client_name: string;
+  email: string | null;
   address: string;
   contact_number: string;
   preferred_date: string | null;
@@ -125,11 +132,14 @@ export async function createManualBooking(input: {
   const supabase = createClient();
   const { error } = await supabase.from("bookings").insert({
     ...input,
+    client_number: input.client_number || null,
+    email: input.email || null,
     source: "manual",
     status: "new",
     created_by: profile.id,
   });
   if (error) return { error: error.message };
   revalidatePath("/admin");
+  revalidatePath("/admin/clients");
   return { ok: true };
 }

@@ -40,7 +40,9 @@ export function NewBookingDialog({
     const f = new FormData(e.currentTarget);
     start(async () => {
       const res = await createManualBooking({
+        client_number: (f.get("client_number") as string) || null,
         client_name: String(f.get("client_name")),
+        email: (f.get("email") as string) || null,
         address: String(f.get("address")),
         contact_number: String(f.get("contact_number")),
         preferred_date: (f.get("preferred_date") as string) || null,
@@ -73,8 +75,20 @@ export function NewBookingDialog({
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
+            <Label htmlFor="client_number">Client number</Label>
+            <Input
+              id="client_number"
+              name="client_number"
+              placeholder="e.g. FX-2026-0001"
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="client_name">Client name</Label>
             <Input id="client_name" name="client_name" required />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" name="email" type="email" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="address">Address</Label>

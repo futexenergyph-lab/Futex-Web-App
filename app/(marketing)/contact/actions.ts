@@ -16,6 +16,7 @@ export async function submitBooking(
 ): Promise<BookingState> {
   const raw = {
     client_name: formData.get("client_name"),
+    email: formData.get("email") ?? "",
     address: formData.get("address"),
     contact_number: formData.get("contact_number"),
     preferred_date: formData.get("preferred_date") ?? "",
@@ -44,6 +45,7 @@ export async function submitBooking(
   const { error } = await supabase.from("bookings").insert({
     id,
     client_name: v.client_name,
+    email: v.email || null,
     address: v.address,
     contact_number: v.contact_number,
     preferred_date: v.preferred_date || null,

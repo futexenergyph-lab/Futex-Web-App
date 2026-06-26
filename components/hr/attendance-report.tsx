@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CsvExport } from "@/components/csv-export";
-import { formatDateTime } from "@/lib/utils";
+import { PhotoThumbs } from "@/components/hr/photo-thumbs";
+import { formatDateTime, phDay, phMinutes } from "@/lib/utils";
 import { ROLE_LABELS, type UserRole } from "@/lib/types";
 
 interface AttRow {
@@ -23,6 +24,8 @@ interface AttRow {
   type: "time_in" | "time_out";
   timestamp: string;
   photo_url: string | null;
+  lat: number | null;
+  lng: number | null;
   profiles: { full_name: string; role: UserRole } | null;
 }
 
@@ -56,7 +59,9 @@ export async function AttendanceReport({
 
   let query = supabase
     .from("attendance")
-    .select("id, user_id, type, timestamp, photo_url, profiles(full_name, role)")
+    .select(
+      "id, user_id, type, timestamp, photo_url, lat, lng, profiles(full_name, role)",
+    )
     .order("timestamp", { ascending: true });
 
   if (searchParams.person) query = query.eq("user_id", searchParams.person);
@@ -81,10 +86,10 @@ export async function AttendanceReport({
       }),
   );
 
-  // Group by user+day.
+  // Group by user+day (day evaluated in Philippine time, UTC+8).
   const groups = new Map<string, AttRow[]>();
   for (const r of rows) {
-    const day = r.timestamp.slice(0, 10);
+    const day = phDay(r.timestamp);
     const key = `${r.user_id}|${day}`;
     (groups.get(key) ?? groups.set(key, []).get(key)!).push(r);
   }
@@ -102,11 +107,10 @@ export async function AttendanceReport({
         (new Date(lastOut).getTime() - new Date(firstIn).getTime()) /
         3_600_000;
     }
-    // Late if first time-in after 9:15 AM (morning baseline).
+    // Late if first time-in after 9:15 AM PHT (morning baseline).
     let late = false;
     if (firstIn) {
-      const d = new Date(firstIn);
-      const mins = d.getHours() * 60 + d.getMinutes();
+      const mins = phMinutes(firstIn);
       late = mins > 9 * 60 + 15 && mins < 12 * 60;
     }
     summaries.push({
@@ -131,6 +135,19 @@ export async function AttendanceReport({
     hours: s.hours,
     late: s.late ? "yes" : "no",
   }));
+
+  // Per-punch location + time log (most recent first).
+  const punches = [...rows]
+    .reverse()
+    .map((r) => ({
+      id: r.id,
+      user: r.profiles?.full_name ?? "—",
+      type: r.type,
+      timestamp: r.timestamp,
+      lat: r.lat,
+      lng: r.lng,
+      photo: signedFor.get(r.id) ?? null,
+    }));
 
   return (
     <div className="space-y-6">
@@ -223,17 +240,9 @@ export async function AttendanceReport({
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
-                      {s.photos.slice(0, 3).map((src, j) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={j}
-                          src={src}
-                          alt="Attendance"
-                          className="h-10 w-10 rounded object-cover"
-                        />
-                      ))}
-                    </div>
+                    <PhotoThumbs
+                      photos={s.photos.slice(0, 3).map((src) => ({ src }))}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
@@ -241,6 +250,70 @@ export async function AttendanceReport({
                 <TableRow>
                   <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
                     No attendance records for this filter.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Location &amp; time log</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Each punch with its captured GPS location and Philippine time
+            (UTC+8). Tap a photo to enlarge.
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Time (PHT)</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>Photo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {punches.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium">{p.user}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={p.type === "time_in" ? "accent" : "secondary"}
+                    >
+                      {p.type === "time_in" ? "Time In" : "Time Out"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {formatDateTime(p.timestamp)}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {p.lat != null && p.lng != null ? (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">No GPS</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <PhotoThumbs photos={p.photo ? [{ src: p.photo }] : []} />
+                  </TableCell>
+                </TableRow>
+              ))}
+              {punches.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
+                    No punches for this filter.
                   </TableCell>
                 </TableRow>
               )}
