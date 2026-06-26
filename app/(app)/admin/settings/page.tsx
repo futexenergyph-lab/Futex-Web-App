@@ -116,7 +116,11 @@ export default async function SettingsPage() {
               <CardTitle>User accounts &amp; roles</CardTitle>
             </CardHeader>
             <CardContent>
-              <UserManager users={usersWithEmail} currentUserId={me.id} />
+              <UserManager
+                users={usersWithEmail}
+                currentUserId={me.id}
+                currentUserRole={me.role}
+              />
             </CardContent>
           </Card>
         </TabsContent>
