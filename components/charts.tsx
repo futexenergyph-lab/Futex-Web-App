@@ -5,6 +5,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart,
   Pie,
@@ -14,6 +15,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
+const peso = (v: number) => `₱${Number(v).toLocaleString("en-PH")}`;
 
 const COLORS = ["#0a4da2", "#16a34a", "#f59e0b", "#8b5cf6", "#ef4444", "#0891b2"];
 
@@ -62,6 +65,26 @@ export function CategoryBarChart({
             <Cell key={i} fill={COLORS[i % COLORS.length]} />
           ))}
         </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export function InOutChart({
+  data,
+}: {
+  data: { label: string; inflow: number; outflow: number }[];
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={data} margin={{ left: 8, right: 8, top: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+        <XAxis dataKey="label" fontSize={12} />
+        <YAxis fontSize={12} width={70} />
+        <Tooltip formatter={(v: number) => peso(v)} />
+        <Legend />
+        <Bar dataKey="inflow" name="Inflows" fill="#16a34a" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="outflow" name="Outflows" fill="#ef4444" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
