@@ -12,6 +12,9 @@ export const COMPANY = {
   facebook: "https://facebook.com/futexenergyph",
   facebookHandle: "facebook.com/futexenergyph",
   facebookName: "FUTEX Energy Solutions",
+  // Main office & showroom (walk-in).
+  mainOffice: "2246 Dimasalang St., Sampaloc, Manila — Unit 01",
+  // DOE-registered office.
   address:
     "11 Azucena, Brgy. Longos, Malabon City, National Capital Region – Third District, NCR",
 };

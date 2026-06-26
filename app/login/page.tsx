@@ -17,8 +17,11 @@ export default function LoginPage({
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-futex-gradient px-4 py-12">
-      <Link href="/" className="mb-6">
-        <Logo className="[&_span:last-child]:text-white [&_.text-futex-blue]:text-white [&_.text-futex-green]:text-white" />
+      <Link
+        href="/"
+        className="mb-6 rounded-xl bg-white px-5 py-3 shadow-sm"
+      >
+        <Logo className="h-9 w-auto" />
       </Link>
       <Card className="w-full max-w-md">
         <CardHeader>

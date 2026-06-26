@@ -65,9 +65,20 @@ export default function HomePage() {
     <>
       {/* Hero */}
       <section className="relative overflow-hidden bg-futex-gradient text-white">
-        <div className="container grid gap-8 py-20 md:grid-cols-2 md:py-28">
+        <div className="container grid gap-8 py-16 md:grid-cols-2 md:py-28">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium">
+            {/* Logo at top (matches mobile layout) */}
+            <div className="mb-6 inline-flex rounded-2xl bg-white p-4 shadow-md md:hidden">
+              <Image
+                src="/images/logo-stacked.png"
+                alt="FUTEX"
+                width={220}
+                height={158}
+                className="h-24 w-auto object-contain"
+                priority
+              />
+            </div>
+            <span className="flex w-fit items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium">
               <ShieldCheck className="h-4 w-4" /> {ACCREDITATION.title}
             </span>
             <h1 className="mt-5 text-4xl font-bold leading-tight md:text-5xl">
@@ -99,8 +110,15 @@ export default function HomePage() {
             </p>
           </div>
           <div className="hidden items-center justify-center md:flex">
-            <div className="grid h-64 w-64 place-items-center rounded-3xl bg-white/10 backdrop-blur">
-              <Zap className="h-32 w-32" fill="currentColor" />
+            <div className="rounded-3xl bg-white p-10 shadow-xl">
+              <Image
+                src="/images/logo-stacked.png"
+                alt="FUTEX — Future-Ready Power Solutions"
+                width={300}
+                height={216}
+                className="h-56 w-auto object-contain"
+                priority
+              />
             </div>
           </div>
         </div>
