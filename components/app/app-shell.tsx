@@ -20,6 +20,7 @@ import {
   TrendingUp,
   Receipt,
   ArrowLeftRight,
+  FolderOpen,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -50,6 +51,7 @@ const AREAS: Record<
       { href: "/admin/live", label: "Live Status", icon: Activity },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/admin/hr", label: "HR", icon: Users },
+      { href: "/hr/201-files", label: "201 Files", icon: FolderOpen },
       // Accounting module (admins have full access)
       { href: "/accounting/cashflow", label: "Accounting Overview", icon: ArrowLeftRight },
       { href: "/accounting", label: "Payments", icon: Wallet },
@@ -69,7 +71,10 @@ const AREAS: Record<
   },
   hr: {
     label: "Human Resources",
-    nav: [{ href: "/hr", label: "Attendance", icon: Users }],
+    nav: [
+      { href: "/hr", label: "Attendance", icon: Users },
+      { href: "/hr/201-files", label: "201 Files", icon: FolderOpen },
+    ],
   },
 };
 
