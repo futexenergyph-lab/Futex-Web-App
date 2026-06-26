@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { CsvExport } from "@/components/csv-export";
 import { MixPieChart, CategoryBarChart } from "@/components/charts";
+import { DateRangeFilter } from "@/components/accounting/date-range-filter";
 import { php, formatDate } from "@/lib/utils";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/types";
 
@@ -31,7 +32,12 @@ interface PaymentRow {
   job_orders: { final_total: number; packages: { name: string } | null } | null;
 }
 
-export default async function AccountingPage() {
+export default async function AccountingPage({
+  searchParams,
+}: {
+  searchParams: { from?: string; to?: string };
+}) {
+  const { from, to } = searchParams;
   const supabase = createClient();
   const { data } = await supabase
     .from("payments")
@@ -43,7 +49,13 @@ export default async function AccountingPage() {
     )
     .order("created_at", { ascending: false });
 
-  const payments = (data as unknown as PaymentRow[]) ?? [];
+  const eff = (p: PaymentRow) => (p.paid_at ?? p.created_at).slice(0, 10);
+  const inRange = (d: string) =>
+    (!from || d >= from) && (!to || d <= to);
+
+  const payments = ((data as unknown as PaymentRow[]) ?? []).filter((p) =>
+    inRange(eff(p)),
+  );
   const confirmed = payments.filter((p) => p.status === "confirmed");
 
   const total = confirmed.reduce((s, p) => s + Number(p.amount), 0);
@@ -83,6 +95,8 @@ export default async function AccountingPage() {
       <PageHeader title="Payments" description="All confirmed payments and breakdowns.">
         <CsvExport rows={csvRows} filename="futex-payments.csv" />
       </PageHeader>
+
+      <DateRangeFilter basePath="/accounting" from={from} to={to} />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Total received" value={php(total)} accent />
