@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { CheckCircle2 } from "lucide-react";
 import { createPublicClient } from "@/lib/supabase/public";
 import { php } from "@/lib/utils";
@@ -9,6 +10,14 @@ import type { Addon, Enclosure, Package } from "@/lib/types";
 
 export const metadata = { title: "Packages & Pricing" };
 export const revalidate = 60; // refresh pricing from DB at most once a minute
+
+// Map a promo package to its official flyer image by protection type.
+function promoFlyer(name: string): string | null {
+  const n = name.toLowerCase();
+  if (n.includes("2-way")) return "/images/promo-standard.jpg";
+  if (n.includes("3-way")) return "/images/promo-smart.jpg";
+  return null;
+}
 
 export default async function PackagesPage() {
   const supabase = createPublicClient();
@@ -51,37 +60,75 @@ export default async function PackagesPage() {
       {promos.length > 0 && (
         <section className="container py-12">
           <h2 className="text-2xl font-bold">Promo packages</h2>
-          <div className="mt-6 grid gap-6 md:grid-cols-2">
-            {promos.map((p) => (
-              <Card key={p.id} className="border-futex-green/40">
-                <CardHeader>
-                  <Badge variant="accent" className="w-fit">
-                    Promo
-                  </Badge>
-                  <CardTitle className="mt-2">{p.name}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-3xl font-bold text-futex-blue">
-                      {php(p.base_price)}
-                    </span>
-                    {p.original_price && (
-                      <span className="text-lg text-muted-foreground line-through">
-                        {php(p.original_price)}
-                      </span>
-                    )}
-                  </div>
-                  <ul className="mt-4 space-y-2">
-                    {p.inclusions.map((inc) => (
-                      <li key={inc} className="flex items-center gap-2 text-sm">
-                        <CheckCircle2 className="h-4 w-4 text-futex-green" />
-                        {inc}
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="mt-6 grid gap-8 md:grid-cols-2">
+            {promos.map((p) => {
+              const flyer = promoFlyer(p.name);
+              return (
+                <Card
+                  key={p.id}
+                  className="overflow-hidden border-futex-green/40"
+                >
+                  {flyer ? (
+                    <>
+                      <Image
+                        src={flyer}
+                        alt={p.name}
+                        width={632}
+                        height={1200}
+                        className="w-full"
+                      />
+                      <CardContent className="flex items-center justify-between gap-4 pt-6">
+                        <div>
+                          <p className="text-2xl font-bold text-futex-blue">
+                            {php(p.base_price)}
+                          </p>
+                          {p.original_price && (
+                            <p className="text-sm text-muted-foreground line-through">
+                              {php(p.original_price)}
+                            </p>
+                          )}
+                        </div>
+                        <Button asChild size="lg">
+                          <Link href="/contact#book">Book this promo</Link>
+                        </Button>
+                      </CardContent>
+                    </>
+                  ) : (
+                    <>
+                      <CardHeader>
+                        <Badge variant="accent" className="w-fit">
+                          Promo
+                        </Badge>
+                        <CardTitle className="mt-2">{p.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-baseline gap-3">
+                          <span className="text-3xl font-bold text-futex-blue">
+                            {php(p.base_price)}
+                          </span>
+                          {p.original_price && (
+                            <span className="text-lg text-muted-foreground line-through">
+                              {php(p.original_price)}
+                            </span>
+                          )}
+                        </div>
+                        <ul className="mt-4 space-y-2">
+                          {p.inclusions.map((inc) => (
+                            <li
+                              key={inc}
+                              className="flex items-center gap-2 text-sm"
+                            >
+                              <CheckCircle2 className="h-4 w-4 text-futex-green" />
+                              {inc}
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </>
+                  )}
+                </Card>
+              );
+            })}
           </div>
         </section>
       )}
