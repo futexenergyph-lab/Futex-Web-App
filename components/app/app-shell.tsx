@@ -18,6 +18,8 @@ import {
   ClipboardList,
   Wallet,
   TrendingUp,
+  Receipt,
+  ArrowLeftRight,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -52,6 +54,8 @@ const AREAS: Record<"admin" | "accounting", { label: string; nav: NavItem[] }> =
     label: "Accounting",
     nav: [
       { href: "/accounting", label: "Payments", icon: Wallet },
+      { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
+      { href: "/accounting/cashflow", label: "Cash Flow", icon: ArrowLeftRight },
       { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
     ],
   },

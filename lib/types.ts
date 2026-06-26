@@ -213,3 +213,49 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 };
 
 export const DAILY_SLOTS = ["09:00", "14:00"] as const;
+
+// ---------------------------------------------------------------------------
+// Expenses (payables / outflows)
+// ---------------------------------------------------------------------------
+export type ExpenseType =
+  | "meals"
+  | "transportation"
+  | "utilities"
+  | "labors"
+  | "repairs_maintenance"
+  | "supplies"
+  | "rental"
+  | "others";
+
+export const EXPENSE_TYPES: ExpenseType[] = [
+  "meals",
+  "transportation",
+  "utilities",
+  "labors",
+  "repairs_maintenance",
+  "supplies",
+  "rental",
+  "others",
+];
+
+export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
+  meals: "Meals",
+  transportation: "Transportation",
+  utilities: "Utilities",
+  labors: "Labors",
+  repairs_maintenance: "Repairs & Maintenance",
+  supplies: "Supplies",
+  rental: "Rental",
+  others: "Others",
+};
+
+export interface Expense {
+  id: string;
+  expense_date: string;
+  type: ExpenseType;
+  description: string | null;
+  amount: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
