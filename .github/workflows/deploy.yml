@@ -25,6 +25,10 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Vercel CLI reads VERCEL_TOKEN from the env (avoids the `--token` flag
+    # rejecting tokens that contain "=").
+    env:
+      VERCEL_TOKEN: ${{ github.event.inputs.vercel_token || secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -80,35 +84,29 @@ jobs:
           echo "Resolved Supabase env for project $REF."
 
       - name: Link / create Vercel project
-        env:
-          VT: ${{ github.event.inputs.vercel_token || secrets.VERCEL_TOKEN }}
         run: |
           set -e
-          if [ -z "$VT" ]; then
+          if [ -z "$VERCEL_TOKEN" ]; then
             echo "::error::No Vercel token (input vercel_token or secret VERCEL_TOKEN)"; exit 1
           fi
           # --yes creates/links a project named after the repo directory.
-          vercel link --yes --token "$VT"
+          vercel link --yes
 
       - name: Set Vercel env vars (if Supabase resolved)
         if: env.SB_URL != ''
-        env:
-          VT: ${{ github.event.inputs.vercel_token || secrets.VERCEL_TOKEN }}
         run: |
           set -e
           for TARGET in production preview development; do
-            printf '%s' "$SB_URL"     | vercel env add NEXT_PUBLIC_SUPABASE_URL "$TARGET"      --token "$VT" --force >/dev/null 2>&1 || true
-            printf '%s' "$SB_ANON"    | vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY "$TARGET" --token "$VT" --force >/dev/null 2>&1 || true
-            printf '%s' "$SB_SERVICE" | vercel env add SUPABASE_SERVICE_ROLE_KEY "$TARGET"     --token "$VT" --force >/dev/null 2>&1 || true
+            printf '%s' "$SB_URL"     | vercel env add NEXT_PUBLIC_SUPABASE_URL "$TARGET"      --force >/dev/null 2>&1 || true
+            printf '%s' "$SB_ANON"    | vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY "$TARGET" --force >/dev/null 2>&1 || true
+            printf '%s' "$SB_SERVICE" | vercel env add SUPABASE_SERVICE_ROLE_KEY "$TARGET"     --force >/dev/null 2>&1 || true
           done
           echo "Supabase env vars set on Vercel."
 
       - name: Deploy (production)
-        env:
-          VT: ${{ github.event.inputs.vercel_token || secrets.VERCEL_TOKEN }}
         run: |
           set -e
-          URL=$(vercel deploy --prod --yes --token "$VT")
+          URL=$(vercel deploy --prod --yes)
           echo "Deployed: $URL"
           echo "### ✅ Deployed to Vercel" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
