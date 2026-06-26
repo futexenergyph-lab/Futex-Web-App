@@ -46,7 +46,13 @@ export function SiteFooter() {
               </a>
             </li>
             <li className="flex items-start gap-2">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0" /> {COMPANY.address}
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                <span className="block font-medium text-foreground">
+                  Main Office &amp; Showroom
+                </span>
+                {COMPANY.mainOffice}
+              </span>
             </li>
           </ul>
         </div>

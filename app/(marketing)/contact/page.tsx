@@ -61,7 +61,17 @@ export default async function ContactPage() {
               </a>
               <div className="flex items-start gap-3">
                 <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-futex-blue" />
-                <span className="text-muted-foreground">{COMPANY.address}</span>
+                <div>
+                  <p className="font-medium">Main Office &amp; Showroom</p>
+                  <p className="text-muted-foreground">{COMPANY.mainOffice}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Registered Office</p>
+                  <p className="text-muted-foreground">{COMPANY.address}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
