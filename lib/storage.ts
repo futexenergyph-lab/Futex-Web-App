@@ -25,6 +25,23 @@ export async function uploadToBucket(
   return path;
 }
 
+/**
+ * Upload an image into the public `pricing` bucket and return its public URL.
+ * Used for admin-managed pricing photos shown on the marketing site.
+ */
+export async function uploadPricingImage(file: File): Promise<string> {
+  const supabase = createClient();
+  const ext = file.name.split(".").pop() ?? "jpg";
+  const path = `${Date.now()}-${Math.round(Math.random() * 1e6)}.${ext}`;
+  const { error } = await supabase.storage.from("pricing").upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from("pricing").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 /** Create a short-lived signed URL for a private object. */
 export async function signedUrl(
   bucket: string,

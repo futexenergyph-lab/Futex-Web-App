@@ -23,6 +23,7 @@ export async function upsertPackage(input: {
   is_promo: boolean;
   original_price: number | null;
   active: boolean;
+  image_url?: string | null;
 }) {
   await requireRole(["admin"]);
   const supabase = createClient();
@@ -41,6 +42,7 @@ export async function upsertEnclosure(input: {
   name: string;
   price: number;
   active: boolean;
+  image_url?: string | null;
 }) {
   await requireRole(["admin"]);
   const supabase = createClient();
@@ -59,6 +61,7 @@ export async function upsertAddon(input: {
   name: string;
   price: number;
   active: boolean;
+  image_url?: string | null;
 }) {
   await requireRole(["admin"]);
   const supabase = createClient();

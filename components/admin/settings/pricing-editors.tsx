@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Pencil, GripVertical } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Pencil,
+  GripVertical,
+  ImagePlus,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
+import { uploadPricingImage } from "@/lib/storage";
 import {
   DndContext,
   closestCenter,
@@ -140,6 +148,82 @@ function SortableList<T extends { id: string }>({
 }
 
 // ---------------------------------------------------------------------------
+// Image upload (admin-managed photo shown on the public pricing page)
+// ---------------------------------------------------------------------------
+function ImageUploadField({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (url: string | null) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const ref = useRef<HTMLInputElement>(null);
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadPricingImage(file);
+      onChange(url);
+      toast.success("Photo uploaded");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (ref.current) ref.current.value = "";
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label>Photo (shown on the pricing page)</Label>
+      {value && (
+        <div className="relative w-fit">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={value}
+            alt="Pricing"
+            className="h-28 w-44 rounded-md border object-cover"
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="destructive"
+            className="absolute -right-2 -top-2 h-6 w-6"
+            onClick={() => onChange(null)}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
+      <input
+        ref={ref}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onPick}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => ref.current?.click()}
+        disabled={uploading}
+      >
+        {uploading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <ImagePlus className="h-4 w-4" />
+        )}
+        {value ? "Replace photo" : "Upload photo"}
+      </Button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Simple item (enclosure / addon)
 // ---------------------------------------------------------------------------
 type SimpleKind = "enclosure" | "addon";
@@ -189,6 +273,9 @@ function SimpleItemDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
+  const [imageUrl, setImageUrl] = useState<string | null>(
+    item?.image_url ?? null,
+  );
   const router = useRouter();
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -199,6 +286,7 @@ function SimpleItemDialog({
       name: String(f.get("name")),
       price: Number(f.get("price")),
       active: f.get("active") === "on",
+      image_url: imageUrl,
     };
     start(async () => {
       const res =
@@ -250,6 +338,7 @@ function SimpleItemDialog({
               required
             />
           </div>
+          <ImageUploadField value={imageUrl} onChange={setImageUrl} />
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -317,6 +406,9 @@ export function PackageList({ packages }: { packages: Package[] }) {
 function PackageDialog({ pkg }: { pkg?: Package }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
+  const [imageUrl, setImageUrl] = useState<string | null>(
+    pkg?.image_url ?? null,
+  );
   const router = useRouter();
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -337,6 +429,7 @@ function PackageDialog({ pkg }: { pkg?: Package }) {
         is_promo: f.get("is_promo") === "on",
         original_price: origRaw ? Number(origRaw) : null,
         active: f.get("active") === "on",
+        image_url: imageUrl,
       });
       if (res?.error) toast.error(res.error);
       else {
@@ -408,6 +501,7 @@ function PackageDialog({ pkg }: { pkg?: Package }) {
               />
             </div>
           </div>
+          <ImageUploadField value={imageUrl} onChange={setImageUrl} />
           <div className="space-y-2 text-sm">
             <label className="flex items-center gap-2">
               <input
