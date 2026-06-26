@@ -1,0 +1,58 @@
+name: DB Check
+
+# Diagnostic: inspects the Supabase schema and runs the exact queries the
+# dashboard uses, printing results so we can see what's failing.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Inspect
+        run: |
+          set +e
+          REF="$REF_IN"
+          if [ -z "$REF" ]; then
+            REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
+          fi
+          echo "project ref: $REF"
+          URL="https://$REF.supabase.co"
+          SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
+
+          echo "============================================================"
+          echo "1) Tables exposed by PostgREST:"
+          curl -s "$URL/rest/v1/" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+            | jq -r '(.definitions // {}) | keys[]' 2>/dev/null | sort | tr '\n' ' '
+          echo
+
+          echo "============================================================"
+          echo "2) profiles row count + sample:"
+          curl -s "$URL/rest/v1/profiles?select=id,full_name,role,active&limit=5" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
+          echo
+
+          echo "============================================================"
+          echo "3) bookings simple select (HTTP + body):"
+          curl -s -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings?select=*&limit=1" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
+          echo
+
+          echo "============================================================"
+          echo "4) bookings EMBED select (the dashboard query):"
+          SEL='*,preferred_package:packages!bookings_preferred_package_id_fkey(id,name,base_price),preferred_enclosure:enclosures!bookings_preferred_enclosure_id_fkey(id,name,price),assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(id,full_name),assigned_installer:profiles!bookings_assigned_installer_id_fkey(id,full_name)'
+          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings" \
+            --data-urlencode "select=$SEL" --data-urlencode "limit=1" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1200
+          echo
+
+          echo "============================================================"
+          echo "5) packages / enclosures counts:"
+          for t in packages enclosures addons settings job_orders payments; do
+            C=$(curl -s -w '%{http_code}' -o /tmp/b "$URL/rest/v1/$t?select=*&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE")
+            echo "  $t -> HTTP $C  $(head -c 120 /tmp/b)"
+          done
