@@ -1,0 +1,264 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, Plus, Trash2, Lock } from "lucide-react";
+import { toast } from "sonner";
+import { submitJobOrder } from "@/app/(app)/field/actions";
+import { computePricing } from "@/lib/pricing";
+import { PricingBreakdown } from "@/components/pricing-breakdown";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { php } from "@/lib/utils";
+import type {
+  Enclosure,
+  JobOrder,
+  JobWork,
+  Package,
+} from "@/lib/types";
+
+export function JobOrderForm({
+  bookingId,
+  packages,
+  enclosures,
+  wireRate,
+  existing,
+  defaults,
+}: {
+  bookingId: string;
+  packages: Package[];
+  enclosures: Enclosure[];
+  wireRate: number;
+  existing: JobOrder | null;
+  defaults: { packageId: string | null; enclosureId: string | null };
+}) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+
+  const [packageId, setPackageId] = useState(
+    existing?.package_id ?? defaults.packageId ?? packages[0]?.id ?? "",
+  );
+  const [enclosureId, setEnclosureId] = useState(
+    existing?.enclosure_id ?? defaults.enclosureId ?? "",
+  );
+  const [addSeparateEnclosure, setAddSeparate] = useState(
+    existing?.add_separate_enclosure ?? false,
+  );
+  const [wireMeters, setWireMeters] = useState(
+    String(existing?.additional_wire_meters ?? 0),
+  );
+  const [jobWorks, setJobWorks] = useState<JobWork[]>(
+    existing?.additional_job_works ?? [],
+  );
+  const [notes, setNotes] = useState(existing?.notes ?? "");
+
+  const pkg = packages.find((p) => p.id === packageId) ?? null;
+  const enc = enclosures.find((e) => e.id === enclosureId) ?? null;
+  const bundled = pkg?.enclosure_included ?? false;
+
+  const pricing = useMemo(
+    () =>
+      computePricing({
+        pkg,
+        enclosure: enc,
+        addSeparateEnclosure,
+        additionalWireMeters: Number(wireMeters) || 0,
+        wireRatePerMeter: wireRate,
+        additionalJobWorks: jobWorks,
+      }),
+    [pkg, enc, addSeparateEnclosure, wireMeters, jobWorks, wireRate],
+  );
+
+  const locked = existing?.status === "locked" || existing?.status === "submitted";
+
+  function addWork() {
+    setJobWorks((w) => [...w, { description: "", amount: 0 }]);
+  }
+  function updateWork(i: number, patch: Partial<JobWork>) {
+    setJobWorks((w) => w.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
+  }
+  function removeWork(i: number) {
+    setJobWorks((w) => w.filter((_, idx) => idx !== i));
+  }
+
+  async function onSubmit() {
+    if (!packageId) {
+      toast.error("Select a package");
+      return;
+    }
+    setPending(true);
+    try {
+      const res = await submitJobOrder({
+        bookingId,
+        packageId,
+        enclosureId: enclosureId || null,
+        addSeparateEnclosure,
+        additionalWireMeters: Number(wireMeters) || 0,
+        additionalJobWorks: jobWorks.filter((w) => w.description.trim()),
+        notes,
+      });
+      if (res?.error) throw new Error(res.error);
+      toast.success(`Job order locked · ${php(res.finalTotal ?? 0)}`);
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (locked && existing) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 rounded-md bg-secondary p-3 text-sm">
+          <Lock className="h-4 w-4" />
+          Job order submitted &amp; locked.
+        </div>
+        <div className="rounded-lg border p-4">
+          <PricingBreakdown
+            pricing={computePricing({
+              pkg,
+              enclosure: enc,
+              addSeparateEnclosure: existing.add_separate_enclosure,
+              additionalWireMeters: existing.additional_wire_meters,
+              wireRatePerMeter: existing.wire_rate_per_meter,
+              additionalJobWorks: existing.additional_job_works,
+            })}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="package">Package</Label>
+          <select
+            id="package"
+            value={packageId}
+            onChange={(e) => setPackageId(e.target.value)}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            {packages.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} — {php(p.base_price)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="enclosure">Enclosure</Label>
+          <select
+            id="enclosure"
+            value={enclosureId}
+            onChange={(e) => setEnclosureId(e.target.value)}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">None</option>
+            {enclosures.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name} — {php(e.price)}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {bundled ? (
+        <p className="rounded-md bg-accent/10 px-3 py-2 text-xs text-accent-foreground">
+          This package already includes an enclosure — it won&apos;t be charged
+          separately.
+        </p>
+      ) : (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={addSeparateEnclosure}
+            onChange={(e) => setAddSeparate(e.target.checked)}
+            className="h-4 w-4"
+            disabled={!enclosureId}
+          />
+          Charge selected enclosure as a separate line item
+        </label>
+      )}
+
+      <div className="space-y-2">
+        <Label htmlFor="wire">Additional wire (linear meters)</Label>
+        <Input
+          id="wire"
+          type="number"
+          min={0}
+          step="0.1"
+          value={wireMeters}
+          onChange={(e) => setWireMeters(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          Charged at {php(wireRate)} per meter.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label>Additional job works</Label>
+          <Button type="button" size="sm" variant="outline" onClick={addWork}>
+            <Plus className="h-4 w-4" /> Add
+          </Button>
+        </div>
+        {jobWorks.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            Add any on-site assessed work (description + amount).
+          </p>
+        )}
+        {jobWorks.map((w, i) => (
+          <div key={i} className="flex gap-2">
+            <Input
+              placeholder="Description"
+              value={w.description}
+              onChange={(e) => updateWork(i, { description: e.target.value })}
+            />
+            <Input
+              type="number"
+              min={0}
+              placeholder="₱"
+              className="w-28"
+              value={w.amount}
+              onChange={(e) =>
+                updateWork(i, { amount: Number(e.target.value) || 0 })
+              }
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={() => removeWork(i)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="jo-notes">Notes</Label>
+        <Textarea
+          id="jo-notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+      </div>
+
+      <div className="rounded-lg border bg-secondary/30 p-4">
+        <PricingBreakdown pricing={pricing} />
+      </div>
+
+      <Button onClick={onSubmit} disabled={pending} className="w-full" size="lg">
+        {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+        Submit &amp; lock job order
+      </Button>
+    </div>
+  );
+}

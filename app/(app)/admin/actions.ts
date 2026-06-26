@@ -1,0 +1,79 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth";
+import type { BookingStatus } from "@/lib/types";
+
+export async function updateBookingStatus(
+  bookingId: string,
+  status: BookingStatus,
+) {
+  await requireRole(["admin"]);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("bookings")
+    .update({ status })
+    .eq("id", bookingId);
+  if (error) return { error: error.message };
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+export async function deployBooking(input: {
+  bookingId: string;
+  fieldOfficerId: string | null;
+  installerId: string | null;
+  preferredDate: string | null;
+  preferredTime: string | null;
+}) {
+  await requireRole(["admin"]);
+  const supabase = createClient();
+
+  const update: Record<string, unknown> = {
+    assigned_field_officer_id: input.fieldOfficerId || null,
+    assigned_installer_id: input.installerId || null,
+    preferred_date: input.preferredDate || null,
+    preferred_time: input.preferredTime || null,
+  };
+
+  // Assigning an officer moves a new booking forward and stamps deployment.
+  if (input.fieldOfficerId || input.installerId) {
+    update.status = "deployed";
+    update.deployed_at = new Date().toISOString();
+  }
+
+  const { error } = await supabase
+    .from("bookings")
+    .update(update)
+    .eq("id", input.bookingId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/deployment");
+  revalidatePath("/admin/utilization");
+  return { ok: true };
+}
+
+export async function createManualBooking(input: {
+  client_name: string;
+  address: string;
+  contact_number: string;
+  preferred_date: string | null;
+  preferred_time: string | null;
+  preferred_package_id: string | null;
+  preferred_enclosure_id: string | null;
+  notes: string | null;
+}) {
+  const profile = await requireRole(["admin"]);
+  const supabase = createClient();
+  const { error } = await supabase.from("bookings").insert({
+    ...input,
+    source: "manual",
+    status: "new",
+    created_by: profile.id,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/admin");
+  return { ok: true };
+}

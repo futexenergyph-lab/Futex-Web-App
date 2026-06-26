@@ -1,0 +1,26 @@
+# Supabase project config. The linked production project ref is set in the
+# Supabase Dashboard (Integrations -> GitHub); `project_id` here is just a
+# local identifier used by the CLI.
+project_id = "futex-web-app"
+
+[db]
+# Postgres major version used for local dev (`supabase start`).
+major_version = 15
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[auth]
+# Allow email/password sign-in for staff accounts.
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
+[storage]
+enabled = true
+
+[realtime]
+enabled = true

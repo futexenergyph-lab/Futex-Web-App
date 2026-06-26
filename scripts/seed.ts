@@ -84,7 +84,7 @@ async function main() {
   const enc1 = encs?.find((e) => e.name === "Standard Glass")?.id ?? encs?.[0]?.id ?? null;
 
   // Sample bookings spanning a few Kanban stages.
-  const sampleBookings = [
+  const sampleBookings: Record<string, unknown>[] = [
     {
       client_name: "Juan Dela Cruz",
       address: "12 Mabini St, Quezon City",
