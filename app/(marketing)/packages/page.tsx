@@ -72,7 +72,7 @@ export default async function PackagesPage() {
           <h2 className="text-2xl font-bold">Promo packages</h2>
           <div className="mt-6 grid gap-8 md:grid-cols-2">
             {promos.map((p) => {
-              const flyer = promoFlyer(p.name);
+              const flyer = p.image_url || promoFlyer(p.name);
               return (
                 <Card
                   key={p.id}
@@ -80,13 +80,8 @@ export default async function PackagesPage() {
                 >
                   {flyer ? (
                     <>
-                      <Image
-                        src={flyer}
-                        alt={p.name}
-                        width={632}
-                        height={1200}
-                        className="w-full"
-                      />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={flyer} alt={p.name} className="w-full" />
                       <CardContent className="flex items-center justify-between gap-4 pt-6">
                         <div>
                           <p className="text-2xl font-bold text-futex-blue">
@@ -147,18 +142,13 @@ export default async function PackagesPage() {
         <h2 className="text-2xl font-bold">Installation packages</h2>
         <div className="mt-6 grid gap-8 md:grid-cols-2">
           {standard.map((p) => {
-            const flyer = packageFlyer(p.name);
+            const flyer = p.image_url || packageFlyer(p.name);
             return (
               <Card key={p.id} className="flex flex-col overflow-hidden">
                 {flyer ? (
                   <>
-                    <Image
-                      src={flyer}
-                      alt={p.name}
-                      width={1000}
-                      height={700}
-                      className="w-full"
-                    />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={flyer} alt={p.name} className="w-full" />
                     <CardContent className="flex items-center justify-between gap-4 pt-6">
                       <div>
                         <p className="font-semibold">{p.name}</p>
@@ -226,7 +216,17 @@ export default async function PackagesPage() {
                   key={e.id}
                   className="flex items-center justify-between rounded-lg border bg-background p-4"
                 >
-                  <span className="text-sm font-medium">{e.name}</span>
+                  <span className="flex items-center gap-3 text-sm font-medium">
+                    {e.image_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={e.image_url}
+                        alt={e.name}
+                        className="h-12 w-12 rounded-md border object-cover"
+                      />
+                    )}
+                    {e.name}
+                  </span>
                   <span className="font-semibold text-futex-blue">
                     {php(e.price)}
                   </span>
@@ -245,7 +245,17 @@ export default async function PackagesPage() {
                 key={a.id}
                 className="flex items-center justify-between rounded-lg border bg-background p-4"
               >
-                <span className="text-sm font-medium">{a.name}</span>
+                <span className="flex items-center gap-3 text-sm font-medium">
+                  {a.image_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={a.image_url}
+                      alt={a.name}
+                      className="h-12 w-12 rounded-md border object-cover"
+                    />
+                  )}
+                  {a.name}
+                </span>
                 <span className="font-semibold text-futex-blue">
                   {php(a.price)}
                 </span>

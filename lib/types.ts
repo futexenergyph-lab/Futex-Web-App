@@ -38,6 +38,7 @@ export interface Package {
   enclosure_included: boolean;
   is_promo: boolean;
   original_price: number | null;
+  image_url: string | null;
   sort_order: number;
   active: boolean;
   created_at: string;
@@ -49,6 +50,7 @@ export interface Enclosure {
   name: string;
   description: string | null;
   price: number;
+  image_url: string | null;
   sort_order: number;
   active: boolean;
   created_at: string;
@@ -60,6 +62,7 @@ export interface Addon {
   name: string;
   description: string | null;
   price: number;
+  image_url: string | null;
   sort_order: number;
   active: boolean;
   created_at: string;
