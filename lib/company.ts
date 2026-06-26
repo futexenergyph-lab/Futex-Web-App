@@ -8,10 +8,12 @@ export const COMPANY = {
   shortName: "FUTEX Energy Solution",
   tagline: "Future-Ready Power Solutions",
   closingLine: "Powering a Sustainable Future.",
-  phones: ["0961-449-6825", "0968-477-2475"],
+  phones: ["0961-449-6825", "0968-477-2475", "0954-361-4493"],
   facebook: "https://facebook.com/futexenergyph",
   facebookHandle: "facebook.com/futexenergyph",
   facebookName: "FUTEX Energy Solutions",
+  messenger: "https://msng.link/o?Futexenergyph=fm",
+  messengerName: "Futex Facebook Messenger",
   // Main office & showroom (walk-in).
   mainOffice: "2246 Dimasalang St., Sampaloc, Manila — Unit 01",
   // DOE-registered office.

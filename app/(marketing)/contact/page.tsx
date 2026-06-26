@@ -1,4 +1,4 @@
-import { Facebook, Phone, MapPin } from "lucide-react";
+import { Facebook, Phone, MapPin, MessageCircle } from "lucide-react";
 import { createPublicClient } from "@/lib/supabase/public";
 import { BookingForm } from "@/components/marketing/booking-form";
 import { Card, CardContent } from "@/components/ui/card";
@@ -58,6 +58,15 @@ export default async function ContactPage() {
               >
                 <Facebook className="h-5 w-5 text-futex-blue" />
                 <span className="font-medium">{COMPANY.facebookHandle}</span>
+              </a>
+              <a
+                href={COMPANY.messenger}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-3 hover:text-futex-blue"
+              >
+                <MessageCircle className="h-5 w-5 text-futex-blue" />
+                <span className="font-medium">{COMPANY.messengerName}</span>
               </a>
               <div className="flex items-start gap-3">
                 <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-futex-blue" />
