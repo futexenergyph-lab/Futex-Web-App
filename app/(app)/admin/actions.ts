@@ -43,6 +43,39 @@ export async function approveJobOrderChange(input: {
   return { ok: true };
 }
 
+/**
+ * Edit the client-submitted booking details (management/admin only).
+ */
+export async function updateBooking(input: {
+  id: string;
+  client_name: string;
+  address: string;
+  contact_number: string;
+  preferred_date: string | null;
+  preferred_time: string | null;
+  preferred_package_id: string | null;
+  preferred_enclosure_id: string | null;
+  enclosure_protection_notes: string | null;
+  notes: string | null;
+}) {
+  await requireRole(["admin"]);
+  const supabase = createClient();
+  const { id, ...fields } = input;
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      ...fields,
+      preferred_date: fields.preferred_date || null,
+      preferred_time: fields.preferred_time || null,
+      preferred_package_id: fields.preferred_package_id || null,
+      preferred_enclosure_id: fields.preferred_enclosure_id || null,
+    })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
 export async function deployBooking(input: {
   bookingId: string;
   fieldOfficerId: string | null;

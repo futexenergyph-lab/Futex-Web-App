@@ -11,6 +11,7 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
   completed: "bg-emerald-100 text-emerald-800",
   paid: "bg-green-600 text-white",
   closed: "bg-slate-700 text-white",
+  declined: "bg-red-100 text-red-800",
 };
 
 export function StatusBadge({

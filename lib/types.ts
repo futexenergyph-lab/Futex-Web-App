@@ -10,7 +10,8 @@ export type BookingStatus =
   | "in_progress"
   | "completed"
   | "paid"
-  | "closed";
+  | "closed"
+  | "declined";
 
 export type BookingSource = "manual" | "web";
 export type AttendanceType = "time_in" | "time_out";
@@ -204,6 +205,7 @@ export const BOOKING_STATUSES: BookingStatus[] = [
   "completed",
   "paid",
   "closed",
+  "declined",
 ];
 
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
@@ -215,6 +217,7 @@ export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   completed: "Completed",
   paid: "Paid",
   closed: "Closed",
+  declined: "Declined",
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {

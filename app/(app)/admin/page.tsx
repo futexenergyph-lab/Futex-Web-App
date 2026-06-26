@@ -26,7 +26,11 @@ export default async function AdminBookingsPage() {
           enclosures={enclosures ?? []}
         />
       </PageHeader>
-      <KanbanBoard initial={bookings} />
+      <KanbanBoard
+        initial={bookings}
+        packages={packages ?? []}
+        enclosures={enclosures ?? []}
+      />
     </div>
   );
 }

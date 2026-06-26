@@ -14,12 +14,22 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { toast } from "sonner";
-import { MapPin, User, Calendar, Loader2, Unlock } from "lucide-react";
+import {
+  MapPin,
+  User,
+  Calendar,
+  Loader2,
+  Unlock,
+  Check,
+  X,
+  RotateCcw,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
   updateBookingStatus,
   approveJobOrderChange,
 } from "@/app/(app)/admin/actions";
+import { EditBookingDialog } from "@/components/admin/edit-booking-dialog";
 import { StatusBadge } from "@/components/status-badge";
 import { cn, formatDate, php } from "@/lib/utils";
 import {
@@ -29,12 +39,38 @@ import {
   type BookingWithRelations,
 } from "@/lib/types";
 
-function BookingCard({ booking }: { booking: BookingWithRelations }) {
+interface Option {
+  id: string;
+  name: string;
+}
+
+function BookingCard({
+  booking,
+  packages,
+  enclosures,
+}: {
+  booking: BookingWithRelations;
+  packages: Option[];
+  enclosures: Option[];
+}) {
   const router = useRouter();
   const [approving, setApproving] = useState(false);
+  const [busy, setBusy] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: booking.id,
   });
+
+  async function setStatus(status: BookingStatus, msg: string) {
+    setBusy(true);
+    const res = await updateBookingStatus(booking.id, status);
+    setBusy(false);
+    if (res?.error) {
+      toast.error(res.error);
+    } else {
+      toast.success(msg);
+      router.refresh();
+    }
+  }
 
   // A pending change request = a job order the officer asked to unlock that
   // management hasn't approved yet.
@@ -129,6 +165,48 @@ function BookingCard({ booking }: { booking: BookingWithRelations }) {
           </button>
         </div>
       )}
+
+      {/* Management actions — stop pointer events from starting a card drag. */}
+      <div
+        onPointerDown={(e) => e.stopPropagation()}
+        className="mt-2 flex flex-wrap items-center gap-1.5 border-t pt-2"
+      >
+        <EditBookingDialog
+          booking={booking}
+          packages={packages}
+          enclosures={enclosures}
+        />
+        {booking.status === "new" && (
+          <>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setStatus("scheduled", "Booking accepted")}
+              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              <Check className="h-3 w-3" /> Accept
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setStatus("declined", "Booking declined")}
+              className="inline-flex items-center gap-1 rounded-md bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+            >
+              <X className="h-3 w-3" /> Decline
+            </button>
+          </>
+        )}
+        {booking.status === "declined" && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setStatus("new", "Booking restored")}
+            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium hover:bg-secondary disabled:opacity-60"
+          >
+            <RotateCcw className="h-3 w-3" /> Restore
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -136,15 +214,25 @@ function BookingCard({ booking }: { booking: BookingWithRelations }) {
 function Column({
   status,
   bookings,
+  packages,
+  enclosures,
 }: {
   status: BookingStatus;
   bookings: BookingWithRelations[];
+  packages: Option[];
+  enclosures: Option[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  const declined = status === "declined";
   return (
     <div className="flex w-72 shrink-0 flex-col">
       <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-sm font-semibold">
+        <span
+          className={cn(
+            "text-sm font-semibold",
+            declined && "text-red-700",
+          )}
+        >
           {BOOKING_STATUS_LABELS[status]}
         </span>
         <span className="rounded-full bg-secondary px-2 text-xs text-muted-foreground">
@@ -155,11 +243,17 @@ function Column({
         ref={setNodeRef}
         className={cn(
           "flex min-h-[60vh] flex-1 flex-col gap-2 rounded-lg bg-secondary/50 p-2 transition-colors",
+          declined && "bg-red-50/70",
           isOver && "bg-primary/10 ring-2 ring-primary/40",
         )}
       >
         {bookings.map((b) => (
-          <BookingCard key={b.id} booking={b} />
+          <BookingCard
+            key={b.id}
+            booking={b}
+            packages={packages}
+            enclosures={enclosures}
+          />
         ))}
       </div>
     </div>
@@ -168,8 +262,12 @@ function Column({
 
 export function KanbanBoard({
   initial,
+  packages,
+  enclosures,
 }: {
   initial: BookingWithRelations[];
+  packages: Option[];
+  enclosures: Option[];
 }) {
   const router = useRouter();
   const [items, setItems] = useState(initial);
@@ -242,6 +340,8 @@ export function KanbanBoard({
             key={status}
             status={status}
             bookings={items.filter((b) => b.status === status)}
+            packages={packages}
+            enclosures={enclosures}
           />
         ))}
       </div>
