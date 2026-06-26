@@ -1,11 +1,5 @@
-import { Wallet, TrendingUp } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { AppShell, type NavItem } from "@/components/app/app-shell";
-
-const nav: NavItem[] = [
-  { href: "/accounting", label: "Payments", icon: Wallet },
-  { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
-];
+import { AppShell } from "@/components/app/app-shell";
 
 export default async function AccountingLayout({
   children,
@@ -15,7 +9,7 @@ export default async function AccountingLayout({
   // Admin can also view accounting.
   const profile = await requireRole(["accounting", "admin"]);
   return (
-    <AppShell profile={profile} nav={nav} areaLabel="Accounting">
+    <AppShell profile={profile} area="accounting">
       {children}
     </AppShell>
   );

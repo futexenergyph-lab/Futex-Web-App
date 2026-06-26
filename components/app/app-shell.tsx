@@ -3,31 +3,79 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, LogOut, type LucideIcon } from "lucide-react";
+import {
+  Menu,
+  X,
+  LogOut,
+  LayoutDashboard,
+  Truck,
+  Activity,
+  Users,
+  Settings,
+  BarChart3,
+  CalendarClock,
+  Clock,
+  ClipboardList,
+  Wallet,
+  TrendingUp,
+  type LucideIcon,
+} from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ROLE_LABELS, type Profile } from "@/lib/types";
 
-export interface NavItem {
+interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
 }
 
+export type AppArea = "admin" | "field" | "accounting";
+
+// Nav config lives here (client) so icon components never cross the
+// Server -> Client Component boundary (functions aren't serializable).
+const AREAS: Record<AppArea, { label: string; nav: NavItem[] }> = {
+  admin: {
+    label: "Management",
+    nav: [
+      { href: "/admin", label: "Bookings Kanban", icon: LayoutDashboard },
+      { href: "/admin/deployment", label: "Deployment", icon: Truck },
+      { href: "/admin/utilization", label: "Utilization", icon: CalendarClock },
+      { href: "/admin/live", label: "Live Status", icon: Activity },
+      { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/admin/hr", label: "HR", icon: Users },
+      { href: "/admin/settings", label: "Settings", icon: Settings },
+    ],
+  },
+  field: {
+    label: "Field Operations",
+    nav: [
+      { href: "/field", label: "My Jobs", icon: ClipboardList },
+      { href: "/field/attendance", label: "Time In / Out", icon: Clock },
+    ],
+  },
+  accounting: {
+    label: "Accounting",
+    nav: [
+      { href: "/accounting", label: "Payments", icon: Wallet },
+      { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
+    ],
+  },
+};
+
 export function AppShell({
   profile,
-  nav,
-  areaLabel,
+  area,
   children,
 }: {
   profile: Pick<Profile, "full_name" | "role">;
-  nav: NavItem[];
-  areaLabel: string;
+  area: AppArea;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const { label: areaLabel, nav } = AREAS[area];
 
   const NavLinks = () => (
     <nav className="flex flex-1 flex-col gap-1 px-3">
