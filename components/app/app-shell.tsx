@@ -21,6 +21,7 @@ import {
   Receipt,
   ArrowLeftRight,
   FolderOpen,
+  Contact,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -46,6 +47,7 @@ const AREAS: Record<
     label: "Management",
     nav: [
       { href: "/admin", label: "Bookings Kanban", icon: LayoutDashboard },
+      { href: "/admin/clients", label: "Client Master List", icon: Contact },
       { href: "/admin/deployment", label: "Deployment", icon: Truck },
       { href: "/admin/utilization", label: "Utilization", icon: CalendarClock },
       { href: "/admin/live", label: "Live Status", icon: Activity },

@@ -59,6 +59,15 @@ export function BookingForm({
           <Input id="client_name" name="client_name" required />
         </div>
         <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="you@example.com"
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="address">Installation address *</Label>
           <Input id="address" name="address" required />
         </div>

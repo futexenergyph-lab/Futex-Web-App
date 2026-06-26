@@ -91,7 +91,9 @@ export interface Setting {
 
 export interface Booking {
   id: string;
+  client_number: string | null;
   client_name: string;
+  email: string | null;
   address: string;
   contact_number: string;
   preferred_date: string | null;
