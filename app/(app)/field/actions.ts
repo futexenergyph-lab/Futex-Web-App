@@ -49,6 +49,67 @@ export async function recordAttendance(input: {
   return { ok: true };
 }
 
+// ---- Installer-specific actions ----------------------------------------
+
+export async function confirmDeployment(bookingId: string) {
+  const profile = await me();
+  await assertAssigned(bookingId, profile.id);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      installer_confirmed_at: new Date().toISOString(),
+      installer_declined_at: null,
+    })
+    .eq("id", bookingId);
+  if (error) return { error: error.message };
+  revalidatePath(`/field/bookings/${bookingId}`);
+  revalidatePath("/field");
+  return { ok: true };
+}
+
+export async function declineDeployment(bookingId: string, reason: string) {
+  const profile = await me();
+  await assertAssigned(bookingId, profile.id);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      installer_declined_at: new Date().toISOString(),
+      installer_confirmed_at: null,
+    })
+    .eq("id", bookingId);
+  if (error) return { error: error.message };
+  // Leave a note for management.
+  await supabase.from("job_updates").insert({
+    booking_id: bookingId,
+    user_id: profile.id,
+    message: `Installer declined the deployment${reason ? `: ${reason}` : "."}`,
+    photo_urls: [],
+  });
+  revalidatePath(`/field/bookings/${bookingId}`);
+  revalidatePath("/field");
+  return { ok: true };
+}
+
+export async function markInstallationDone(bookingId: string) {
+  const profile = await me();
+  await assertAssigned(bookingId, profile.id);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      installation_done_at: new Date().toISOString(),
+      status: "completed",
+    })
+    .eq("id", bookingId);
+  if (error) return { error: error.message };
+  revalidatePath(`/field/bookings/${bookingId}`);
+  revalidatePath("/field");
+  revalidatePath("/field/customers");
+  return { ok: true };
+}
+
 export async function setBookingStatusByField(
   bookingId: string,
   status: BookingStatus,

@@ -35,7 +35,7 @@ export type AppArea = "admin" | "field" | "accounting";
 
 // Nav config lives here (client) so icon components never cross the
 // Server -> Client Component boundary (functions aren't serializable).
-const AREAS: Record<AppArea, { label: string; nav: NavItem[] }> = {
+const AREAS: Record<"admin" | "accounting", { label: string; nav: NavItem[] }> = {
   admin: {
     label: "Management",
     nav: [
@@ -46,13 +46,6 @@ const AREAS: Record<AppArea, { label: string; nav: NavItem[] }> = {
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/admin/hr", label: "HR", icon: Users },
       { href: "/admin/settings", label: "Settings", icon: Settings },
-    ],
-  },
-  field: {
-    label: "Field Operations",
-    nav: [
-      { href: "/field", label: "My Jobs", icon: ClipboardList },
-      { href: "/field/attendance", label: "Time In / Out", icon: Clock },
     ],
   },
   accounting: {
@@ -75,7 +68,26 @@ export function AppShell({
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const { label: areaLabel, nav } = AREAS[area];
+
+  // The field area's nav differs by role: installers don't track time and
+  // get a "My Customers" record instead.
+  let areaLabel: string;
+  let nav: NavItem[];
+  if (area === "field") {
+    areaLabel = "Field Operations";
+    nav =
+      profile.role === "installer"
+        ? [
+            { href: "/field", label: "My Jobs", icon: ClipboardList },
+            { href: "/field/customers", label: "My Customers", icon: Users },
+          ]
+        : [
+            { href: "/field", label: "My Jobs", icon: ClipboardList },
+            { href: "/field/attendance", label: "Time In / Out", icon: Clock },
+          ];
+  } else {
+    ({ label: areaLabel, nav } = AREAS[area]);
+  }
 
   const NavLinks = () => (
     <nav className="flex flex-1 flex-col gap-1 px-3">
