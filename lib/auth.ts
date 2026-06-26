@@ -29,7 +29,11 @@ export async function requireProfile(): Promise<Profile> {
 /** Require one of the given roles; redirect if not allowed. */
 export async function requireRole(roles: UserRole[]): Promise<Profile> {
   const profile = await requireProfile();
-  if (!roles.includes(profile.role)) {
+  // Owner has the same access as admin everywhere admin is permitted.
+  const allowed =
+    roles.includes(profile.role) ||
+    (profile.role === "owner" && roles.includes("admin"));
+  if (!allowed) {
     redirect(homeForRole(profile.role));
   }
   return profile;
@@ -37,10 +41,13 @@ export async function requireRole(roles: UserRole[]): Promise<Profile> {
 
 export function homeForRole(role: UserRole): string {
   switch (role) {
+    case "owner":
     case "admin":
       return "/admin";
     case "accounting":
       return "/accounting";
+    case "hr":
+      return "/hr";
     case "field_officer":
     case "installer":
       return "/field";

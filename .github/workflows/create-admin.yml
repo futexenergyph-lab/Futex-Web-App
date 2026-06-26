@@ -20,6 +20,10 @@ on:
       password:
         description: "Password (blank = auto-generate)"
         required: false
+      role:
+        description: "Role (admin, owner, hr, accounting, field_officer, installer)"
+        required: false
+        default: "admin"
 
 jobs:
   create-admin:
@@ -30,6 +34,7 @@ jobs:
       EMAIL: ${{ github.event.inputs.email }}
       FULL_NAME: ${{ github.event.inputs.full_name }}
       PASSWORD_IN: ${{ github.event.inputs.password }}
+      ROLE_IN: ${{ github.event.inputs.role }}
     steps:
       - name: Create / update admin user
         run: |
@@ -54,12 +59,13 @@ jobs:
           if [ -z "$PASS" ]; then
             PASS="Futex$(openssl rand -base64 12 | tr -dc 'A-Za-z0-9' | head -c 10)!"
           fi
+          ROLE="${ROLE_IN:-admin}"
 
           # Create the user (email pre-confirmed, role baked into metadata).
           RESP=$(curl -s -w $'\n%{http_code}' -X POST "$URL/auth/v1/admin/users" \
             -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
             -H "Content-Type: application/json" \
-            -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"email_confirm\":true,\"user_metadata\":{\"full_name\":\"$FULL_NAME\",\"role\":\"admin\"}}")
+            -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"email_confirm\":true,\"user_metadata\":{\"full_name\":\"$FULL_NAME\",\"role\":\"$ROLE\"}}")
           CODE=$(echo "$RESP" | tail -n1); BODY=$(echo "$RESP" | sed '$d')
           echo "create-user HTTP $CODE"
           USER_ID=$(echo "$BODY" | jq -r '.id // empty')
@@ -73,7 +79,7 @@ jobs:
               curl -s -X PUT "$URL/auth/v1/admin/users/$USER_ID" \
                 -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
                 -H "Content-Type: application/json" \
-                -d "{\"password\":\"$PASS\",\"email_confirm\":true,\"user_metadata\":{\"full_name\":\"$FULL_NAME\",\"role\":\"admin\"}}" >/dev/null
+                -d "{\"password\":\"$PASS\",\"email_confirm\":true,\"user_metadata\":{\"full_name\":\"$FULL_NAME\",\"role\":\"$ROLE\"}}" >/dev/null
             fi
           fi
 
@@ -81,21 +87,21 @@ jobs:
             echo "::error::Failed to create/find user. API said: $(echo "$BODY" | head -c 300)"; exit 1
           fi
 
-          # Ensure the profile row is admin + active.
+          # Ensure the profile row has the requested role + active.
           curl -s -X PATCH "$URL/rest/v1/profiles?id=eq.$USER_ID" \
             -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
             -H "Content-Type: application/json" -H "Prefer: return=minimal" \
-            -d "{\"role\":\"admin\",\"full_name\":\"$FULL_NAME\",\"active\":true}" >/dev/null
+            -d "{\"role\":\"$ROLE\",\"full_name\":\"$FULL_NAME\",\"active\":true}" >/dev/null
 
-          echo "ADMIN_READY email=$EMAIL password=$PASS"
+          echo "USER_READY email=$EMAIL password=$PASS role=$ROLE"
           {
-            echo "### ✅ Admin user ready"
+            echo "### ✅ User ready"
             echo ""
             echo "| Field | Value |"
             echo "|---|---|"
             echo "| Email | \`$EMAIL\` |"
             echo "| Password | \`$PASS\` |"
-            echo "| Role | admin |"
+            echo "| Role | \`$ROLE\` |"
             echo ""
             echo "Sign in at /login, then change your password."
           } >> "$GITHUB_STEP_SUMMARY"

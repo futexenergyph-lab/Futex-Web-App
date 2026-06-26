@@ -54,4 +54,13 @@ jobs:
           # Declined booking status (idempotent)
           run_sql "alter type public.booking_status add value if not exists 'declined';"
 
+          # Owner + HR roles (each enum add is its own txn so it commits before use)
+          run_sql "alter type public.user_role add value if not exists 'owner';"
+          run_sql "alter type public.user_role add value if not exists 'hr';"
+          run_sql "create or replace function public.is_admin() returns boolean language sql stable security definer set search_path = public as \$\$ select exists (select 1 from public.profiles where id = auth.uid() and role in ('admin','owner') and active); \$\$;"
+          run_sql "create or replace function public.is_hr() returns boolean language sql stable security definer set search_path = public as \$\$ select exists (select 1 from public.profiles where id = auth.uid() and role = 'hr' and active); \$\$;"
+          run_sql 'drop policy if exists profiles_select on public.profiles; create policy profiles_select on public.profiles for select using (id = auth.uid() or public.is_admin() or public.is_accounting() or public.is_hr());'
+          run_sql 'drop policy if exists attendance_select on public.attendance; create policy attendance_select on public.attendance for select using (user_id = auth.uid() or public.is_admin() or public.is_accounting() or public.is_hr());'
+          run_sql 'drop policy if exists "attendance read own or staff" on storage.objects; create policy "attendance read own or staff" on storage.objects for select to authenticated using (bucket_id = '"'"'attendance'"'"' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin() or public.is_accounting() or public.is_hr()));'
+
           echo "Done."
