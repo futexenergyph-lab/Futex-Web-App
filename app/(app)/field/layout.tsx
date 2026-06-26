@@ -1,11 +1,5 @@
-import { Clock, ClipboardList } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { AppShell, type NavItem } from "@/components/app/app-shell";
-
-const nav: NavItem[] = [
-  { href: "/field", label: "My Jobs", icon: ClipboardList },
-  { href: "/field/attendance", label: "Time In / Out", icon: Clock },
-];
+import { AppShell } from "@/components/app/app-shell";
 
 export default async function FieldLayout({
   children,
@@ -14,7 +8,7 @@ export default async function FieldLayout({
 }) {
   const profile = await requireRole(["field_officer", "installer"]);
   return (
-    <AppShell profile={profile} nav={nav} areaLabel="Field Operations">
+    <AppShell profile={profile} area="field">
       {children}
     </AppShell>
   );
