@@ -205,31 +205,40 @@ export default async function PackagesPage() {
         </div>
       </section>
 
-      <section className="container grid gap-8 py-12 md:grid-cols-2">
-        <div>
-          <h2 className="text-2xl font-bold">Enclosure protection</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Choose your preferred metal/glass enclosure protection.
-          </p>
-          <div className="mt-4 space-y-3">
-            {(enclosures as Enclosure[] | null)?.map((e) => (
-              <div
-                key={e.id}
-                className="flex items-center justify-between rounded-lg border bg-background p-4"
-              >
-                <span className="text-sm font-medium">{e.name}</span>
-                <span className="font-semibold text-futex-blue">
-                  {php(e.price)}
-                </span>
-              </div>
-            ))}
+      <section className="container py-12">
+        <h2 className="text-2xl font-bold">Enclosure protection</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Choose your preferred metal/glass enclosure protection.
+        </p>
+        <Image
+          src="/images/enclosures.jpg"
+          alt="Choose your enclosure — Full Glass Premium Box, Full Metal Cybertruck, Standard Glass"
+          width={1254}
+          height={1254}
+          className="mx-auto mt-6 w-full max-w-3xl rounded-xl border shadow-sm"
+        />
+        <div className="mt-10 grid gap-8 md:grid-cols-2">
+          <div>
+            <h3 className="text-lg font-semibold">Enclosure options</h3>
+            <div className="mt-4 space-y-3">
+              {(enclosures as Enclosure[] | null)?.map((e) => (
+                <div
+                  key={e.id}
+                  className="flex items-center justify-between rounded-lg border bg-background p-4"
+                >
+                  <span className="text-sm font-medium">{e.name}</span>
+                  <span className="font-semibold text-futex-blue">
+                    {php(e.price)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold">Add-ons</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Optional box-only add-ons.
-          </p>
+          <div>
+            <h3 className="text-lg font-semibold">Add-ons</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Optional box-only add-ons.
+            </p>
           <div className="mt-4 space-y-3">
             {(addons as Addon[] | null)?.map((a) => (
               <div
@@ -243,11 +252,12 @@ export default async function PackagesPage() {
               </div>
             ))}
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Additional wire is charged per linear meter and assessed on site.
-            Any additional job works are quoted by the field officer during the
-            on-site job order.
-          </p>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Additional wire is charged per linear meter and assessed on site.
+              Any additional job works are quoted by the field officer during
+              the on-site job order.
+            </p>
+          </div>
         </div>
       </section>
 
