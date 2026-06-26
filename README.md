@@ -66,14 +66,21 @@ re-computed authoritatively server-side on submit (clients never set totals).
 
 ```
 supabase/
+  config.toml                         -- CLI / GitHub-integration config
   migrations/
-    0001_schema.sql     -- enums, tables, indexes, updated_at + new-user triggers
-    0002_rls.sql        -- row level security policies + role helper functions
-    0003_storage.sql    -- storage buckets (attendance, job-updates, proofs, docs)
-  seed.sql              -- pricing: packages, enclosures, add-ons, settings
+    20260626000001_schema.sql         -- enums, tables, indexes, updated_at + new-user triggers
+    20260626000002_rls.sql            -- row level security policies + role helper functions
+    20260626000003_storage.sql        -- storage buckets (attendance, job-updates, proofs, docs)
+    20260626000004_seed_pricing.sql   -- pricing: packages, enclosures, add-ons, settings (tracked)
+  seed.sql                            -- minimal; pricing lives in the migration above
 scripts/
-  seed.ts              -- demo users (1 per role) + sample bookings (uses service key)
+  seed.ts                             -- demo users (1 per role) + sample bookings (uses service key)
 ```
+
+> **GitHub → Supabase integration:** migrations are timestamp-versioned and the
+> pricing seed is a tracked migration, so connecting this repo in the Supabase
+> Dashboard (Integrations → GitHub) applies the full schema, RLS, storage, and
+> pricing to your project on push. Demo users still come from `npm run seed`.
 
 ### Apply it
 
@@ -86,7 +93,11 @@ supabase db push
 psql "$DATABASE_URL" -f supabase/seed.sql
 ```
 
-**Option B — SQL editor:** paste `0001 → 0002 → 0003 → seed.sql` in order.
+**Option B — SQL editor:** paste the four `supabase/migrations/*.sql` files in
+filename order (schema → rls → storage → seed_pricing).
+
+**Option C — GitHub integration:** connect the repo in the Supabase Dashboard
+(Integrations → GitHub); migrations apply automatically on push.
 
 ### Seed demo users + sample data
 
