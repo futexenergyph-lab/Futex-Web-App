@@ -66,4 +66,10 @@ jobs:
           # User removal requests (owner-approval workflow)
           run_sql 'alter table public.profiles add column if not exists deletion_requested_at timestamptz, add column if not exists deletion_requested_by uuid references public.profiles(id) on delete set null;'
 
+          # Employee 201 files (private bucket; HR + admin manage)
+          run_sql "insert into storage.buckets (id, name, public) values ('employee-201','employee-201',false) on conflict (id) do nothing;"
+          run_sql 'drop policy if exists "201 read hr or admin" on storage.objects; create policy "201 read hr or admin" on storage.objects for select to authenticated using (bucket_id = '"'"'employee-201'"'"' and (public.is_hr() or public.is_admin()));'
+          run_sql 'drop policy if exists "201 insert hr or admin" on storage.objects; create policy "201 insert hr or admin" on storage.objects for insert to authenticated with check (bucket_id = '"'"'employee-201'"'"' and (public.is_hr() or public.is_admin()));'
+          run_sql 'drop policy if exists "201 delete hr or admin" on storage.objects; create policy "201 delete hr or admin" on storage.objects for delete to authenticated using (bucket_id = '"'"'employee-201'"'"' and (public.is_hr() or public.is_admin()));'
+
           echo "Done."
