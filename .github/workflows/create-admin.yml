@@ -62,27 +62,27 @@ jobs:
             -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"email_confirm\":true,\"user_metadata\":{\"full_name\":\"$FULL_NAME\",\"role\":\"admin\"}}")
           CODE=$(echo "$RESP" | tail -n1); BODY=$(echo "$RESP" | sed '$d')
           echo "create-user HTTP $CODE"
-          UID=$(echo "$BODY" | jq -r '.id // empty')
+          USER_ID=$(echo "$BODY" | jq -r '.id // empty')
 
-          if [ -z "$UID" ]; then
+          if [ -z "$USER_ID" ]; then
             echo "User may already exist — looking it up and resetting password…"
-            UID=$(curl -s "$URL/auth/v1/admin/users?per_page=500" \
+            USER_ID=$(curl -s "$URL/auth/v1/admin/users?per_page=500" \
               -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
               | jq -r --arg E "$EMAIL" '(.users // [])[] | select(.email==$E) | .id' | head -n1)
-            if [ -n "$UID" ]; then
-              curl -s -X PUT "$URL/auth/v1/admin/users/$UID" \
+            if [ -n "$USER_ID" ]; then
+              curl -s -X PUT "$URL/auth/v1/admin/users/$USER_ID" \
                 -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
                 -H "Content-Type: application/json" \
                 -d "{\"password\":\"$PASS\",\"email_confirm\":true,\"user_metadata\":{\"full_name\":\"$FULL_NAME\",\"role\":\"admin\"}}" >/dev/null
             fi
           fi
 
-          if [ -z "$UID" ]; then
+          if [ -z "$USER_ID" ]; then
             echo "::error::Failed to create/find user. API said: $(echo "$BODY" | head -c 300)"; exit 1
           fi
 
           # Ensure the profile row is admin + active.
-          curl -s -X PATCH "$URL/rest/v1/profiles?id=eq.$UID" \
+          curl -s -X PATCH "$URL/rest/v1/profiles?id=eq.$USER_ID" \
             -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
             -H "Content-Type: application/json" -H "Prefer: return=minimal" \
             -d "{\"role\":\"admin\",\"full_name\":\"$FULL_NAME\",\"active\":true}" >/dev/null
