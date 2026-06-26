@@ -19,6 +19,12 @@ import type {
   Package,
 } from "@/lib/types";
 
+// Editing shape: amount stays a string so the input clears cleanly.
+interface WorkInput {
+  description: string;
+  amount: string;
+}
+
 export function JobOrderForm({
   bookingId,
   packages,
@@ -47,16 +53,28 @@ export function JobOrderForm({
     existing?.add_separate_enclosure ?? false,
   );
   const [wireMeters, setWireMeters] = useState(
-    String(existing?.additional_wire_meters ?? 0),
+    existing?.additional_wire_meters
+      ? String(existing.additional_wire_meters)
+      : "",
   );
-  const [jobWorks, setJobWorks] = useState<JobWork[]>(
-    existing?.additional_job_works ?? [],
+  // Amounts are kept as raw strings while editing so the input clears cleanly
+  // (a numeric controlled input leaves a stuck leading "0").
+  const [jobWorks, setJobWorks] = useState<WorkInput[]>(
+    (existing?.additional_job_works ?? []).map((w) => ({
+      description: w.description,
+      amount: String(w.amount),
+    })),
   );
   const [notes, setNotes] = useState(existing?.notes ?? "");
 
   const pkg = packages.find((p) => p.id === packageId) ?? null;
   const enc = enclosures.find((e) => e.id === enclosureId) ?? null;
   const bundled = pkg?.enclosure_included ?? false;
+
+  const jobWorksNum: JobWork[] = jobWorks.map((w) => ({
+    description: w.description,
+    amount: Number(w.amount) || 0,
+  }));
 
   const pricing = useMemo(
     () =>
@@ -66,17 +84,18 @@ export function JobOrderForm({
         addSeparateEnclosure,
         additionalWireMeters: Number(wireMeters) || 0,
         wireRatePerMeter: wireRate,
-        additionalJobWorks: jobWorks,
+        additionalJobWorks: jobWorksNum,
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [pkg, enc, addSeparateEnclosure, wireMeters, jobWorks, wireRate],
   );
 
   const locked = existing?.status === "locked" || existing?.status === "submitted";
 
   function addWork() {
-    setJobWorks((w) => [...w, { description: "", amount: 0 }]);
+    setJobWorks((w) => [...w, { description: "", amount: "" }]);
   }
-  function updateWork(i: number, patch: Partial<JobWork>) {
+  function updateWork(i: number, patch: Partial<WorkInput>) {
     setJobWorks((w) => w.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
   }
   function removeWork(i: number) {
@@ -96,7 +115,7 @@ export function JobOrderForm({
         enclosureId: enclosureId || null,
         addSeparateEnclosure,
         additionalWireMeters: Number(wireMeters) || 0,
-        additionalJobWorks: jobWorks.filter((w) => w.description.trim()),
+        additionalJobWorks: jobWorksNum.filter((w) => w.description.trim()),
         notes,
       });
       if (res?.error) throw new Error(res.error);
@@ -222,13 +241,12 @@ export function JobOrderForm({
             />
             <Input
               type="number"
+              inputMode="decimal"
               min={0}
-              placeholder="₱"
+              placeholder="₱ amount"
               className="w-28"
               value={w.amount}
-              onChange={(e) =>
-                updateWork(i, { amount: Number(e.target.value) || 0 })
-              }
+              onChange={(e) => updateWork(i, { amount: e.target.value })}
             />
             <Button
               type="button"
