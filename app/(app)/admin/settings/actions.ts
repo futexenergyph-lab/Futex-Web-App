@@ -71,6 +71,24 @@ export async function upsertAddon(input: {
   return { ok: true };
 }
 
+// ---- Reorder (drag to set display order) ----
+export async function reorderPricing(
+  kind: "packages" | "enclosures" | "addons",
+  orderedIds: string[],
+) {
+  await requireRole(["admin"]);
+  const supabase = createClient();
+  const results = await Promise.all(
+    orderedIds.map((id, i) =>
+      supabase.from(kind).update({ sort_order: i }).eq("id", id),
+    ),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) return { error: failed.error.message };
+  revalidatePricing();
+  return { ok: true };
+}
+
 // ---- Settings (wire rate etc.) ----
 export async function updateSetting(key: string, value: unknown) {
   await requireRole(["admin"]);

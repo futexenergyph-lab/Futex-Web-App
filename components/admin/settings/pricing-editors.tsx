@@ -1,14 +1,30 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Pencil } from "lucide-react";
+import { Loader2, Plus, Pencil, GripVertical } from "lucide-react";
 import { toast } from "sonner";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   upsertEnclosure,
   upsertAddon,
   upsertPackage,
   updateSetting,
+  reorderPricing,
 } from "@/app/(app)/admin/settings/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,8 +39,105 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { php } from "@/lib/utils";
+import { php, cn } from "@/lib/utils";
 import type { Addon, Enclosure, Package } from "@/lib/types";
+
+// ---------------------------------------------------------------------------
+// Drag-to-reorder infrastructure (sets display order on public pages + forms)
+// ---------------------------------------------------------------------------
+type ReorderKind = "packages" | "enclosures" | "addons";
+
+function SortableRow({
+  id,
+  children,
+}: {
+  id: string;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "flex items-center gap-2 rounded-lg border bg-background p-3",
+        isDragging && "z-10 opacity-70 shadow-lg",
+      )}
+    >
+      <button
+        type="button"
+        className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+        aria-label="Drag to reorder"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+      <div className="flex-1">{children}</div>
+    </div>
+  );
+}
+
+function SortableList<T extends { id: string }>({
+  kind,
+  items,
+  renderItem,
+}: {
+  kind: ReorderKind;
+  items: T[];
+  renderItem: (item: T) => React.ReactNode;
+}) {
+  const [order, setOrder] = useState(items);
+  const router = useRouter();
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+
+  useEffect(() => setOrder(items), [items]);
+
+  async function onDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const oldIndex = order.findIndex((i) => i.id === active.id);
+    const newIndex = order.findIndex((i) => i.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = arrayMove(order, oldIndex, newIndex);
+    setOrder(next);
+    const res = await reorderPricing(
+      kind,
+      next.map((i) => i.id),
+    );
+    if (res?.error) {
+      toast.error(res.error);
+      setOrder(items);
+    } else {
+      toast.success("Order saved");
+      router.refresh();
+    }
+  }
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={onDragEnd}
+    >
+      <SortableContext
+        items={order.map((i) => i.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="space-y-2">
+          {order.map((item) => (
+            <SortableRow key={item.id} id={item.id}>
+              {renderItem(item)}
+            </SortableRow>
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Simple item (enclosure / addon)
@@ -40,24 +153,29 @@ export function SimpleItemList({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Drag <GripVertical className="inline h-3 w-3" /> to set the order shown
+          to customers.
+        </p>
         <SimpleItemDialog kind={kind} />
       </div>
-      {items.map((it) => (
-        <div
-          key={it.id}
-          className="flex items-center justify-between rounded-lg border p-3"
-        >
-          <div>
-            <p className="text-sm font-medium">{it.name}</p>
-            <p className="text-xs text-muted-foreground">{php(it.price)}</p>
+      <SortableList
+        kind={kind === "enclosure" ? "enclosures" : "addons"}
+        items={items}
+        renderItem={(it) => (
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">{it.name}</p>
+              <p className="text-xs text-muted-foreground">{php(it.price)}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {!it.active && <Badge variant="secondary">Inactive</Badge>}
+              <SimpleItemDialog kind={kind} item={it} />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {!it.active && <Badge variant="secondary">Inactive</Badge>}
-            <SimpleItemDialog kind={kind} item={it} />
-          </div>
-        </div>
-      ))}
+        )}
+      />
     </div>
   );
 }
@@ -159,34 +277,39 @@ function SimpleItemDialog({
 export function PackageList({ packages }: { packages: Package[] }) {
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Drag <GripVertical className="inline h-3 w-3" /> to set the order on the
+          public pricing page &amp; booking form.
+        </p>
         <PackageDialog />
       </div>
-      {packages.map((p) => (
-        <div
-          key={p.id}
-          className="flex items-center justify-between rounded-lg border p-3"
-        >
-          <div>
-            <p className="text-sm font-medium">
-              {p.name}
-              {p.is_promo && (
-                <Badge variant="accent" className="ml-2">
-                  Promo
-                </Badge>
-              )}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {php(p.base_price)}
-              {p.enclosure_included ? " · enclosure included" : ""}
-            </p>
+      <SortableList
+        kind="packages"
+        items={packages}
+        renderItem={(p) => (
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">
+                {p.name}
+                {p.is_promo && (
+                  <Badge variant="accent" className="ml-2">
+                    Promo
+                  </Badge>
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {php(p.base_price)}
+                {p.enclosure_included ? " · enclosure included" : ""}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {!p.active && <Badge variant="secondary">Inactive</Badge>}
+              <PackageDialog pkg={p} />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {!p.active && <Badge variant="secondary">Inactive</Badge>}
-            <PackageDialog pkg={p} />
-          </div>
-        </div>
-      ))}
+        )}
+      />
     </div>
   );
 }
