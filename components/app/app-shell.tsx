@@ -53,9 +53,9 @@ const AREAS: Record<"admin" | "accounting", { label: string; nav: NavItem[] }> =
   accounting: {
     label: "Accounting",
     nav: [
+      { href: "/accounting/cashflow", label: "Overview", icon: ArrowLeftRight },
       { href: "/accounting", label: "Payments", icon: Wallet },
       { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
-      { href: "/accounting/cashflow", label: "Cash Flow", icon: ArrowLeftRight },
       { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
     ],
   },

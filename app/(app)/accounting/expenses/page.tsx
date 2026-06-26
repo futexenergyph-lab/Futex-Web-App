@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { CsvExport } from "@/components/csv-export";
 import { CategoryBarChart } from "@/components/charts";
+import { DateRangeFilter } from "@/components/accounting/date-range-filter";
 import {
   ExpenseForm,
   DeleteExpenseButton,
@@ -26,13 +27,21 @@ import {
 export const metadata = { title: "Expenses" };
 export const dynamic = "force-dynamic";
 
-export default async function ExpensesPage() {
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams: { from?: string; to?: string };
+}) {
+  const { from, to } = searchParams;
   const supabase = createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("expenses")
     .select("*")
     .order("expense_date", { ascending: false })
     .order("created_at", { ascending: false });
+  if (from) query = query.gte("expense_date", from);
+  if (to) query = query.lte("expense_date", to);
+  const { data } = await query;
 
   const expenses = (data as Expense[] | null) ?? [];
   const total = expenses.reduce((s, e) => s + Number(e.amount), 0);
@@ -70,6 +79,8 @@ export default async function ExpensesPage() {
           <ExpenseForm />
         </CardContent>
       </Card>
+
+      <DateRangeFilter basePath="/accounting/expenses" from={from} to={to} />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card>
