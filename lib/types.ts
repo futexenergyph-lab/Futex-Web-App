@@ -90,6 +90,9 @@ export interface Booking {
   assigned_field_officer_id: string | null;
   assigned_installer_id: string | null;
   deployed_at: string | null;
+  installer_confirmed_at: string | null;
+  installer_declined_at: string | null;
+  installation_done_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

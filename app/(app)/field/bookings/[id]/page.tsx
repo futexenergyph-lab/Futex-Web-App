@@ -16,6 +16,7 @@ import {
   PaymentForm,
   UpdateForm,
 } from "@/components/field/onsite-forms";
+import { InstallerBookingView } from "@/components/field/installer-booking-view";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import type {
   BookingWithRelations,
@@ -44,6 +45,23 @@ export default async function FieldBookingDetail({
 
   if (!booking) notFound();
   const b = booking as unknown as BookingWithRelations;
+
+  // Installers get a simplified flow: confirm deployment, arrival, on-site
+  // updates, and "Installation Done" — no job order / payment / docs.
+  if (profile.role === "installer") {
+    const { data: updates } = await supabase
+      .from("job_updates")
+      .select("*")
+      .eq("booking_id", params.id)
+      .order("created_at", { ascending: false });
+    return (
+      <InstallerBookingView
+        booking={b}
+        updates={(updates as JobUpdate[]) ?? []}
+        userId={profile.id}
+      />
+    );
+  }
 
   const [
     { data: packages },
