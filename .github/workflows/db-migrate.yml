@@ -47,4 +47,8 @@ jobs:
           run_sql 'drop policy if exists "pricing update admin" on storage.objects; create policy "pricing update admin" on storage.objects for update to authenticated using (bucket_id = '"'"'pricing'"'"' and public.is_admin());'
           run_sql 'drop policy if exists "pricing read public" on storage.objects; create policy "pricing read public" on storage.objects for select using (bucket_id = '"'"'pricing'"'"');'
 
+          # Job order change requests (idempotent)
+          run_sql 'alter table public.job_orders add column if not exists change_requested_at timestamptz, add column if not exists change_request_reason text, add column if not exists change_approved_at timestamptz, add column if not exists change_approved_by uuid references public.profiles(id) on delete set null;'
+          run_sql 'create index if not exists idx_job_orders_change_pending on public.job_orders(booking_id) where change_requested_at is not null and change_approved_at is null;'
+
           echo "Done."

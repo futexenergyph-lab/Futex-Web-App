@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth";
 import { computePricing } from "@/lib/pricing";
 import type { BookingStatus, JobWork, PaymentMethod } from "@/lib/types";
@@ -154,6 +155,7 @@ export async function postJobUpdate(input: {
 
 export async function submitJobOrder(input: {
   bookingId: string;
+  jobOrderId?: string | null;
   packageId: string;
   enclosureId: string | null;
   addSeparateEnclosure: boolean;
@@ -199,7 +201,7 @@ export async function submitJobOrder(input: {
     additionalJobWorks: input.additionalJobWorks,
   });
 
-  const { error } = await supabase.from("job_orders").insert({
+  const fields = {
     booking_id: input.bookingId,
     field_officer_id: profile.id,
     package_id: input.packageId,
@@ -211,9 +213,24 @@ export async function submitJobOrder(input: {
     computed_subtotal: pricing.subtotal,
     final_total: pricing.finalTotal,
     notes: input.notes || null,
-    status: "submitted",
+    status: "submitted" as const,
     submitted_at: new Date().toISOString(),
-  });
+  };
+
+  // Editing an approved-for-change order updates it in place and re-locks it
+  // (clearing the change-request flags); otherwise insert a fresh order.
+  const { error } = input.jobOrderId
+    ? await supabase
+        .from("job_orders")
+        .update({
+          ...fields,
+          change_requested_at: null,
+          change_request_reason: null,
+          change_approved_at: null,
+          change_approved_by: null,
+        })
+        .eq("id", input.jobOrderId)
+    : await supabase.from("job_orders").insert(fields);
   if (error) return { error: error.message };
 
   await supabase
@@ -222,7 +239,79 @@ export async function submitJobOrder(input: {
     .eq("id", input.bookingId);
 
   revalidatePath(`/field/bookings/${input.bookingId}`);
+  revalidatePath("/admin");
   return { ok: true, finalTotal: pricing.finalTotal };
+}
+
+/**
+ * Field officer asks management to unlock a submitted job order so it can be
+ * edited or voided. Management must approve before any change is allowed.
+ */
+export async function requestJobOrderChange(input: {
+  bookingId: string;
+  jobOrderId: string;
+  reason: string;
+}) {
+  const profile = await me();
+  await assertAssigned(input.bookingId, profile.id);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("job_orders")
+    .update({
+      change_requested_at: new Date().toISOString(),
+      change_request_reason: input.reason || null,
+      change_approved_at: null,
+      change_approved_by: null,
+    })
+    .eq("id", input.jobOrderId)
+    .eq("field_officer_id", profile.id);
+  if (error) return { error: error.message };
+  revalidatePath(`/field/bookings/${input.bookingId}`);
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+/**
+ * Void an approved job order. Only allowed after management approved the
+ * change request. Removes the locked pricing so the officer can start over.
+ */
+export async function voidJobOrder(input: {
+  bookingId: string;
+  jobOrderId: string;
+}) {
+  const profile = await me();
+  await assertAssigned(input.bookingId, profile.id);
+  const supabase = createClient();
+
+  // Authorize: officer owns the order AND management approved the change.
+  const { data: jo } = await supabase
+    .from("job_orders")
+    .select("id, field_officer_id, change_approved_at")
+    .eq("id", input.jobOrderId)
+    .single();
+  if (!jo || jo.field_officer_id !== profile.id) {
+    return { error: "Not your job order" };
+  }
+  if (!jo.change_approved_at) {
+    return { error: "Management approval is required before voiding." };
+  }
+
+  // RLS lets only admins delete job orders; this is server-side authorized.
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("job_orders")
+    .delete()
+    .eq("id", input.jobOrderId);
+  if (error) return { error: error.message };
+
+  await supabase
+    .from("bookings")
+    .update({ status: "on_site" })
+    .eq("id", input.bookingId);
+
+  revalidatePath(`/field/bookings/${input.bookingId}`);
+  revalidatePath("/admin");
+  return { ok: true };
 }
 
 export async function confirmPayment(input: {

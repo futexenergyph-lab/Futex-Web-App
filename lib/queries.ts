@@ -7,7 +7,8 @@ export const BOOKING_SELECT = `
   preferred_package:packages!bookings_preferred_package_id_fkey(id,name,base_price),
   preferred_enclosure:enclosures!bookings_preferred_enclosure_id_fkey(id,name,price),
   assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(id,full_name),
-  assigned_installer:profiles!bookings_assigned_installer_id_fkey(id,full_name)
+  assigned_installer:profiles!bookings_assigned_installer_id_fkey(id,full_name),
+  job_orders(id,final_total,change_requested_at,change_request_reason,change_approved_at,created_at)
 `;
 
 export async function fetchBookings(): Promise<BookingWithRelations[]> {

@@ -2,9 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Trash2, Lock } from "lucide-react";
+import { Loader2, Plus, Trash2, Lock, Unlock, Ban, Clock } from "lucide-react";
 import { toast } from "sonner";
-import { submitJobOrder } from "@/app/(app)/field/actions";
+import {
+  submitJobOrder,
+  requestJobOrderChange,
+  voidJobOrder,
+} from "@/app/(app)/field/actions";
 import { computePricing } from "@/lib/pricing";
 import { PricingBreakdown } from "@/components/pricing-breakdown";
 import { Button } from "@/components/ui/button";
@@ -42,6 +46,15 @@ export function JobOrderForm({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [reason, setReason] = useState("");
+  const [showReason, setShowReason] = useState(false);
+  const [working, setWorking] = useState(false);
+
+  // Change-request lifecycle on a submitted order:
+  //   none → request (pending) → management approves → editable/void.
+  const changeRequested = !!existing?.change_requested_at;
+  const changeApproved = !!existing?.change_approved_at;
+  const editable = changeRequested && changeApproved;
 
   const [packageId, setPackageId] = useState(
     existing?.package_id ?? defaults.packageId ?? packages[0]?.id ?? "",
@@ -90,7 +103,10 @@ export function JobOrderForm({
     [pkg, enc, addSeparateEnclosure, wireMeters, jobWorks, wireRate],
   );
 
-  const locked = existing?.status === "locked" || existing?.status === "submitted";
+  // A submitted/locked order is read-only until management approves a change.
+  const locked =
+    (existing?.status === "locked" || existing?.status === "submitted") &&
+    !editable;
 
   function addWork() {
     setJobWorks((w) => [...w, { description: "", amount: "" }]);
@@ -111,6 +127,7 @@ export function JobOrderForm({
     try {
       const res = await submitJobOrder({
         bookingId,
+        jobOrderId: editable ? existing?.id : undefined,
         packageId,
         enclosureId: enclosureId || null,
         addSeparateEnclosure,
@@ -125,6 +142,45 @@ export function JobOrderForm({
       toast.error(err instanceof Error ? err.message : "Failed");
     } finally {
       setPending(false);
+    }
+  }
+
+  async function onRequestChange() {
+    if (!existing) return;
+    setWorking(true);
+    try {
+      const res = await requestJobOrderChange({
+        bookingId,
+        jobOrderId: existing.id,
+        reason,
+      });
+      if (res?.error) throw new Error(res.error);
+      toast.success("Change request sent to management for approval");
+      setShowReason(false);
+      setReason("");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function onVoid() {
+    if (!existing) return;
+    if (!confirm("Void this job order? This removes the locked pricing.")) {
+      return;
+    }
+    setWorking(true);
+    try {
+      const res = await voidJobOrder({ bookingId, jobOrderId: existing.id });
+      if (res?.error) throw new Error(res.error);
+      toast.success("Job order voided");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setWorking(false);
     }
   }
 
@@ -147,12 +203,71 @@ export function JobOrderForm({
             })}
           />
         </div>
+
+        {changeRequested ? (
+          // Requested but not yet approved — waiting on management.
+          <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+            <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-medium">
+                Change request pending management approval.
+              </p>
+              {existing.change_request_reason && (
+                <p className="mt-0.5 text-xs">
+                  &ldquo;{existing.change_request_reason}&rdquo;
+                </p>
+              )}
+            </div>
+          </div>
+        ) : showReason ? (
+          <div className="space-y-2 rounded-md border p-3">
+            <Label htmlFor="change-reason">Reason for the change</Label>
+            <Textarea
+              id="change-reason"
+              placeholder="e.g. wrong package selected, additional wire needed…"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <Button onClick={onRequestChange} disabled={working} size="sm">
+                {working && <Loader2 className="h-4 w-4 animate-spin" />}
+                Send request
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowReason(false)}
+                disabled={working}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setShowReason(true)}
+          >
+            <Unlock className="h-4 w-4" />
+            Request to change
+          </Button>
+        )}
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
+      {editable && (
+        <div className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
+          <Unlock className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            Management approved your change request. Edit and resubmit to
+            re-lock, or void the job order below.
+          </p>
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="package">Package</Label>
@@ -277,6 +392,22 @@ export function JobOrderForm({
         {pending && <Loader2 className="h-4 w-4 animate-spin" />}
         Submit &amp; lock job order
       </Button>
+
+      {editable && (
+        <Button
+          variant="outline"
+          onClick={onVoid}
+          disabled={working}
+          className="w-full border-destructive/40 text-destructive hover:bg-destructive/10"
+        >
+          {working ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Ban className="h-4 w-4" />
+          )}
+          Void job order
+        </Button>
+      )}
     </div>
   );
 }
