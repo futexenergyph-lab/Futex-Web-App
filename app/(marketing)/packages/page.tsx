@@ -19,6 +19,16 @@ function promoFlyer(name: string): string | null {
   return null;
 }
 
+// Map a standard installation package to its official flyer image.
+function packageFlyer(name: string): string | null {
+  const n = name.toLowerCase();
+  if (n.includes("package 1")) return "/images/pkg-1.jpg";
+  if (n.includes("package 2")) return "/images/pkg-2.jpg";
+  if (n.includes("package 3")) return "/images/pkg-3.jpg";
+  if (n.includes("package 4")) return "/images/pkg-4.jpg";
+  return null;
+}
+
 export default async function PackagesPage() {
   const supabase = createPublicClient();
   const [{ data: packages }, { data: enclosures }, { data: addons }] = supabase
@@ -135,32 +145,63 @@ export default async function PackagesPage() {
 
       <section className="container py-6">
         <h2 className="text-2xl font-bold">Installation packages</h2>
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {standard.map((p) => (
-            <Card key={p.id} className="flex flex-col">
-              <CardHeader>
-                <CardTitle>{p.name}</CardTitle>
-                <span className="text-2xl font-bold text-futex-blue">
-                  {php(p.base_price)}
-                </span>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col">
-                <ul className="space-y-2">
-                  {p.inclusions.map((inc) => (
-                    <li key={inc} className="flex items-start gap-2 text-sm">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-futex-green" />
-                      {inc}
-                    </li>
-                  ))}
-                </ul>
-                {p.enclosure_included && (
-                  <Badge variant="secondary" className="mt-3 w-fit">
-                    Enclosure included
-                  </Badge>
+        <div className="mt-6 grid gap-8 md:grid-cols-2">
+          {standard.map((p) => {
+            const flyer = packageFlyer(p.name);
+            return (
+              <Card key={p.id} className="flex flex-col overflow-hidden">
+                {flyer ? (
+                  <>
+                    <Image
+                      src={flyer}
+                      alt={p.name}
+                      width={1000}
+                      height={700}
+                      className="w-full"
+                    />
+                    <CardContent className="flex items-center justify-between gap-4 pt-6">
+                      <div>
+                        <p className="font-semibold">{p.name}</p>
+                        <p className="text-2xl font-bold text-futex-blue">
+                          {php(p.base_price)}
+                        </p>
+                      </div>
+                      <Button asChild>
+                        <Link href="/contact#book">Book now</Link>
+                      </Button>
+                    </CardContent>
+                  </>
+                ) : (
+                  <>
+                    <CardHeader>
+                      <CardTitle>{p.name}</CardTitle>
+                      <span className="text-2xl font-bold text-futex-blue">
+                        {php(p.base_price)}
+                      </span>
+                    </CardHeader>
+                    <CardContent className="flex flex-1 flex-col">
+                      <ul className="space-y-2">
+                        {p.inclusions.map((inc) => (
+                          <li
+                            key={inc}
+                            className="flex items-start gap-2 text-sm"
+                          >
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-futex-green" />
+                            {inc}
+                          </li>
+                        ))}
+                      </ul>
+                      {p.enclosure_included && (
+                        <Badge variant="secondary" className="mt-3 w-fit">
+                          Enclosure included
+                        </Badge>
+                      )}
+                    </CardContent>
+                  </>
                 )}
-              </CardContent>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       </section>
 
