@@ -31,7 +31,14 @@ import {
 } from "@/components/ui/table";
 import { ROLE_LABELS, type Profile, type UserRole } from "@/lib/types";
 
-const ROLES: UserRole[] = ["admin", "field_officer", "installer", "accounting"];
+const ROLES: UserRole[] = [
+  "owner",
+  "admin",
+  "field_officer",
+  "installer",
+  "accounting",
+  "hr",
+];
 
 type UserRow = Profile & { email?: string };
 

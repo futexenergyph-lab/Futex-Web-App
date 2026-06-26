@@ -1,6 +1,12 @@
 // Shared application types mirroring the Supabase schema (Phase 1 migrations).
 
-export type UserRole = "admin" | "field_officer" | "installer" | "accounting";
+export type UserRole =
+  | "owner"
+  | "admin"
+  | "field_officer"
+  | "installer"
+  | "accounting"
+  | "hr";
 
 export type BookingStatus =
   | "new"
@@ -221,10 +227,12 @@ export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
+  owner: "Owner",
   admin: "Management",
   field_officer: "Field Officer",
   installer: "Installer",
   accounting: "Accounting",
+  hr: "HR",
 };
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {

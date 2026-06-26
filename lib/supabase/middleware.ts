@@ -7,10 +7,13 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 /** Default landing route per role. */
 export function homeForRole(role: UserRole | null | undefined): string {
   switch (role) {
+    case "owner":
     case "admin":
       return "/admin";
     case "accounting":
       return "/accounting";
+    case "hr":
+      return "/hr";
     case "field_officer":
     case "installer":
       return "/field";
@@ -82,11 +85,15 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
+    // Owner has the same access as admin/management everywhere.
+    const isManager = role === "admin" || role === "owner";
+
     // Enforce per-area role access.
     const allowed =
-      (path.startsWith("/admin") && role === "admin") ||
+      (path.startsWith("/admin") && isManager) ||
       (path.startsWith("/accounting") &&
-        (role === "accounting" || role === "admin")) ||
+        (role === "accounting" || isManager)) ||
+      (path.startsWith("/hr") && (role === "hr" || isManager)) ||
       (path.startsWith("/field") &&
         (role === "field_officer" || role === "installer"));
 

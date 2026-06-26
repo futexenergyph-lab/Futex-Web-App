@@ -33,11 +33,14 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-export type AppArea = "admin" | "field" | "accounting";
+export type AppArea = "admin" | "field" | "accounting" | "hr";
 
 // Nav config lives here (client) so icon components never cross the
 // Server -> Client Component boundary (functions aren't serializable).
-const AREAS: Record<"admin" | "accounting", { label: string; nav: NavItem[] }> = {
+const AREAS: Record<
+  "admin" | "accounting" | "hr",
+  { label: string; nav: NavItem[] }
+> = {
   admin: {
     label: "Management",
     nav: [
@@ -63,6 +66,10 @@ const AREAS: Record<"admin" | "accounting", { label: string; nav: NavItem[] }> =
       { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
       { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
     ],
+  },
+  hr: {
+    label: "Human Resources",
+    nav: [{ href: "/hr", label: "Attendance", icon: Users }],
   },
 };
 
