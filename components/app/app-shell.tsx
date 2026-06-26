@@ -47,6 +47,11 @@ const AREAS: Record<"admin" | "accounting", { label: string; nav: NavItem[] }> =
       { href: "/admin/live", label: "Live Status", icon: Activity },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/admin/hr", label: "HR", icon: Users },
+      // Accounting module (admins have full access)
+      { href: "/accounting/cashflow", label: "Accounting Overview", icon: ArrowLeftRight },
+      { href: "/accounting", label: "Payments", icon: Wallet },
+      { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
+      { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
       { href: "/admin/settings", label: "Settings", icon: Settings },
     ],
   },
