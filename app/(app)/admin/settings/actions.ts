@@ -1,0 +1,136 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireRole } from "@/lib/auth";
+import type { UserRole } from "@/lib/types";
+
+function revalidatePricing() {
+  revalidatePath("/admin/settings");
+  revalidatePath("/packages");
+  revalidatePath("/contact");
+}
+
+// ---- Packages ----
+export async function upsertPackage(input: {
+  id?: string;
+  name: string;
+  description: string;
+  inclusions: string[];
+  base_price: number;
+  enclosure_included: boolean;
+  is_promo: boolean;
+  original_price: number | null;
+  active: boolean;
+}) {
+  await requireRole(["admin"]);
+  const supabase = createClient();
+  const { id, ...fields } = input;
+  const { error } = id
+    ? await supabase.from("packages").update(fields).eq("id", id)
+    : await supabase.from("packages").insert(fields);
+  if (error) return { error: error.message };
+  revalidatePricing();
+  return { ok: true };
+}
+
+// ---- Enclosures ----
+export async function upsertEnclosure(input: {
+  id?: string;
+  name: string;
+  price: number;
+  active: boolean;
+}) {
+  await requireRole(["admin"]);
+  const supabase = createClient();
+  const { id, ...fields } = input;
+  const { error } = id
+    ? await supabase.from("enclosures").update(fields).eq("id", id)
+    : await supabase.from("enclosures").insert(fields);
+  if (error) return { error: error.message };
+  revalidatePricing();
+  return { ok: true };
+}
+
+// ---- Add-ons ----
+export async function upsertAddon(input: {
+  id?: string;
+  name: string;
+  price: number;
+  active: boolean;
+}) {
+  await requireRole(["admin"]);
+  const supabase = createClient();
+  const { id, ...fields } = input;
+  const { error } = id
+    ? await supabase.from("addons").update(fields).eq("id", id)
+    : await supabase.from("addons").insert(fields);
+  if (error) return { error: error.message };
+  revalidatePricing();
+  return { ok: true };
+}
+
+// ---- Settings (wire rate etc.) ----
+export async function updateSetting(key: string, value: unknown) {
+  await requireRole(["admin"]);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("settings")
+    .update({ value })
+    .eq("key", key);
+  if (error) return { error: error.message };
+  revalidatePricing();
+  return { ok: true };
+}
+
+// ---- User management (service role) ----
+export async function createUser(input: {
+  email: string;
+  password: string;
+  full_name: string;
+  role: UserRole;
+  phone: string;
+}) {
+  await requireRole(["admin"]);
+  const admin = createAdminClient();
+  const { data, error } = await admin.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: input.full_name,
+      role: input.role,
+      phone: input.phone,
+    },
+  });
+  if (error) return { error: error.message };
+  // Ensure profile reflects role (trigger creates it; update to be safe).
+  await admin
+    .from("profiles")
+    .update({
+      full_name: input.full_name,
+      role: input.role,
+      phone: input.phone,
+    })
+    .eq("id", data.user!.id);
+  revalidatePath("/admin/settings");
+  return { ok: true };
+}
+
+export async function updateUser(input: {
+  id: string;
+  full_name: string;
+  role: UserRole;
+  phone: string;
+  active: boolean;
+}) {
+  await requireRole(["admin"]);
+  const supabase = createClient();
+  const { id, ...fields } = input;
+  const { error } = await supabase.from("profiles").update(fields).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/hr");
+  return { ok: true };
+}
