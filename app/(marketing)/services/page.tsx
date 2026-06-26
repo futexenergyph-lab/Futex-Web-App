@@ -9,8 +9,10 @@ import {
   Activity,
   Wrench,
   MessagesSquare,
+  CheckCircle2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { KEY_FEATURES, OUR_PROMISE } from "@/lib/company";
 
 export const metadata = { title: "Services" };
 
@@ -87,6 +89,38 @@ export default function ServicesPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Key features */}
+      <section className="container max-w-5xl py-16">
+        <h2 className="text-center text-3xl font-bold">Key features</h2>
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {KEY_FEATURES.map((f) => (
+            <Card key={f.title}>
+              <CardContent className="pt-6">
+                <h3 className="font-semibold">{f.title}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{f.desc}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* Our promise */}
+      <section className="bg-futex-gradient py-16 text-white">
+        <div className="container max-w-3xl text-center">
+          <h2 className="text-3xl font-bold">Our promise</h2>
+          <ul className="mt-8 grid gap-3 sm:grid-cols-3">
+            {OUR_PROMISE.map((p) => (
+              <li
+                key={p}
+                className="flex items-center justify-center gap-2 rounded-lg bg-white/10 px-4 py-3 text-sm"
+              >
+                <CheckCircle2 className="h-4 w-4 shrink-0" /> {p}
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
     </>

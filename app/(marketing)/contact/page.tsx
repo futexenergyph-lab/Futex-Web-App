@@ -2,6 +2,7 @@ import { Facebook, Phone, MapPin } from "lucide-react";
 import { createPublicClient } from "@/lib/supabase/public";
 import { BookingForm } from "@/components/marketing/booking-form";
 import { Card, CardContent } from "@/components/ui/card";
+import { COMPANY } from "@/lib/company";
 
 export const metadata = { title: "Contact & Book" };
 export const revalidate = 60;
@@ -42,24 +43,25 @@ export default async function ContactPage() {
               <div className="flex items-center gap-3">
                 <Phone className="h-5 w-5 text-futex-blue" />
                 <div>
-                  <p className="font-medium">0961-449-6825</p>
-                  <p className="text-muted-foreground">0968-477-2475</p>
+                  {COMPANY.phones.map((p) => (
+                    <p key={p} className="font-medium">
+                      {p}
+                    </p>
+                  ))}
                 </div>
               </div>
               <a
-                href="https://facebook.com/futexenergyph"
+                href={COMPANY.facebook}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-3 hover:text-futex-blue"
               >
                 <Facebook className="h-5 w-5 text-futex-blue" />
-                <span className="font-medium">facebook.com/futexenergyph</span>
+                <span className="font-medium">{COMPANY.facebookHandle}</span>
               </a>
-              <div className="flex items-center gap-3">
-                <MapPin className="h-5 w-5 text-futex-blue" />
-                <span className="text-muted-foreground">
-                  Serving Metro Manila &amp; nearby provinces
-                </span>
+              <div className="flex items-start gap-3">
+                <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-futex-blue" />
+                <span className="text-muted-foreground">{COMPANY.address}</span>
               </div>
             </CardContent>
           </Card>
