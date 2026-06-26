@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Facebook, Phone, MapPin, ShieldCheck } from "lucide-react";
+import { Facebook, Phone, MapPin, ShieldCheck, MessageCircle } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { COMPANY, ACCREDITATION } from "@/lib/company";
 
@@ -43,6 +43,16 @@ export function SiteFooter() {
                 className="flex items-center gap-2 hover:text-foreground"
               >
                 <Facebook className="h-4 w-4" /> {COMPANY.facebookHandle}
+              </a>
+            </li>
+            <li>
+              <a
+                href={COMPANY.messenger}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 hover:text-foreground"
+              >
+                <MessageCircle className="h-4 w-4" /> {COMPANY.messengerName}
               </a>
             </li>
             <li className="flex items-start gap-2">
