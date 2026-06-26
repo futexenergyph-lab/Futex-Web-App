@@ -36,30 +36,48 @@ jobs:
         run: npm i -g vercel@latest
 
       - name: Resolve Supabase env (optional)
+        continue-on-error: true
         env:
           SAT: ${{ github.event.inputs.supabase_access_token || secrets.SUPABASE_ACCESS_TOKEN }}
           REF_IN: ${{ github.event.inputs.supabase_project_ref || secrets.SUPABASE_PROJECT_REF }}
         run: |
-          set -e
+          # Best-effort: never fail the deploy if Supabase can't be resolved.
+          set +e
           if [ -z "$SAT" ]; then
             echo "No Supabase token supplied — deploying marketing site only."
             exit 0
           fi
+          PROJECTS=$(curl -s https://api.supabase.com/v1/projects \
+            -H "Authorization: Bearer $SAT")
           REF="$REF_IN"
           if [ -z "$REF" ]; then
-            REF=$(curl -s https://api.supabase.com/v1/projects \
-              -H "Authorization: Bearer $SAT" | jq -r '.[0].id')
+            REF=$(echo "$PROJECTS" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
+          fi
+          if [ -z "$REF" ] || [ "$REF" = "null" ]; then
+            echo "Could not resolve a Supabase project. API said:"
+            echo "$PROJECTS" | head -c 400
+            echo
+            echo "Deploying marketing site only (set SUPABASE_PROJECT_REF or check the token)."
+            exit 0
           fi
           echo "Using Supabase project ref: $REF"
           KEYS=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" \
             -H "Authorization: Bearer $SAT")
-          ANON=$(echo "$KEYS" | jq -r '.[] | select(.name=="anon") | .api_key')
-          SERVICE=$(echo "$KEYS" | jq -r '.[] | select(.name=="service_role") | .api_key')
+          ANON=$(echo "$KEYS" | jq -r 'if type=="array" then (.[] | select(.name=="anon") | .api_key) else empty end')
+          SERVICE=$(echo "$KEYS" | jq -r 'if type=="array" then (.[] | select(.name=="service_role") | .api_key) else empty end')
+          if [ -z "$ANON" ]; then
+            echo "Could not read anon key. API said:"
+            echo "$KEYS" | head -c 400
+            echo
+            echo "Deploying marketing site only."
+            exit 0
+          fi
           {
             echo "SB_URL=https://$REF.supabase.co"
             echo "SB_ANON=$ANON"
             echo "SB_SERVICE=$SERVICE"
           } >> "$GITHUB_ENV"
+          echo "Resolved Supabase env for project $REF."
 
       - name: Link / create Vercel project
         env:
@@ -69,8 +87,8 @@ jobs:
           if [ -z "$VT" ]; then
             echo "::error::No Vercel token (input vercel_token or secret VERCEL_TOKEN)"; exit 1
           fi
-          vercel link --yes --project futex-web-app --token "$VT" \
-            || vercel link --yes --token "$VT"
+          # --yes creates/links a project named after the repo directory.
+          vercel link --yes --token "$VT"
 
       - name: Set Vercel env vars (if Supabase resolved)
         if: env.SB_URL != ''
