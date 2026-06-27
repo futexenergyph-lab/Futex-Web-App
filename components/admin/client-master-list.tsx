@@ -28,6 +28,8 @@ export interface ClientRow {
   contact_number: string;
   address: string;
   package: string | null;
+  field_officer: string | null;
+  installer: string | null;
   status: BookingStatus;
   source: string;
   created_at: string;
@@ -87,6 +89,8 @@ export function ClientMasterList({ clients }: { clients: ClientRow[] }) {
     contact: c.contact_number,
     address: c.address,
     package: c.package ?? "",
+    field_officer: c.field_officer ?? "",
+    installer: c.installer ?? "",
     status: BOOKING_STATUS_LABELS[c.status],
     source: c.source,
     submitted: c.created_at.slice(0, 10),
@@ -144,8 +148,11 @@ export function ClientMasterList({ clients }: { clients: ClientRow[] }) {
               <TableHead>Contact</TableHead>
               <TableHead>Address</TableHead>
               <TableHead>Package</TableHead>
+              <TableHead>Field Officer</TableHead>
+              <TableHead>Installer</TableHead>
               <SortHead k="status" label="Status" />
               <SortHead k="created_at" label="Submitted" />
+              <TableHead>Documents</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -163,18 +170,25 @@ export function ClientMasterList({ clients }: { clients: ClientRow[] }) {
                   <span className="line-clamp-2">{c.address}</span>
                 </TableCell>
                 <TableCell className="text-sm">{c.package ?? "—"}</TableCell>
+                <TableCell className="text-sm">
+                  {c.field_officer ?? "—"}
+                </TableCell>
+                <TableCell className="text-sm">{c.installer ?? "—"}</TableCell>
                 <TableCell>
                   <StatusBadge status={c.status} />
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                   {formatDate(c.created_at)}
                 </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  —
+                </TableCell>
               </TableRow>
             ))}
             {filtered.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={11}
                   className="py-10 text-center text-muted-foreground"
                 >
                   No clients match your filter.
