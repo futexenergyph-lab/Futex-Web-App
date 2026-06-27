@@ -79,4 +79,7 @@ jobs:
           run_sql "alter type public.user_role add value if not exists 'admin_staff';"
           run_sql "create or replace function public.is_admin() returns boolean language sql stable security definer set search_path = public as \$\$ select exists (select 1 from public.profiles where id = auth.uid() and role in ('admin','owner','admin_staff') and active); \$\$;"
 
+          # Job order client signature
+          run_sql 'alter table public.job_orders add column if not exists signature text;'
+
           echo "Done."
