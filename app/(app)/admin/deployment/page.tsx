@@ -49,20 +49,39 @@ export default async function DeploymentPage() {
   const allIds = bookings.map((b) => b.id);
   const payByBooking = new Map<
     string,
-    { amount: number; status: "pending" | "confirmed" }
+    {
+      amount: number;
+      status: "pending" | "confirmed";
+      proofUrl: string | null;
+    }
   >();
   if (allIds.length > 0) {
     const { data: pays } = await supabase
       .from("payments")
-      .select("booking_id, amount, status, created_at")
+      .select("booking_id, amount, status, proof_url, created_at")
       .in("booking_id", allIds)
       .order("created_at", { ascending: false });
     for (const p of (pays as
-      | { booking_id: string; amount: number; status: "pending" | "confirmed" }[]
+      | {
+          booking_id: string;
+          amount: number;
+          status: "pending" | "confirmed";
+          proof_url: string | null;
+        }[]
       | null) ?? []) {
-      if (!payByBooking.has(p.booking_id)) {
-        payByBooking.set(p.booking_id, { amount: Number(p.amount), status: p.status });
+      if (payByBooking.has(p.booking_id)) continue;
+      let proofUrl: string | null = null;
+      if (p.proof_url) {
+        const { data: signed } = await supabase.storage
+          .from("payment-proofs")
+          .createSignedUrl(p.proof_url, 3600);
+        proofUrl = signed?.signedUrl ?? null;
       }
+      payByBooking.set(p.booking_id, {
+        amount: Number(p.amount),
+        status: p.status,
+        proofUrl,
+      });
     }
   }
 
@@ -163,7 +182,13 @@ export default async function DeploymentPage() {
                     </TableCell>
                     <TableCell className="text-sm">
                       {jo ? (
-                        <JobOrderAmount amount={jo.amount} detail={jo.detail} />
+                        <JobOrderAmount
+                          amount={jo.amount}
+                          detail={jo.detail}
+                          bookingId={b.id}
+                          paymentStatus={pay?.status ?? null}
+                          paymentProofUrl={pay?.proofUrl ?? null}
+                        />
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
