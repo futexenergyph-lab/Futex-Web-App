@@ -314,6 +314,7 @@ export default async function FieldBookingDetail({
                 }}
                 completed={!!commDoc}
                 downloadUrl={commDownloadUrl}
+                receivedByDefault={profile.full_name}
               />
             </CardContent>
           </Card>

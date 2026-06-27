@@ -39,17 +39,19 @@ export function CommissioningForm({
   prefill,
   completed,
   downloadUrl,
+  receivedByDefault = "",
 }: {
   bookingId: string;
   prefill: { client_name: string; site_address: string; contact_person: string };
   completed: boolean;
   downloadUrl: string | null;
+  receivedByDefault?: string;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [printedName, setPrintedName] = useState(prefill.client_name ?? "");
   const [signature, setSignature] = useState<string | null>(null);
-  const [receivedByName, setReceivedByName] = useState("");
+  const [receivedByName, setReceivedByName] = useState(receivedByDefault);
   const [receivedBySignature, setReceivedBySignature] = useState<string | null>(
     null,
   );
