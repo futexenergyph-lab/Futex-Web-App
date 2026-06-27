@@ -371,6 +371,48 @@ export async function saveCommissioning(input: {
   return { ok: true };
 }
 
+/**
+ * Save the merged Commissioning + Warranty + Acknowledgement Receipt PDF. The
+ * field officer generates this in the Payment tab after management confirms
+ * the payment. It replaces the standalone commissioning document so the Client
+ * Master List shows a SINGLE combined PDF under "Commissioning & Warranty".
+ */
+export async function saveAcknowledgement(input: {
+  bookingId: string;
+  storagePath: string;
+  title: string;
+  data: unknown;
+}) {
+  const profile = await me();
+  await assertAssigned(input.bookingId, profile.id);
+  const supabase = createClient();
+
+  // Remove the prior standalone commissioning row(s) so only the merged
+  // document remains in the master list.
+  await supabase
+    .from("booking_documents")
+    .delete()
+    .eq("booking_id", input.bookingId)
+    .eq("kind", "commissioning");
+
+  // Re-insert as kind 'commissioning' (keeps the done-installation gating
+  // working) but with the combined title and merged file.
+  const { error } = await supabase.from("booking_documents").insert({
+    booking_id: input.bookingId,
+    kind: "commissioning",
+    title: input.title,
+    storage_path: input.storagePath,
+    data: input.data,
+    created_by: profile.id,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/field/bookings/${input.bookingId}`);
+  revalidatePath("/field/clients");
+  revalidatePath("/admin/clients");
+  return { ok: true };
+}
+
 export async function uploadDocumentation(input: {
   bookingId: string;
   filePaths: string[];

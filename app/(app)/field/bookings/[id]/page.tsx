@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { JobOrderForm } from "@/components/field/job-order-form";
 import { CommissioningForm } from "@/components/field/commissioning-form";
 import { DoneInstallationButton } from "@/components/field/done-installation-button";
+import { AcknowledgementForm } from "@/components/field/acknowledgement-form";
 import {
   ArrivalButton,
   DocumentationForm,
@@ -19,15 +20,18 @@ import {
   UpdateForm,
 } from "@/components/field/onsite-forms";
 import { InstallerBookingView } from "@/components/field/installer-booking-view";
+import { FREE_WIRE_METERS } from "@/lib/pricing";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import type {
-  BookingWithRelations,
-  Enclosure,
-  JobOrder,
-  JobUpdate,
-  Package,
-  Payment,
+import {
+  PAYMENT_METHOD_LABELS,
+  type BookingWithRelations,
+  type Enclosure,
+  type JobOrder,
+  type JobUpdate,
+  type Package,
+  type Payment,
 } from "@/lib/types";
+import type { AckParticular } from "@/lib/acknowledgement-pdf";
 
 export const dynamic = "force-dynamic";
 
@@ -99,7 +103,7 @@ export default async function FieldBookingDetail({
       .order("created_at", { ascending: false }),
     supabase
       .from("booking_documents")
-      .select("storage_path")
+      .select("storage_path, title")
       .eq("booking_id", params.id)
       .eq("kind", "commissioning")
       .order("created_at", { ascending: false })
@@ -115,12 +119,12 @@ export default async function FieldBookingDetail({
   const wireRate = Number(wireSetting?.value ?? 200);
   const jo = (jobOrder as JobOrder | null) ?? null;
   const pay = (payment as Payment | null) ?? null;
-  const commDoc = (commissioning as { storage_path: string } | null) ?? null;
+  const commDoc =
+    (commissioning as { storage_path: string; title: string } | null) ?? null;
+  const docRows = (documentation as { file_urls: string[] }[] | null) ?? [];
 
   // "Done installation" gating: every module must be complete.
-  const docsOk = ((documentation as { file_urls: string[] }[] | null) ?? []).some(
-    (d) => (d.file_urls ?? []).length > 0,
-  );
+  const docsOk = docRows.some((d) => (d.file_urls ?? []).length > 0);
   const doneModules = [
     { label: "Job Order submitted", ok: !!jo },
     { label: "Commissioning checklist filed", ok: !!commDoc },
@@ -135,6 +139,58 @@ export default async function FieldBookingDetail({
       .createSignedUrl(commDoc.storage_path, 3600);
     commDownloadUrl = signed?.signedUrl ?? null;
   }
+
+  // ---- Acknowledgement Receipt (Payment tab, after confirmed payment) ----
+  // Build receipt particulars from the locked job order.
+  const ackParticulars: AckParticular[] = [];
+  if (jo) {
+    const pkg = ((packages as Package[]) ?? []).find(
+      (p) => p.id === jo.package_id,
+    );
+    const enc = ((enclosures as Enclosure[]) ?? []).find(
+      (e) => e.id === jo.enclosure_id,
+    );
+    if (pkg)
+      ackParticulars.push({ label: pkg.name, unitPrice: pkg.base_price });
+    if (jo.add_separate_enclosure && enc)
+      ackParticulars.push({ label: enc.name, unitPrice: enc.price });
+    const chargeableMeters = Math.max(
+      0,
+      (jo.additional_wire_meters ?? 0) - FREE_WIRE_METERS,
+    );
+    if (chargeableMeters > 0)
+      ackParticulars.push({
+        label: `Additional wire (${jo.additional_wire_meters}m total, ${chargeableMeters}m charged)`,
+        unitPrice: chargeableMeters * (jo.wire_rate_per_meter ?? wireRate),
+      });
+    for (const w of jo.additional_job_works ?? [])
+      ackParticulars.push({
+        label: w.description || "Additional job work",
+        unitPrice: w.amount,
+      });
+  }
+  const ackMop = pay ? PAYMENT_METHOD_LABELS[pay.method].toUpperCase() : "";
+  const ackDate = new Date(pay?.paid_at ?? Date.now())
+    .toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "Asia/Manila",
+    })
+    .toUpperCase();
+  const ackDone = !!commDoc?.title?.includes("Acknowledgement");
+  // One documentation photo (full quality) to embed in the receipt.
+  let ackPhotoUrl: string | null = null;
+  const firstPhotoPath = docRows
+    .flatMap((d) => d.file_urls ?? [])
+    .find(Boolean);
+  if (firstPhotoPath) {
+    const { data: signed } = await supabase.storage
+      .from("documentation")
+      .createSignedUrl(firstPhotoPath, 3600);
+    ackPhotoUrl = signed?.signedUrl ?? null;
+  }
+
   const mapsHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.address)}`;
 
   return (
@@ -268,7 +324,7 @@ export default async function FieldBookingDetail({
             <CardHeader>
               <CardTitle>Payment confirmation</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-5">
               {!jo ? (
                 <p className="text-sm text-muted-foreground">
                   Submit the job order first to confirm payment.
@@ -280,6 +336,27 @@ export default async function FieldBookingDetail({
                   userId={profile.id}
                   existingStatus={pay?.status ?? null}
                 />
+              )}
+              {jo && pay?.status === "confirmed" && (
+                <div className="border-t pt-5">
+                  <AcknowledgementForm
+                    bookingId={b.id}
+                    customer={{
+                      name: b.client_name,
+                      address: b.address,
+                      contact: b.contact_number,
+                    }}
+                    particulars={ackParticulars}
+                    totalAmount={jo.final_total}
+                    mop={ackMop}
+                    date={ackDate}
+                    fieldOfficerName={profile.full_name}
+                    commissioningUrl={commDownloadUrl}
+                    documentationPhotoUrl={ackPhotoUrl}
+                    alreadyDone={ackDone}
+                    downloadUrl={commDownloadUrl}
+                  />
+                </div>
               )}
             </CardContent>
           </Card>
