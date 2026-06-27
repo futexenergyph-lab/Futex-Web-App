@@ -6,6 +6,7 @@ import {
   ClientMasterList,
   type ClientRow,
 } from "@/components/admin/client-master-list";
+import { fetchBookingDocumentationPhotos } from "@/lib/booking-photos";
 import type { BookingStatus } from "@/lib/types";
 
 export const metadata = { title: "Client Master List" };
@@ -61,38 +62,12 @@ export default async function ClientMasterListPage() {
     docsByBooking.set(d.booking_id, list);
   }
 
-  // Post-installation documentation photos per booking. Signed URLs point to
-  // the original uploaded files (full quality, no resizing). Each gets an
-  // inline URL for viewing/zoom plus a force-download variant.
-  const docPhotosByBooking = new Map<
-    string,
-    { url: string; downloadUrl: string; name: string }[]
-  >();
-  const { data: docRows } = await supabase
-    .from("documentation")
-    .select("booking_id, file_urls, created_at")
-    .order("created_at", { ascending: false });
-  for (const row of (docRows as
-    | { booking_id: string; file_urls: string[] }[]
-    | null) ?? []) {
-    const list = docPhotosByBooking.get(row.booking_id) ?? [];
-    for (const path of row.file_urls ?? []) {
-      const name = path.split("/").pop() ?? "photo";
-      const [{ data: inline }, { data: dl }] = await Promise.all([
-        supabase.storage.from("documentation").createSignedUrl(path, 3600),
-        supabase.storage
-          .from("documentation")
-          .createSignedUrl(path, 3600, { download: name }),
-      ]);
-      if (!inline?.signedUrl) continue;
-      list.push({
-        url: inline.signedUrl,
-        downloadUrl: dl?.signedUrl ?? inline.signedUrl,
-        name,
-      });
-    }
-    docPhotosByBooking.set(row.booking_id, list);
-  }
+  // Documentation gallery photos per booking: on-site update photos +
+  // post-installation documentation photos (full quality, no resizing).
+  const docPhotosByBooking = await fetchBookingDocumentationPhotos(
+    supabase,
+    rows.map((r) => r.id),
+  );
 
   const clients: ClientRow[] = rows.map((r) => ({
     id: r.id,
