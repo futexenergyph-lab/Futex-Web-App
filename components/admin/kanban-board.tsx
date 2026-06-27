@@ -30,6 +30,7 @@ import {
   approveJobOrderChange,
 } from "@/app/(app)/admin/actions";
 import { EditBookingDialog } from "@/components/admin/edit-booking-dialog";
+import { DeployDialog } from "@/components/admin/deploy-dialog";
 import { StatusBadge } from "@/components/status-badge";
 import { cn, formatDate, php } from "@/lib/utils";
 import {
@@ -44,14 +45,22 @@ interface Option {
   name: string;
 }
 
+interface Staff {
+  id: string;
+  full_name: string;
+  role: string;
+}
+
 function BookingCard({
   booking,
   packages,
   enclosures,
+  staff,
 }: {
   booking: BookingWithRelations;
   packages: Option[];
   enclosures: Option[];
+  staff: Staff[];
 }) {
   const router = useRouter();
   const [approving, setApproving] = useState(false);
@@ -206,6 +215,11 @@ function BookingCard({
             <RotateCcw className="h-3 w-3" /> Restore
           </button>
         )}
+        {booking.status === "scheduled" && (
+          <div className="ml-auto">
+            <DeployDialog booking={booking} staff={staff} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -216,11 +230,13 @@ function Column({
   bookings,
   packages,
   enclosures,
+  staff,
 }: {
   status: BookingStatus;
   bookings: BookingWithRelations[];
   packages: Option[];
   enclosures: Option[];
+  staff: Staff[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const declined = status === "declined";
@@ -253,6 +269,7 @@ function Column({
             booking={b}
             packages={packages}
             enclosures={enclosures}
+            staff={staff}
           />
         ))}
       </div>
@@ -264,10 +281,12 @@ export function KanbanBoard({
   initial,
   packages,
   enclosures,
+  staff,
 }: {
   initial: BookingWithRelations[];
   packages: Option[];
   enclosures: Option[];
+  staff: Staff[];
 }) {
   const router = useRouter();
   const [items, setItems] = useState(initial);
@@ -342,6 +361,7 @@ export function KanbanBoard({
             bookings={items.filter((b) => b.status === status)}
             packages={packages}
             enclosures={enclosures}
+            staff={staff}
           />
         ))}
       </div>

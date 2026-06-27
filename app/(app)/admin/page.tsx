@@ -1,4 +1,4 @@
-import { fetchBookings } from "@/lib/queries";
+import { fetchBookings, fetchStaff } from "@/lib/queries";
 import { PageHeader } from "@/components/app/page-header";
 import { KanbanBoard } from "@/components/admin/kanban-board";
 import { NewBookingDialog } from "@/components/admin/new-booking-dialog";
@@ -8,7 +8,7 @@ export const metadata = { title: "Bookings" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminBookingsPage() {
-  const bookings = await fetchBookings();
+  const [bookings, staff] = await Promise.all([fetchBookings(), fetchStaff()]);
   const supabase = createClient();
   const [{ data: packages }, { data: enclosures }] = await Promise.all([
     supabase.from("packages").select("id,name").eq("active", true).order("sort_order"),
@@ -30,6 +30,7 @@ export default async function AdminBookingsPage() {
         initial={bookings}
         packages={packages ?? []}
         enclosures={enclosures ?? []}
+        staff={staff}
       />
     </div>
   );
