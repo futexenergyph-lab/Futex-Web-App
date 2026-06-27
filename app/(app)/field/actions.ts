@@ -348,6 +348,29 @@ export async function confirmPayment(input: {
   return { ok: true };
 }
 
+export async function saveCommissioning(input: {
+  bookingId: string;
+  title: string;
+  storagePath: string;
+  data: unknown;
+}) {
+  const profile = await me();
+  await assertAssigned(input.bookingId, profile.id);
+  const supabase = createClient();
+  const { error } = await supabase.from("booking_documents").insert({
+    booking_id: input.bookingId,
+    kind: "commissioning",
+    title: input.title,
+    storage_path: input.storagePath,
+    data: input.data,
+    created_by: profile.id,
+  });
+  if (error) return { error: error.message };
+  revalidatePath(`/field/bookings/${input.bookingId}`);
+  revalidatePath("/admin/clients");
+  return { ok: true };
+}
+
 export async function uploadDocumentation(input: {
   bookingId: string;
   filePaths: string[];

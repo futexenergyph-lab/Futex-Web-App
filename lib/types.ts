@@ -145,6 +145,17 @@ export interface JobOrder {
   updated_at: string;
 }
 
+export interface BookingDocument {
+  id: string;
+  booking_id: string;
+  kind: string;
+  title: string;
+  storage_path: string;
+  data: unknown;
+  created_by: string | null;
+  created_at: string;
+}
+
 // Lightweight job-order shape embedded in booking queries so the Kanban can
 // flag pending "request to change" approvals without a second round-trip.
 export interface JobOrderChangeFlag {
