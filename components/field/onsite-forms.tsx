@@ -146,12 +146,12 @@ export function PaymentForm({
   bookingId,
   jobOrder,
   userId,
-  alreadyPaid,
+  existingStatus,
 }: {
   bookingId: string;
   jobOrder: JobOrder | null;
   userId: string;
-  alreadyPaid: boolean;
+  existingStatus: "pending" | "confirmed" | null;
 }) {
   const { files, ref, onPick, reset } = usePhotos();
   const [amount, setAmount] = useState(String(jobOrder?.final_total ?? ""));
@@ -160,10 +160,12 @@ export function PaymentForm({
   const [pending, setPending] = useState(false);
   const router = useRouter();
 
-  if (alreadyPaid) {
+  if (existingStatus) {
     return (
       <p className="rounded-md bg-accent/10 px-3 py-2 text-sm">
-        Payment already confirmed for this job.
+        {existingStatus === "confirmed"
+          ? "Payment confirmed by management for this job."
+          : "Payment recorded — awaiting management confirmation."}
       </p>
     );
   }
@@ -193,7 +195,7 @@ export function PaymentForm({
         proofPath,
       });
       if (res?.error) throw new Error(res.error);
-      toast.success("Payment confirmed");
+      toast.success("Payment recorded — awaiting management confirmation");
       reset();
       router.refresh();
     } catch (err) {

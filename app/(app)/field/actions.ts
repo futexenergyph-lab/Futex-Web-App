@@ -327,6 +327,8 @@ export async function confirmPayment(input: {
   const profile = await me();
   await assertAssigned(input.bookingId, profile.id);
   const supabase = createClient();
+  // Field officer records the payment; it stays PENDING until management
+  // confirms it from Deployment, at which point it reflects in accounting.
   const { error } = await supabase.from("payments").insert({
     booking_id: input.bookingId,
     job_order_id: input.jobOrderId,
@@ -335,18 +337,14 @@ export async function confirmPayment(input: {
     reference_no: input.referenceNo || null,
     proof_url: input.proofPath,
     confirmed_by_field_officer_id: profile.id,
-    status: "confirmed",
+    status: "pending",
     paid_at: new Date().toISOString(),
   });
   if (error) return { error: error.message };
 
-  // Mark booking completed & paid.
-  await supabase
-    .from("bookings")
-    .update({ status: "paid" })
-    .eq("id", input.bookingId);
-
   revalidatePath(`/field/bookings/${input.bookingId}`);
+  revalidatePath("/admin/deployment");
+  revalidatePath("/admin");
   return { ok: true };
 }
 

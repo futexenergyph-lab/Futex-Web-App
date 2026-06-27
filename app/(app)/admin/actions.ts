@@ -81,6 +81,38 @@ export async function updateBooking(input: {
   return { ok: true };
 }
 
+/**
+ * Confirm a field-recorded payment from Deployment. Marks the latest pending
+ * payment confirmed (so it reflects in accounting) and the booking as paid.
+ */
+export async function confirmDeploymentPayment(bookingId: string) {
+  await requireRole(["admin", "admin_staff"]);
+  const supabase = createClient();
+  const { data: pay } = await supabase
+    .from("payments")
+    .select("id")
+    .eq("booking_id", bookingId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!pay) return { error: "No pending payment to confirm." };
+
+  const { error } = await supabase
+    .from("payments")
+    .update({ status: "confirmed", paid_at: new Date().toISOString() })
+    .eq("id", pay.id);
+  if (error) return { error: error.message };
+
+  await supabase.from("bookings").update({ status: "paid" }).eq("id", bookingId);
+
+  revalidatePath("/admin/deployment");
+  revalidatePath("/admin");
+  revalidatePath("/accounting");
+  revalidatePath("/accounting/cashflow");
+  return { ok: true };
+}
+
 export async function deployBooking(input: {
   bookingId: string;
   fieldOfficerId: string | null;
