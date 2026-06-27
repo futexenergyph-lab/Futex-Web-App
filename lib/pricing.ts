@@ -6,6 +6,10 @@
 
 import type { Enclosure, JobWork, Package } from "@/lib/types";
 
+// Linear meters of wire bundled free with every package. The wire field is the
+// TOTAL wire used; only meters beyond this allowance are charged.
+export const FREE_WIRE_METERS = 10;
+
 export interface PricingInput {
   pkg: Pick<Package, "base_price" | "enclosure_included"> | null;
   /** The enclosure the client selected (price source). */
@@ -39,8 +43,11 @@ export interface PricingResult {
  *   final_total =
  *       package.base_price
  *     + enclosure.price            (only if NOT bundled in the package)
- *     + additional_wire_meters × wire_rate_per_meter
+ *     + max(0, total_wire_meters - 10) × wire_rate_per_meter
  *     + Σ(additional_job_works[].amount)
+ *
+ * The wire field holds the TOTAL wire used; the first 10 linear meters are
+ * included in the package, so only the excess is charged.
  */
 export function computePricing(input: PricingInput): PricingResult {
   const lines: PricingLine[] = [];
@@ -62,12 +69,14 @@ export function computePricing(input: PricingInput): PricingResult {
 
   const subtotal = base + enclosurePrice;
 
-  const meters = Math.max(0, num(input.additionalWireMeters));
+  // Total wire entered; only the meters beyond the free allowance are charged.
+  const totalMeters = Math.max(0, num(input.additionalWireMeters));
+  const chargeableMeters = Math.max(0, totalMeters - FREE_WIRE_METERS);
   const rate = Math.max(0, num(input.wireRatePerMeter));
-  const wireTotal = meters * rate;
-  if (meters > 0) {
+  const wireTotal = chargeableMeters * rate;
+  if (chargeableMeters > 0) {
     lines.push({
-      label: `Additional wire (${meters} m × ${formatRate(rate)})`,
+      label: `Additional wire ((${totalMeters} − ${FREE_WIRE_METERS}) m × ${formatRate(rate)})`,
       amount: wireTotal,
     });
   }

@@ -321,7 +321,7 @@ export function JobOrderForm({
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="wire">Additional wire (linear meters)</Label>
+        <Label htmlFor="wire">Total Wire</Label>
         <Input
           id="wire"
           type="number"
@@ -331,7 +331,8 @@ export function JobOrderForm({
           onChange={(e) => setWireMeters(e.target.value)}
         />
         <p className="text-xs text-muted-foreground">
-          Charged at {php(wireRate)} per meter.
+          Note: First 10 Linear Meter is included in the package, succeeding
+          wire charged {php(wireRate)} per linear meter.
         </p>
       </div>
 
