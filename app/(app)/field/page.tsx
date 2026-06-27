@@ -24,10 +24,10 @@ export default async function FieldHomePage() {
     .order("preferred_date", { ascending: true });
 
   const bookings = (data as unknown as BookingWithRelations[]) ?? [];
+  // Completed/closed jobs leave My Jobs and move to the Client Master List.
   const active = bookings.filter(
-    (b) => !["paid", "closed"].includes(b.status),
+    (b) => !["completed", "closed"].includes(b.status),
   );
-  const done = bookings.filter((b) => ["paid", "closed"].includes(b.status));
 
   return (
     <div className="space-y-6">
@@ -39,7 +39,8 @@ export default async function FieldHomePage() {
       {active.length === 0 && (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            No active jobs assigned yet.
+            No active jobs assigned yet. Completed jobs are in your Client
+            Master List.
           </CardContent>
         </Card>
       )}
@@ -49,19 +50,6 @@ export default async function FieldHomePage() {
           <JobCard key={b.id} b={b} />
         ))}
       </div>
-
-      {done.length > 0 && (
-        <div>
-          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
-            Completed
-          </h2>
-          <div className="space-y-3">
-            {done.map((b) => (
-              <JobCard key={b.id} b={b} />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
