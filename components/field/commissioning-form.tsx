@@ -2,107 +2,36 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { jsPDF } from "jspdf";
 import { Loader2, FileCheck2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { saveCommissioning } from "@/app/(app)/field/actions";
 import { SignaturePad } from "@/components/field/signature-pad";
+import { buildCommissioningPdf } from "@/lib/commissioning-pdf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   COMMISSIONING_SECTIONS,
+  WARRANTY_SECTIONS,
   type CommValues,
 } from "@/lib/commissioning";
 
-function buildPdf(opts: {
-  title: string;
-  values: CommValues;
-  printedName: string;
-  signature: string | null;
-}): Blob {
-  const { title, values, printedName, signature } = opts;
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const margin = 40;
-  const lineH = 15;
-  let y = margin;
-  const ensure = (h: number) => {
-    if (y + h > pageH - margin) {
-      doc.addPage();
-      y = margin;
-    }
-  };
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
-  doc.text("Electric Vehicle Charger Installation Checklist", pageW / 2, y, {
-    align: "center",
-  });
-  y += 22;
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text(title, pageW / 2, y, { align: "center" });
-  y += 20;
-
-  for (const section of COMMISSIONING_SECTIONS) {
-    ensure(lineH * 2);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text(`${section.num}. ${section.title}`, margin, y);
-    y += lineH + 2;
-    for (const sub of section.subsections) {
-      if (sub.title) {
-        ensure(lineH);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.text(sub.title, margin, y);
-        y += lineH;
-      }
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      for (const f of sub.fields) {
-        const v = values[f.key];
-        const text =
-          f.type === "check"
-            ? `${v ? "[X]" : "[  ]"}  ${f.label}`
-            : `${f.label}: ${(v as string) || "—"}`;
-        const lines = doc.splitTextToSize(text, pageW - margin * 2) as string[];
-        ensure(lineH * lines.length);
-        doc.text(lines, margin, y);
-        y += lineH * lines.length;
-      }
-      y += 4;
-    }
-    y += 6;
+/** Fetch the stacked FUTEX logo and return it as a PNG data URL. */
+async function loadLogo(): Promise<string | null> {
+  try {
+    const res = await fetch("/images/logo-stacked.png");
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
   }
-
-  ensure(140);
-  y += 16;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("CLIENT:", margin, y);
-  y += 12;
-  if (signature) {
-    try {
-      doc.addImage(signature, "PNG", margin, y, 160, 70);
-    } catch {
-      /* ignore bad image */
-    }
-  }
-  y += 80;
-  doc.line(margin, y, margin + 240, y);
-  y += 14;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text(printedName || "", margin, y);
-  y += 12;
-  doc.setFontSize(9);
-  doc.text("Signature over printed name", margin, y);
-
-  return doc.output("blob");
 }
 
 export function CommissioningForm({
@@ -120,6 +49,10 @@ export function CommissioningForm({
   const [pending, setPending] = useState(false);
   const [printedName, setPrintedName] = useState(prefill.client_name ?? "");
   const [signature, setSignature] = useState<string | null>(null);
+  const [receivedByName, setReceivedByName] = useState("");
+  const [receivedBySignature, setReceivedBySignature] = useState<string | null>(
+    null,
+  );
   const [values, setValues] = useState<CommValues>(() => {
     const init: CommValues = {};
     for (const s of COMMISSIONING_SECTIONS)
@@ -166,10 +99,21 @@ export function CommissioningForm({
       toast.error("Capture the client's signature first");
       return;
     }
+    if (!receivedBySignature) {
+      toast.error("Capture the FUTEX representative's signature");
+      return;
+    }
     setPending(true);
     try {
-      const title = `${prefill.client_name || "Client"} — Commissioning Checklist`;
-      const blob = buildPdf({ title, values, printedName, signature });
+      const logo = await loadLogo();
+      const blob = buildCommissioningPdf({
+        values,
+        clientName: printedName,
+        clientSignature: signature,
+        receivedByName,
+        receivedBySignature,
+        logo,
+      });
 
       const supabase = createClient();
       const path = `${bookingId}/commissioning-${Date.now()}.pdf`;
@@ -182,7 +126,7 @@ export function CommissioningForm({
         bookingId,
         title: "Commissioning Checklist",
         storagePath: path,
-        data: { values, printedName },
+        data: { values, printedName, receivedByName },
       });
       if (res?.error) throw new Error(res.error);
       toast.success("Commissioning checklist saved & filed to documents");
@@ -260,6 +204,51 @@ export function CommissioningForm({
       <div className="space-y-2">
         <Label>Client signature</Label>
         <SignaturePad onChange={setSignature} />
+      </div>
+
+      {/* Warranty Terms & Conditions — second form, included in the PDF */}
+      <div className="space-y-3 rounded-md border border-dashed p-4">
+        <h4 className="text-sm font-bold">Warranty Terms &amp; Conditions</h4>
+        <p className="text-xs text-muted-foreground">
+          Review the warranty terms with the client. These are included as a
+          second signed page in the generated PDF.
+        </p>
+        <div className="space-y-3">
+          {WARRANTY_SECTIONS.map((section, si) => (
+            <div key={si} className="space-y-1.5">
+              <p className="text-xs font-semibold">{section.title}</p>
+              <div className="space-y-1">
+                {section.blocks.map((b, bi) => (
+                  <p
+                    key={bi}
+                    className={`text-xs leading-relaxed text-muted-foreground ${
+                      b.bullet ? "pl-4" : ""
+                    } ${b.bold ? "font-semibold text-foreground" : ""}`}
+                  >
+                    {b.bullet ? "• " : ""}
+                    {b.text}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="received-by-name">
+          Received by (FUTEX representative) — printed name
+        </Label>
+        <Input
+          id="received-by-name"
+          value={receivedByName}
+          onChange={(e) => setReceivedByName(e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>FUTEX representative signature</Label>
+        <SignaturePad onChange={setReceivedBySignature} />
       </div>
 
       <Button onClick={onComplete} disabled={pending} className="w-full" size="lg">

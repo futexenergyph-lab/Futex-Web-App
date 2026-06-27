@@ -164,3 +164,75 @@ export const COMMISSIONING_SECTIONS: CommSection[] = [
 ];
 
 export type CommValues = Record<string, string | boolean>;
+
+// ---------------------------------------------------------------------------
+// Warranty Terms & Conditions (second form)
+// ---------------------------------------------------------------------------
+export interface WarrantyBlock {
+  text: string;
+  bullet?: boolean;
+  bold?: boolean;
+}
+export interface WarrantySection {
+  title: string;
+  blocks: WarrantyBlock[];
+}
+
+export const WARRANTY_SECTIONS: WarrantySection[] = [
+  {
+    title: "A. Warranty Coverage (1 Year – Workmanship)",
+    blocks: [
+      {
+        text: "We provide a one (1) year warranty on workmanship from the date of installation. This warranty covers any issues arising from installation errors or faults directly caused by our installation team, including wiring connections and related installation works.",
+      },
+      {
+        text: "If any component directly related to the installation (such as breakers, connectors, or wiring installed by us) requires replacement due to installer fault, it will be repaired or replaced at no additional cost within the warranty period.",
+      },
+    ],
+  },
+  {
+    title: "B. Scope Limitation",
+    blocks: [
+      {
+        text: "This warranty strictly covers the installation line and workmanship only. Any issues occurring outside the installed electrical line, including but not limited to:",
+      },
+      { text: "Main supply problems", bullet: true },
+      { text: "Utility provider issues", bullet: true },
+      { text: "Power fluctuations or surges", bullet: true },
+      { text: "Existing panelboard defects", bullet: true },
+      { text: "Customer-modified circuits", bullet: true },
+      { text: "Equipment not supplied or installed by us", bullet: true },
+      { text: "are not covered under this warranty.", bold: true },
+    ],
+  },
+  {
+    title: "C. Exclusions & Void of Warranty",
+    blocks: [
+      { text: "The warranty shall be considered void under the following conditions:" },
+      {
+        text: "Any alteration, modification, or tampering of the installed wiring or components by third parties",
+        bullet: true,
+      },
+      { text: "Unauthorized repair or adjustment", bullet: true },
+      {
+        text: "Physical damage due to misuse, negligence, flooding, fire, or natural disasters",
+        bullet: true,
+      },
+      {
+        text: "Installation of additional loads on the dedicated EV charging line without our approval",
+        bullet: true,
+      },
+      {
+        text: "If the installed line is modified or handled by another electrician or contractor, the warranty coverage will automatically be void.",
+      },
+    ],
+  },
+  {
+    title: "4. Technical Support",
+    blocks: [
+      {
+        text: "Our official Facebook Page and Viber account are available 24/7 for technical support and assistance. Clients may contact us anytime for concerns, troubleshooting guidance, or warranty claims.",
+      },
+    ],
+  },
+];
