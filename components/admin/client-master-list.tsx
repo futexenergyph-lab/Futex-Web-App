@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowUpDown, Search } from "lucide-react";
+import { ArrowUpDown, Search, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/status-badge";
 import { CsvExport } from "@/components/csv-export";
@@ -34,6 +34,7 @@ export interface ClientRow {
   source: string;
   created_at: string;
   preferred_date: string | null;
+  documents: { title: string; url: string }[];
 }
 
 type SortKey =
@@ -180,8 +181,25 @@ export function ClientMasterList({ clients }: { clients: ClientRow[] }) {
                 <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                   {formatDate(c.created_at)}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  —
+                <TableCell className="text-sm">
+                  {c.documents.length === 0 ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {c.documents.map((d, i) => (
+                        <a
+                          key={i}
+                          href={d.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-primary hover:underline"
+                        >
+                          <Download className="h-3 w-3" />
+                          {d.title}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

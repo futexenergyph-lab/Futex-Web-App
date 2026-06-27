@@ -42,6 +42,25 @@ export default async function ClientMasterListPage() {
     .order("created_at", { ascending: false });
 
   const rows = (data as unknown as Row[]) ?? [];
+
+  // Documents per booking (commissioning PDFs, etc.) with signed download URLs.
+  const docsByBooking = new Map<string, { title: string; url: string }[]>();
+  const { data: docs } = await supabase
+    .from("booking_documents")
+    .select("booking_id, title, storage_path, created_at")
+    .order("created_at", { ascending: false });
+  for (const d of (docs as
+    | { booking_id: string; title: string; storage_path: string }[]
+    | null) ?? []) {
+    const { data: signed } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(d.storage_path, 3600);
+    if (!signed?.signedUrl) continue;
+    const list = docsByBooking.get(d.booking_id) ?? [];
+    list.push({ title: d.title, url: signed.signedUrl });
+    docsByBooking.set(d.booking_id, list);
+  }
+
   const clients: ClientRow[] = rows.map((r) => ({
     id: r.id,
     client_number: r.client_number,
@@ -56,6 +75,7 @@ export default async function ClientMasterListPage() {
     source: r.source,
     created_at: r.created_at,
     preferred_date: r.preferred_date,
+    documents: docsByBooking.get(r.id) ?? [],
   }));
 
   return (

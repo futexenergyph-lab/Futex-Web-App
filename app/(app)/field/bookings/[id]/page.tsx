@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { JobOrderForm } from "@/components/field/job-order-form";
+import { CommissioningForm } from "@/components/field/commissioning-form";
 import {
   ArrivalButton,
   DocumentationForm,
@@ -70,6 +71,7 @@ export default async function FieldBookingDetail({
     { data: jobOrder },
     { data: payment },
     { data: updates },
+    { data: commissioning },
   ] = await Promise.all([
     supabase.from("packages").select("*").eq("active", true).order("sort_order"),
     supabase.from("enclosures").select("*").eq("active", true).order("sort_order"),
@@ -93,11 +95,27 @@ export default async function FieldBookingDetail({
       .select("*")
       .eq("booking_id", params.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("booking_documents")
+      .select("storage_path")
+      .eq("booking_id", params.id)
+      .eq("kind", "commissioning")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const wireRate = Number(wireSetting?.value ?? 200);
   const jo = (jobOrder as JobOrder | null) ?? null;
   const pay = (payment as Payment | null) ?? null;
+  const commDoc = (commissioning as { storage_path: string } | null) ?? null;
+  let commDownloadUrl: string | null = null;
+  if (commDoc) {
+    const { data: signed } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(commDoc.storage_path, 3600);
+    commDownloadUrl = signed?.signedUrl ?? null;
+  }
   const mapsHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.address)}`;
 
   return (
@@ -151,9 +169,10 @@ export default async function FieldBookingDetail({
       </Card>
 
       <Tabs defaultValue="updates">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="updates">Updates</TabsTrigger>
           <TabsTrigger value="joborder">Job Order</TabsTrigger>
+          <TabsTrigger value="commissioning">Commissioning</TabsTrigger>
           <TabsTrigger value="payment">Payment</TabsTrigger>
           <TabsTrigger value="docs">Docs</TabsTrigger>
         </TabsList>
@@ -200,6 +219,26 @@ export default async function FieldBookingDetail({
                   packageId: b.preferred_package_id,
                   enclosureId: b.preferred_enclosure_id,
                 }}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="commissioning">
+          <Card>
+            <CardHeader>
+              <CardTitle>Commissioning checklist</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CommissioningForm
+                bookingId={b.id}
+                prefill={{
+                  client_name: b.client_name,
+                  site_address: b.address,
+                  contact_person: b.contact_number,
+                }}
+                completed={!!commDoc}
+                downloadUrl={commDownloadUrl}
               />
             </CardContent>
           </Card>
