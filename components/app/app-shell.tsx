@@ -35,12 +35,12 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-export type AppArea = "admin" | "field" | "accounting" | "hr";
+export type AppArea = "admin" | "field" | "accounting" | "hr" | "admin_staff";
 
 // Nav config lives here (client) so icon components never cross the
 // Server -> Client Component boundary (functions aren't serializable).
 const AREAS: Record<
-  "admin" | "accounting" | "hr",
+  "admin" | "accounting" | "hr" | "admin_staff",
   { label: string; nav: NavItem[] }
 > = {
   admin: {
@@ -76,6 +76,21 @@ const AREAS: Record<
     nav: [
       { href: "/hr", label: "Attendance", icon: Users },
       { href: "/hr/201-files", label: "201 Files", icon: FolderOpen },
+    ],
+  },
+  // Limited Admin role — restricted module set.
+  admin_staff: {
+    label: "Admin",
+    nav: [
+      { href: "/admin", label: "Bookings Kanban", icon: LayoutDashboard },
+      { href: "/admin/clients", label: "Client Master List", icon: Contact },
+      { href: "/admin/deployment", label: "Deployment", icon: Truck },
+      { href: "/admin/utilization", label: "Utilization", icon: CalendarClock },
+      { href: "/admin/live", label: "Live Status", icon: Activity },
+      { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/accounting/cashflow", label: "Accounting Overview", icon: ArrowLeftRight },
+      { href: "/accounting", label: "Payments", icon: Wallet },
+      { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
     ],
   },
 };

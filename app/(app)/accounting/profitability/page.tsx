@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -28,6 +29,8 @@ interface JobOrderRow {
 }
 
 export default async function ProfitabilityPage() {
+  // Accounting + Management/Owner only — the limited Admin role cannot view this.
+  await requireRole(["accounting", "admin"]);
   const supabase = createClient();
   const [{ data: jobOrders }, { data: payments }] = await Promise.all([
     supabase

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -32,6 +33,32 @@ export default async function ExpensesPage({
 }: {
   searchParams: { from?: string; to?: string };
 }) {
+  // The limited Admin role can input expenses but has no access to the
+  // history of past records (no backtracking).
+  const me = await getProfile();
+  if (me?.role === "admin_staff") {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Expenses & Payables"
+          description="Record an outflow for today."
+        />
+        <Card>
+          <CardHeader>
+            <CardTitle>Record an expense</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ExpenseForm />
+          </CardContent>
+        </Card>
+        <p className="rounded-md bg-secondary/60 px-3 py-2 text-sm text-muted-foreground">
+          You can add expenses. The history of recorded expenses isn&apos;t
+          available on this account.
+        </p>
+      </div>
+    );
+  }
+
   const { from, to } = searchParams;
   const supabase = createClient();
   let query = supabase

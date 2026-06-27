@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { UserRole } from "@/lib/types";
+import { adminStaffCanAccess } from "@/lib/access";
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
@@ -9,6 +10,7 @@ export function homeForRole(role: UserRole | null | undefined): string {
   switch (role) {
     case "owner":
     case "admin":
+    case "admin_staff":
       return "/admin";
     case "accounting":
       return "/accounting";
@@ -88,14 +90,17 @@ export async function updateSession(request: NextRequest) {
     // Owner has the same access as admin/management everywhere.
     const isManager = role === "admin" || role === "owner";
 
-    // Enforce per-area role access.
+    // Enforce per-area role access. The limited Admin role uses a path
+    // allowlist instead of full area access.
     const allowed =
-      (path.startsWith("/admin") && isManager) ||
-      (path.startsWith("/accounting") &&
-        (role === "accounting" || isManager)) ||
-      (path.startsWith("/hr") && (role === "hr" || isManager)) ||
-      (path.startsWith("/field") &&
-        (role === "field_officer" || role === "installer"));
+      role === "admin_staff"
+        ? adminStaffCanAccess(path)
+        : (path.startsWith("/admin") && isManager) ||
+          (path.startsWith("/accounting") &&
+            (role === "accounting" || isManager)) ||
+          (path.startsWith("/hr") && (role === "hr" || isManager)) ||
+          (path.startsWith("/field") &&
+            (role === "field_officer" || role === "installer"));
 
     if (!allowed && role) {
       const url = request.nextUrl.clone();
