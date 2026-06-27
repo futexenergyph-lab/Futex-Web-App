@@ -13,7 +13,6 @@ const ADMIN_STAFF_PREFIX = [
   "/admin/utilization",
   "/admin/live",
   "/admin/analytics",
-  "/accounting/cashflow", // Accounting Overview
   "/accounting/expenses", // Expenses (input only)
 ];
 

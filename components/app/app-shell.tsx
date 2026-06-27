@@ -88,7 +88,6 @@ const AREAS: Record<
       { href: "/admin/utilization", label: "Utilization", icon: CalendarClock },
       { href: "/admin/live", label: "Live Status", icon: Activity },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-      { href: "/accounting/cashflow", label: "Accounting Overview", icon: ArrowLeftRight },
       { href: "/accounting", label: "Payments", icon: Wallet },
       { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
     ],
