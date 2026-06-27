@@ -23,6 +23,8 @@ interface Row {
   created_at: string;
   preferred_date: string | null;
   packages: { name: string } | null;
+  assigned_field_officer: { full_name: string } | null;
+  assigned_installer: { full_name: string } | null;
 }
 
 export default async function ClientMasterListPage() {
@@ -33,7 +35,9 @@ export default async function ClientMasterListPage() {
     .select(
       `id, client_number, client_name, email, contact_number, address, status,
        source, created_at, preferred_date,
-       packages:packages!bookings_preferred_package_id_fkey(name)`,
+       packages:packages!bookings_preferred_package_id_fkey(name),
+       assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(full_name),
+       assigned_installer:profiles!bookings_assigned_installer_id_fkey(full_name)`,
     )
     .order("created_at", { ascending: false });
 
@@ -46,6 +50,8 @@ export default async function ClientMasterListPage() {
     contact_number: r.contact_number,
     address: r.address,
     package: r.packages?.name ?? null,
+    field_officer: r.assigned_field_officer?.full_name ?? null,
+    installer: r.assigned_installer?.full_name ?? null,
     status: r.status,
     source: r.source,
     created_at: r.created_at,
