@@ -26,7 +26,7 @@ interface Row {
 }
 
 export default async function ClientMasterListPage() {
-  await requireRole(["admin"]);
+  await requireRole(["admin", "admin_staff"]);
   const supabase = createClient();
   const { data } = await supabase
     .from("bookings")

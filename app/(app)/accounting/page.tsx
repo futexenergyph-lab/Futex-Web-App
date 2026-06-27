@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -13,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { CsvExport } from "@/components/csv-export";
 import { MixPieChart, CategoryBarChart } from "@/components/charts";
 import { DateRangeFilter } from "@/components/accounting/date-range-filter";
-import { php, formatDate } from "@/lib/utils";
+import { php, formatDate, phDay } from "@/lib/utils";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/types";
 
 export const metadata = { title: "Payments" };
@@ -37,7 +38,14 @@ export default async function AccountingPage({
 }: {
   searchParams: { from?: string; to?: string };
 }) {
-  const { from, to } = searchParams;
+  // The limited Admin role sees the current day's payments only (no
+  // backtracking); everyone else may filter by date range.
+  const me = await getProfile();
+  const limited = me?.role === "admin_staff";
+  const today = phDay(new Date().toISOString());
+  const from = limited ? today : searchParams.from;
+  const to = limited ? today : searchParams.to;
+
   const supabase = createClient();
   const { data } = await supabase
     .from("payments")
@@ -49,7 +57,8 @@ export default async function AccountingPage({
     )
     .order("created_at", { ascending: false });
 
-  const eff = (p: PaymentRow) => (p.paid_at ?? p.created_at).slice(0, 10);
+  // Effective date evaluated in Philippine time (UTC+8).
+  const eff = (p: PaymentRow) => phDay(p.paid_at ?? p.created_at);
   const inRange = (d: string) =>
     (!from || d >= from) && (!to || d <= to);
 
@@ -92,11 +101,25 @@ export default async function AccountingPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Payments" description="All confirmed payments and breakdowns.">
-        <CsvExport rows={csvRows} filename="futex-payments.csv" />
+      <PageHeader
+        title="Payments"
+        description={
+          limited
+            ? "Today's confirmed payments."
+            : "All confirmed payments and breakdowns."
+        }
+      >
+        {!limited && <CsvExport rows={csvRows} filename="futex-payments.csv" />}
       </PageHeader>
 
-      <DateRangeFilter basePath="/accounting" from={from} to={to} />
+      {limited ? (
+        <p className="rounded-md bg-secondary/60 px-3 py-2 text-sm text-muted-foreground">
+          Showing the current day only ({formatDate(today)}). Past payment
+          records aren&apos;t available on this account.
+        </p>
+      ) : (
+        <DateRangeFilter basePath="/accounting" from={from} to={to} />
+      )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Total received" value={php(total)} accent />

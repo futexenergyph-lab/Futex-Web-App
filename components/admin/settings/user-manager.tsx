@@ -41,6 +41,7 @@ import {
 const ALL_ROLES: UserRole[] = [
   "owner",
   "admin",
+  "admin_staff",
   "field_officer",
   "installer",
   "accounting",

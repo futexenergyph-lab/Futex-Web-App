@@ -11,7 +11,7 @@ export async function addExpense(input: {
   description: string;
   amount: number;
 }) {
-  const profile = await requireRole(["accounting", "admin"]);
+  const profile = await requireRole(["accounting", "admin", "admin_staff"]);
   const supabase = createClient();
   const { error } = await supabase.from("expenses").insert({
     expense_date: input.expense_date,

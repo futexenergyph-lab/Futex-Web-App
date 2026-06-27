@@ -9,7 +9,7 @@ export async function updateBookingStatus(
   bookingId: string,
   status: BookingStatus,
 ) {
-  await requireRole(["admin"]);
+  await requireRole(["admin", "admin_staff"]);
   const supabase = createClient();
   const { error } = await supabase
     .from("bookings")
@@ -28,7 +28,7 @@ export async function approveJobOrderChange(input: {
   bookingId: string;
   jobOrderId: string;
 }) {
-  const profile = await requireRole(["admin"]);
+  const profile = await requireRole(["admin", "admin_staff"]);
   const supabase = createClient();
   const { error } = await supabase
     .from("job_orders")
@@ -60,7 +60,7 @@ export async function updateBooking(input: {
   enclosure_protection_notes: string | null;
   notes: string | null;
 }) {
-  await requireRole(["admin"]);
+  await requireRole(["admin", "admin_staff"]);
   const supabase = createClient();
   const { id, ...fields } = input;
   const { error } = await supabase
@@ -88,7 +88,7 @@ export async function deployBooking(input: {
   preferredDate: string | null;
   preferredTime: string | null;
 }) {
-  await requireRole(["admin"]);
+  await requireRole(["admin", "admin_staff"]);
   const supabase = createClient();
 
   const update: Record<string, unknown> = {
@@ -128,7 +128,7 @@ export async function createManualBooking(input: {
   preferred_enclosure_id: string | null;
   notes: string | null;
 }) {
-  const profile = await requireRole(["admin"]);
+  const profile = await requireRole(["admin", "admin_staff"]);
   const supabase = createClient();
   const { error } = await supabase.from("bookings").insert({
     ...input,

@@ -3,6 +3,7 @@
 export type UserRole =
   | "owner"
   | "admin"
+  | "admin_staff"
   | "field_officer"
   | "installer"
   | "accounting"
@@ -236,6 +237,7 @@ export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
 export const ROLE_LABELS: Record<UserRole, string> = {
   owner: "Owner",
   admin: "Management",
+  admin_staff: "Admin",
   field_officer: "Field Officer",
   installer: "Installer",
   accounting: "Accounting",

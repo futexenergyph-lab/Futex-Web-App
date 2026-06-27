@@ -9,8 +9,13 @@ export default async function AccountingLayout({
   // Admin can also view accounting. When an admin opens these pages, keep the
   // Management sidebar (which now includes the accounting links) so they don't
   // lose context; dedicated accounting users get the Accounting sidebar.
-  const profile = await requireRole(["accounting", "admin"]);
-  const area = profile.role === "admin" ? "admin" : "accounting";
+  const profile = await requireRole(["accounting", "admin", "admin_staff"]);
+  const area =
+    profile.role === "admin_staff"
+      ? "admin_staff"
+      : profile.role === "admin"
+        ? "admin"
+        : "accounting";
   return (
     <AppShell profile={profile} area={area}>
       {children}
