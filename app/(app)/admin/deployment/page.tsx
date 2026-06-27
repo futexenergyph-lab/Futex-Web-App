@@ -178,7 +178,9 @@ export default async function DeploymentPage() {
                         <Badge variant="accent">Paid</Badge>
                       ) : (
                         <div className="flex flex-col items-start gap-1.5">
-                          <Badge variant="secondary">Payment pending</Badge>
+                          <span className="font-medium text-red-600">
+                            Payment pending
+                          </span>
                           <ConfirmPaymentButton bookingId={b.id} />
                         </div>
                       )}

@@ -30,7 +30,12 @@ export function ConfirmPaymentButton({ bookingId }: { bookingId: string }) {
   }
 
   return (
-    <Button size="sm" variant="outline" onClick={onConfirm} disabled={pending}>
+    <Button
+      size="sm"
+      onClick={onConfirm}
+      disabled={pending}
+      className="bg-futex-green text-white hover:bg-futex-green/90"
+    >
       {pending ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
       ) : (
