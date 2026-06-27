@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { X } from "lucide-react";
 import { PricingBreakdown } from "@/components/pricing-breakdown";
+import { ConfirmPaymentButton } from "@/components/admin/confirm-payment-button";
 import {
   Dialog,
   DialogContent,
@@ -26,11 +28,18 @@ export interface JobOrderDetail {
 export function JobOrderAmount({
   amount,
   detail,
+  bookingId,
+  paymentStatus = null,
+  paymentProofUrl = null,
 }: {
   amount: number;
   detail: JobOrderDetail;
+  bookingId?: string;
+  paymentStatus?: "pending" | "confirmed" | null;
+  paymentProofUrl?: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const [zoom, setZoom] = useState(false);
   return (
     <>
       <button
@@ -91,9 +100,63 @@ export function JobOrderAmount({
                 />
               </div>
             )}
+
+            {/* Payment proof photo — click to enlarge (full quality). */}
+            {paymentProofUrl && (
+              <div>
+                <p className="mb-1 text-xs text-muted-foreground">
+                  Payment proof
+                </p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={paymentProofUrl}
+                  alt="Payment proof"
+                  onClick={() => setZoom(true)}
+                  className="max-h-48 cursor-zoom-in rounded border object-contain"
+                />
+              </div>
+            )}
+
+            {/* Confirm payment, inline below the details. */}
+            {bookingId && paymentStatus === "pending" && (
+              <div className="flex items-center gap-2 border-t pt-3">
+                <span className="text-sm font-medium text-red-600">
+                  Payment pending
+                </span>
+                <ConfirmPaymentButton bookingId={bookingId} />
+              </div>
+            )}
+            {paymentStatus === "confirmed" && (
+              <p className="border-t pt-3 text-sm font-medium text-futex-green">
+                Payment confirmed
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Full-quality enlarged payment proof */}
+      {zoom && paymentProofUrl && (
+        <div
+          onClick={() => setZoom(false)}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4"
+        >
+          <button
+            type="button"
+            onClick={() => setZoom(false)}
+            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={paymentProofUrl}
+            alt="Payment proof enlarged"
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[90vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
+          />
+        </div>
+      )}
     </>
   );
 }
