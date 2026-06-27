@@ -162,6 +162,7 @@ export async function submitJobOrder(input: {
   additionalWireMeters: number;
   additionalJobWorks: JobWork[];
   notes: string;
+  signature?: string | null;
 }) {
   const profile = await me();
   await assertAssigned(input.bookingId, profile.id);
@@ -213,6 +214,7 @@ export async function submitJobOrder(input: {
     computed_subtotal: pricing.subtotal,
     final_total: pricing.finalTotal,
     notes: input.notes || null,
+    signature: input.signature || null,
     status: "submitted" as const,
     submitted_at: new Date().toISOString(),
   };

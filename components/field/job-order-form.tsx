@@ -11,10 +11,18 @@ import {
 } from "@/app/(app)/field/actions";
 import { computePricing } from "@/lib/pricing";
 import { PricingBreakdown } from "@/components/pricing-breakdown";
+import { SignaturePad } from "@/components/field/signature-pad";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { php } from "@/lib/utils";
 import type {
   Enclosure,
@@ -79,6 +87,9 @@ export function JobOrderForm({
     })),
   );
   const [notes, setNotes] = useState(existing?.notes ?? "");
+  // The client must re-sign on each (re)submission to acknowledge the order.
+  const [signature, setSignature] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const pkg = packages.find((p) => p.id === packageId) ?? null;
   const enc = enclosures.find((e) => e.id === enclosureId) ?? null;
@@ -118,11 +129,21 @@ export function JobOrderForm({
     setJobWorks((w) => w.filter((_, idx) => idx !== i));
   }
 
-  async function onSubmit() {
+  // Validate, then open the acknowledgment prompt before locking.
+  function requestSubmit() {
     if (!packageId) {
       toast.error("Select a package");
       return;
     }
+    if (!signature) {
+      toast.error("Please capture the client's signature first");
+      return;
+    }
+    setShowConfirm(true);
+  }
+
+  async function onSubmit() {
+    setShowConfirm(false);
     setPending(true);
     try {
       const res = await submitJobOrder({
@@ -134,6 +155,7 @@ export function JobOrderForm({
         additionalWireMeters: Number(wireMeters) || 0,
         additionalJobWorks: jobWorksNum.filter((w) => w.description.trim()),
         notes,
+        signature,
       });
       if (res?.error) throw new Error(res.error);
       toast.success(`Job order locked · ${php(res.finalTotal ?? 0)}`);
@@ -203,6 +225,20 @@ export function JobOrderForm({
             })}
           />
         </div>
+
+        {existing.signature && (
+          <div className="rounded-lg border p-3">
+            <p className="mb-2 text-xs text-muted-foreground">
+              Client signature — acknowledged &amp; accepted
+            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={existing.signature}
+              alt="Client signature"
+              className="h-24 rounded border bg-white object-contain"
+            />
+          </div>
+        )}
 
         {changeRequested ? (
           // Requested but not yet approved — waiting on management.
@@ -331,8 +367,8 @@ export function JobOrderForm({
           onChange={(e) => setWireMeters(e.target.value)}
         />
         <p className="text-xs text-muted-foreground">
-          Note: First 10 Linear Meter is included in the package, succeeding
-          wire charged {php(wireRate)} per linear meter.
+          Note: The first 10 linear meters are included in the package;
+          succeeding wire is charged at {php(wireRate)} per linear meter.
         </p>
       </div>
 
@@ -389,10 +425,56 @@ export function JobOrderForm({
         <PricingBreakdown pricing={pricing} />
       </div>
 
-      <Button onClick={onSubmit} disabled={pending} className="w-full" size="lg">
+      <div className="space-y-2">
+        <Label>Client signature</Label>
+        <SignaturePad onChange={setSignature} />
+      </div>
+
+      <Button
+        onClick={requestSubmit}
+        disabled={pending}
+        className="w-full"
+        size="lg"
+      >
         {pending && <Loader2 className="h-4 w-4 animate-spin" />}
         Submit &amp; lock job order
       </Button>
+
+      {/* Acknowledgment prompt — client accepts before the order is locked. */}
+      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm acceptance</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This confirms the acknowledgment, receipt, and acceptance of the job
+            order, and agreement to comply with its terms and conditions.
+          </p>
+          {signature && (
+            <div className="rounded-md border bg-white p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={signature}
+                alt="Client signature"
+                className="mx-auto h-24 object-contain"
+              />
+            </div>
+          )}
+          <DialogFooter className="sm:justify-between">
+            <Button
+              variant="ghost"
+              onClick={() => setShowConfirm(false)}
+              disabled={pending}
+            >
+              Cancel
+            </Button>
+            <Button onClick={onSubmit} disabled={pending}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Accept
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {editable && (
         <Button

@@ -134,6 +134,7 @@ export interface JobOrder {
   computed_subtotal: number;
   final_total: number;
   notes: string | null;
+  signature: string | null;
   status: JobOrderStatus;
   submitted_at: string | null;
   change_requested_at: string | null;
