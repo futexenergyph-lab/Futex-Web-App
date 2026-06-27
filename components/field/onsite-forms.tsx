@@ -321,11 +321,11 @@ export function DocumentationForm({
         onChange={onPick}
       />
       <Button variant="outline" onClick={() => ref.current?.click()}>
-        <Upload className="h-4 w-4" /> Add turnover files
+        <Upload className="h-4 w-4" /> Attach photos
       </Button>
       {files.length > 0 && (
         <span className="block text-xs text-muted-foreground">
-          {files.length} file(s) ready
+          {files.length} photo(s) ready
         </span>
       )}
       <Textarea

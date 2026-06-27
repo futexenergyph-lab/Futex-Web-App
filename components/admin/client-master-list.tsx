@@ -13,6 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DocumentationViewer,
+  type DocPhoto,
+} from "@/components/admin/documentation-viewer";
 import { formatDate } from "@/lib/utils";
 import {
   BOOKING_STATUS_LABELS,
@@ -35,6 +39,7 @@ export interface ClientRow {
   created_at: string;
   preferred_date: string | null;
   documents: { title: string; url: string }[];
+  documentation: DocPhoto[];
 }
 
 type SortKey =
@@ -153,7 +158,8 @@ export function ClientMasterList({ clients }: { clients: ClientRow[] }) {
               <TableHead>Installer</TableHead>
               <SortHead k="status" label="Status" />
               <SortHead k="created_at" label="Submitted" />
-              <TableHead>Documents</TableHead>
+              <TableHead>Commissioning &amp; Warranty</TableHead>
+              <TableHead>Documentation</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -201,12 +207,15 @@ export function ClientMasterList({ clients }: { clients: ClientRow[] }) {
                     </div>
                   )}
                 </TableCell>
+                <TableCell className="text-sm">
+                  <DocumentationViewer photos={c.documentation} />
+                </TableCell>
               </TableRow>
             ))}
             {filtered.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={11}
+                  colSpan={12}
                   className="py-10 text-center text-muted-foreground"
                 >
                   No clients match your filter.
