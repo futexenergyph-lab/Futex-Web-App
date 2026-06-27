@@ -220,7 +220,7 @@ export default async function FieldBookingDetail({
                   bookingId={b.id}
                   jobOrder={jo}
                   userId={profile.id}
-                  alreadyPaid={pay?.status === "confirmed"}
+                  existingStatus={pay?.status ?? null}
                 />
               )}
             </CardContent>

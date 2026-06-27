@@ -174,7 +174,7 @@ export default async function AccountingPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payments.map((p) => (
+              {confirmed.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="text-sm">
                     {formatDate(p.paid_at ?? p.created_at)}
@@ -196,10 +196,10 @@ export default async function AccountingPage({
                   </TableCell>
                 </TableRow>
               ))}
-              {payments.length === 0 && (
+              {confirmed.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                    No payments recorded yet.
+                    No confirmed payments yet.
                   </TableCell>
                 </TableRow>
               )}

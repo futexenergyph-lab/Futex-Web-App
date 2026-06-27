@@ -7,7 +7,9 @@ import {
   JobOrderAmount,
   type JobOrderDetail,
 } from "@/components/admin/job-order-amount";
+import { ConfirmPaymentButton } from "@/components/admin/confirm-payment-button";
 import { StatusBadge } from "@/components/status-badge";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -41,14 +43,39 @@ interface JobOrderRow {
 
 export default async function DeploymentPage() {
   const [bookings, staff] = await Promise.all([fetchBookings(), fetchStaff()]);
+  const supabase = createClient();
 
-  // Anything not yet completed/paid/closed is deployable.
+  // Latest payment per booking (status drives the Payment column).
+  const allIds = bookings.map((b) => b.id);
+  const payByBooking = new Map<
+    string,
+    { amount: number; status: "pending" | "confirmed" }
+  >();
+  if (allIds.length > 0) {
+    const { data: pays } = await supabase
+      .from("payments")
+      .select("booking_id, amount, status, created_at")
+      .in("booking_id", allIds)
+      .order("created_at", { ascending: false });
+    for (const p of (pays as
+      | { booking_id: string; amount: number; status: "pending" | "confirmed" }[]
+      | null) ?? []) {
+      if (!payByBooking.has(p.booking_id)) {
+        payByBooking.set(p.booking_id, { amount: Number(p.amount), status: p.status });
+      }
+    }
+  }
+
+  // Deployable = not paid/closed; completed jobs only stay if a payment still
+  // needs confirming (so management can confirm it from here).
   const active = bookings.filter(
-    (b) => !["completed", "paid", "closed"].includes(b.status),
+    (b) =>
+      !["paid", "closed"].includes(b.status) &&
+      (b.status !== "completed" ||
+        payByBooking.get(b.id)?.status === "pending"),
   );
 
   // Latest job order per booking (for the Job Order amount + details).
-  const supabase = createClient();
   const ids = active.map((b) => b.id);
   const byBooking = new Map<string, { amount: number; detail: JobOrderDetail }>();
   if (ids.length > 0) {
@@ -111,6 +138,7 @@ export default async function DeploymentPage() {
                 <TableHead>Schedule</TableHead>
                 <TableHead>Package</TableHead>
                 <TableHead>Job Order</TableHead>
+                <TableHead>Payment</TableHead>
                 <TableHead>Field Officer</TableHead>
                 <TableHead>Installer</TableHead>
                 <TableHead>Status</TableHead>
@@ -120,6 +148,7 @@ export default async function DeploymentPage() {
             <TableBody>
               {active.map((b) => {
                 const jo = byBooking.get(b.id);
+                const pay = payByBooking.get(b.id);
                 return (
                   <TableRow key={b.id}>
                     <TableCell>
@@ -138,6 +167,20 @@ export default async function DeploymentPage() {
                         <JobOrderAmount amount={jo.amount} detail={jo.detail} />
                       ) : (
                         <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {!pay ? (
+                        <span className="text-muted-foreground">
+                          No payment
+                        </span>
+                      ) : pay.status === "confirmed" ? (
+                        <Badge variant="accent">Paid</Badge>
+                      ) : (
+                        <div className="flex flex-col items-start gap-1.5">
+                          <Badge variant="secondary">Payment pending</Badge>
+                          <ConfirmPaymentButton bookingId={b.id} />
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-sm">
@@ -162,7 +205,7 @@ export default async function DeploymentPage() {
               {active.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={8}
+                    colSpan={9}
                     className="py-10 text-center text-muted-foreground"
                   >
                     No active bookings to deploy.
