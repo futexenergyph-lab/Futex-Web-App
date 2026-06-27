@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { JobOrderForm } from "@/components/field/job-order-form";
 import { CommissioningForm } from "@/components/field/commissioning-form";
+import { DoneInstallationButton } from "@/components/field/done-installation-button";
 import {
   ArrivalButton,
   DocumentationForm,
@@ -72,6 +73,7 @@ export default async function FieldBookingDetail({
     { data: payment },
     { data: updates },
     { data: commissioning },
+    { data: documentation },
   ] = await Promise.all([
     supabase.from("packages").select("*").eq("active", true).order("sort_order"),
     supabase.from("enclosures").select("*").eq("active", true).order("sort_order"),
@@ -103,12 +105,29 @@ export default async function FieldBookingDetail({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("documentation")
+      .select("file_urls")
+      .eq("booking_id", params.id)
+      .order("created_at", { ascending: false }),
   ]);
 
   const wireRate = Number(wireSetting?.value ?? 200);
   const jo = (jobOrder as JobOrder | null) ?? null;
   const pay = (payment as Payment | null) ?? null;
   const commDoc = (commissioning as { storage_path: string } | null) ?? null;
+
+  // "Done installation" gating: every module must be complete.
+  const docsOk = ((documentation as { file_urls: string[] }[] | null) ?? []).some(
+    (d) => (d.file_urls ?? []).length > 0,
+  );
+  const doneModules = [
+    { label: "Job Order submitted", ok: !!jo },
+    { label: "Commissioning checklist filed", ok: !!commDoc },
+    { label: "Payment confirmed by management", ok: pay?.status === "confirmed" },
+    { label: "Documentation uploaded", ok: docsOk },
+  ];
+  const alreadyCompleted = b.status === "completed" || b.status === "closed";
   let commDownloadUrl: string | null = null;
   if (commDoc) {
     const { data: signed } = await supabase.storage
@@ -271,8 +290,15 @@ export default async function FieldBookingDetail({
             <CardHeader>
               <CardTitle>Post-installation documentation</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-5">
               <DocumentationForm bookingId={b.id} userId={profile.id} />
+              <div className="border-t pt-5">
+                <DoneInstallationButton
+                  bookingId={b.id}
+                  modules={doneModules}
+                  completed={alreadyCompleted}
+                />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

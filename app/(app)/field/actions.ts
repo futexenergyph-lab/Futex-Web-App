@@ -386,12 +386,83 @@ export async function uploadDocumentation(input: {
     notes: input.notes || null,
   });
   if (error) return { error: error.message };
-  // Documentation turnover -> completed.
-  await supabase
-    .from("bookings")
-    .update({ status: "completed" })
-    .eq("id", input.bookingId)
-    .in("status", ["in_progress", "on_site"]);
+  // Note: documentation upload no longer auto-completes the job. The field
+  // officer must explicitly press "Done installation", which is only enabled
+  // once every module (job order, commissioning, confirmed payment, docs) is
+  // complete. See completeInstallation below.
   revalidatePath(`/field/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+/**
+ * Field officer marks the installation done. Only allowed once ALL modules are
+ * complete: job order submitted, commissioning checklist filed, payment
+ * confirmed by management, and post-installation documentation uploaded.
+ * Moves the booking to "completed" (removing it from My Jobs and surfacing it
+ * in the field officer's Client Master List).
+ */
+export async function completeInstallation(bookingId: string) {
+  const profile = await me();
+  await assertAssigned(bookingId, profile.id);
+  const supabase = createClient();
+
+  const [{ data: jo }, { data: pay }, { data: comm }, { data: docs }] =
+    await Promise.all([
+      supabase
+        .from("job_orders")
+        .select("id")
+        .eq("booking_id", bookingId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("payments")
+        .select("status")
+        .eq("booking_id", bookingId)
+        .eq("status", "confirmed")
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("booking_documents")
+        .select("id")
+        .eq("booking_id", bookingId)
+        .eq("kind", "commissioning")
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("documentation")
+        .select("file_urls")
+        .eq("booking_id", bookingId)
+        .order("created_at", { ascending: false }),
+    ]);
+
+  const docsOk =
+    ((docs as { file_urls: string[] }[] | null) ?? []).some(
+      (d) => (d.file_urls ?? []).length > 0,
+    );
+
+  const missing: string[] = [];
+  if (!jo) missing.push("Job Order");
+  if (!comm) missing.push("Commissioning");
+  if (!pay) missing.push("Confirmed payment");
+  if (!docsOk) missing.push("Documentation");
+  if (missing.length > 0) {
+    return { error: `Incomplete: ${missing.join(", ")}` };
+  }
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      status: "completed",
+      installation_done_at: new Date().toISOString(),
+    })
+    .eq("id", bookingId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/field/bookings/${bookingId}`);
+  revalidatePath("/field");
+  revalidatePath("/field/clients");
+  revalidatePath("/admin/deployment");
+  revalidatePath("/admin");
   return { ok: true };
 }
