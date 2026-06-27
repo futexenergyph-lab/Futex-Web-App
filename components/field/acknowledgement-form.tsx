@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, FileCheck2, Download, ReceiptText } from "lucide-react";
+import {
+  Loader2,
+  FileCheck2,
+  Download,
+  ReceiptText,
+  ImagePlus,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { saveAcknowledgement } from "@/app/(app)/field/actions";
@@ -78,6 +85,18 @@ export function AcknowledgementForm({
   const [receivedBySignature, setReceivedBySignature] = useState<string | null>(
     null,
   );
+  // Photo (full quality) attached for the receipt's DOCUMENTATION section.
+  const [photo, setPhoto] = useState<string | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+
+  function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (photoRef.current) photoRef.current.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => setPhoto(reader.result as string);
+    reader.readAsDataURL(file);
+  }
 
   if (alreadyDone) {
     return (
@@ -118,10 +137,11 @@ export function AcknowledgementForm({
     }
     setPending(true);
     try {
-      const [logo, docPhoto] = await Promise.all([
-        fetchDataUrl("/images/logo-stacked.png"),
-        documentationPhotoUrl ? fetchDataUrl(documentationPhotoUrl) : Promise.resolve(null),
-      ]);
+      const logo = await fetchDataUrl("/images/logo-stacked.png");
+      // Prefer the explicitly attached photo; fall back to a docs photo.
+      const docPhoto =
+        photo ??
+        (documentationPhotoUrl ? await fetchDataUrl(documentationPhotoUrl) : null);
 
       const arBlob = buildAcknowledgementPdf({
         date,
@@ -233,11 +253,47 @@ export function AcknowledgementForm({
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        {documentationPhotoUrl
-          ? "One documentation photo will be embedded in the receipt."
-          : "Tip: upload a documentation photo in the Docs tab to include it in the receipt."}
-      </p>
+      {/* Attach 1 photo for the receipt's DOCUMENTATION section */}
+      <div className="space-y-2">
+        <input
+          ref={photoRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onPickPhoto}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => photoRef.current?.click()}
+          >
+            <ImagePlus className="h-4 w-4" />
+            Attach (1) Photo Documentation
+          </Button>
+          {photo && (
+            <div className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo}
+                alt="Documentation"
+                className="h-12 w-12 rounded border object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => setPhoto(null)}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" /> Remove
+              </button>
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          The attached photo appears under the “DOCUMENTATION” section of the
+          receipt PDF (original quality).
+        </p>
+      </div>
 
       <Button onClick={onGenerate} disabled={pending} className="w-full" size="lg">
         {pending && <Loader2 className="h-4 w-4 animate-spin" />}
