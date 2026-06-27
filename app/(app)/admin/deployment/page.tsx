@@ -66,13 +66,12 @@ export default async function DeploymentPage() {
     }
   }
 
-  // Deployable = not paid/closed; completed jobs only stay if a payment still
-  // needs confirming (so management can confirm it from here).
+  // Clients stay in the deployment list through the whole job (including once
+  // paid) and are only removed once the field officer marks the installation
+  // "completed" (or the booking is closed) — at which point they move to the
+  // Client Master List.
   const active = bookings.filter(
-    (b) =>
-      !["paid", "closed"].includes(b.status) &&
-      (b.status !== "completed" ||
-        payByBooking.get(b.id)?.status === "pending"),
+    (b) => !["completed", "closed"].includes(b.status),
   );
 
   // Latest job order per booking (for the Job Order amount + details).
