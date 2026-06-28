@@ -170,7 +170,14 @@ export default async function DeploymentPage() {
                 return (
                   <TableRow key={b.id}>
                     <TableCell>
-                      <p className="font-medium">{b.client_name}</p>
+                      <p className="flex items-center gap-1.5 font-medium">
+                        {b.client_name}
+                        {b.is_back_job_order && (
+                          <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">
+                            BACK JOB
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-muted-foreground">{b.address}</p>
                     </TableCell>
                     <TableCell className="text-sm">

@@ -93,4 +93,8 @@ jobs:
           run_sql 'drop policy if exists "documents insert staff" on storage.objects; create policy "documents insert staff" on storage.objects for insert to authenticated with check (bucket_id = '"'"'documents'"'"');'
           run_sql 'drop policy if exists "documents read own or admin" on storage.objects; create policy "documents read own or admin" on storage.objects for select to authenticated using (bucket_id = '"'"'documents'"'"' and (owner = auth.uid() or public.is_admin() or public.is_accounting()));'
 
+          # Back job orders (after-sales support tickets)
+          run_sql 'alter table public.bookings add column if not exists is_back_job_order boolean not null default false, add column if not exists parent_booking_id uuid references public.bookings(id) on delete set null, add column if not exists back_job_field_note text;'
+          run_sql 'create index if not exists idx_bookings_back_job on public.bookings(is_back_job_order) where is_back_job_order;'
+
           echo "Done."

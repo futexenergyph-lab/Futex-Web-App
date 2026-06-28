@@ -111,6 +111,9 @@ export interface Booking {
   installer_confirmed_at: string | null;
   installer_declined_at: string | null;
   installation_done_at: string | null;
+  is_back_job_order: boolean;
+  parent_booking_id: string | null;
+  back_job_field_note: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

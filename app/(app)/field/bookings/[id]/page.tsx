@@ -13,6 +13,8 @@ import { JobOrderForm } from "@/components/field/job-order-form";
 import { CommissioningForm } from "@/components/field/commissioning-form";
 import { DoneInstallationButton } from "@/components/field/done-installation-button";
 import { AcknowledgementForm } from "@/components/field/acknowledgement-form";
+import { BackJobOrderNote } from "@/components/field/back-job-order-note";
+import { DoneBackJobOrderButton } from "@/components/field/done-back-job-order-button";
 import {
   ArrivalButton,
   DocumentationForm,
@@ -192,6 +194,153 @@ export default async function FieldBookingDetail({
   }
 
   const mapsHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.address)}`;
+  const updatesList = (updates as JobUpdate[] | null) ?? [];
+
+  // ===== Back Job Order (after-sales support ticket) — simplified flow =====
+  if (b.is_back_job_order) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-5">
+        <Link
+          href="/field"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to my jobs
+        </Link>
+
+        <PageHeader title={b.client_name}>
+          <div className="flex items-center gap-2">
+            <span className="rounded bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700">
+              BACK JOB
+            </span>
+            <StatusBadge status={b.status} />
+          </div>
+        </PageHeader>
+
+        <Card>
+          <CardContent className="space-y-3 pt-6 text-sm">
+            <a
+              href={mapsHref}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-start gap-2 hover:text-primary"
+            >
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="flex-1">{b.address}</span>
+              <Navigation className="h-4 w-4 text-primary" />
+            </a>
+            <a
+              href={`tel:${b.contact_number}`}
+              className="flex items-center gap-2 hover:text-primary"
+            >
+              <Phone className="h-4 w-4" /> {b.contact_number}
+            </a>
+            {b.preferred_date && (
+              <p className="text-muted-foreground">
+                Scheduled: {formatDate(b.preferred_date)}
+                {b.preferred_time ? ` · ${b.preferred_time}` : ""}
+              </p>
+            )}
+            {b.notes && (
+              <div className="rounded-md border bg-secondary/40 p-3">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Support requested
+                </p>
+                <p className="mt-0.5 whitespace-pre-wrap">{b.notes}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Tabs defaultValue="updates">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="updates">Updates</TabsTrigger>
+            <TabsTrigger value="joborder">Job Order</TabsTrigger>
+            <TabsTrigger value="payment">Payment</TabsTrigger>
+            <TabsTrigger value="docs">Docs</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="updates">
+            <Card>
+              <CardHeader>
+                <CardTitle>On-site updates</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <UpdateForm bookingId={b.id} userId={profile.id} />
+                <div className="space-y-2">
+                  {updatesList.map((u) => (
+                    <div key={u.id} className="rounded-md border p-3 text-sm">
+                      <p className="text-xs text-muted-foreground">
+                        {formatDateTime(u.created_at)}
+                      </p>
+                      {u.message && <p className="mt-1">{u.message}</p>}
+                      {u.photo_urls.length > 0 && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {u.photo_urls.length} photo(s) attached
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="joborder">
+            <Card>
+              <CardHeader>
+                <CardTitle>Job Order</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BackJobOrderNote
+                  bookingId={b.id}
+                  initial={b.back_job_field_note ?? ""}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="payment">
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment (optional)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Only if the client pays for this support. Enter the amount and
+                  details — management confirms it before it reflects in
+                  accounting.
+                </p>
+                <PaymentForm
+                  bookingId={b.id}
+                  jobOrder={null}
+                  userId={profile.id}
+                  existingStatus={pay?.status ?? null}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="docs">
+            <Card>
+              <CardHeader>
+                <CardTitle>Documentation</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <DocumentationForm bookingId={b.id} userId={profile.id} />
+                <div className="border-t pt-5">
+                  <DoneBackJobOrderButton
+                    bookingId={b.id}
+                    docsReady={docsOk}
+                    completed={alreadyCompleted}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">

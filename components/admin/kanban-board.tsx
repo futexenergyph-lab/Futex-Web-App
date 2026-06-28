@@ -116,11 +116,18 @@ function BookingCard({
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold">{booking.client_name}</p>
-        {booking.source === "web" && (
-          <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">
-            WEB
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {booking.is_back_job_order && (
+            <span className="rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700">
+              BACK JOB
+            </span>
+          )}
+          {booking.source === "web" && (
+            <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+              WEB
+            </span>
+          )}
+        </div>
       </div>
       <p className="mt-1 flex items-start gap-1 text-xs text-muted-foreground">
         <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
