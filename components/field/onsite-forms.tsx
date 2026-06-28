@@ -236,6 +236,33 @@ export function PaymentForm({
           </select>
         </div>
       </div>
+      {method === "bank_transfer" && (
+        <div className="space-y-1 rounded-md border bg-secondary/30 p-3">
+          <p className="text-xs font-medium text-muted-foreground">
+            Scan to pay via InstaPay (EastWest — FUTEX)
+          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/payment-bank-transfer.jpeg"
+            alt="EastWest InstaPay QR — FUTEX"
+            className="mx-auto max-h-72 w-auto rounded object-contain"
+          />
+        </div>
+      )}
+      {method === "check" && (
+        <div className="space-y-1 rounded-md border bg-secondary/30 p-3">
+          <p className="text-xs font-medium text-muted-foreground">
+            Check details
+          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/payment-check.jpeg"
+            alt="Check payable to — sample"
+            className="mx-auto max-h-72 w-auto rounded object-contain"
+          />
+        </div>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="ref">Reference no.</Label>
         <Input
