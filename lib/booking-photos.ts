@@ -62,5 +62,17 @@ export async function fetchBookingDocumentationPhotos(
       await push("documentation", row.booking_id, path);
   }
 
+  // Payment proof photos also surface in the documentation gallery.
+  const { data: pays } = await supabase
+    .from("payments")
+    .select("booking_id, proof_url, created_at")
+    .in("booking_id", bookingIds)
+    .order("created_at", { ascending: true });
+  for (const p of (pays as
+    | { booking_id: string; proof_url: string | null }[]
+    | null) ?? []) {
+    if (p.proof_url) await push("payment-proofs", p.booking_id, p.proof_url);
+  }
+
   return byBooking;
 }
