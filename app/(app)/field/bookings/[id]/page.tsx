@@ -248,6 +248,11 @@ export default async function FieldBookingDetail({
                 <p className="mt-0.5 whitespace-pre-wrap">{b.notes}</p>
               </div>
             )}
+            {(b.status === "scheduled" || b.status === "deployed") && (
+              <div className="pt-2">
+                <ArrivalButton bookingId={b.id} />
+              </div>
+            )}
           </CardContent>
         </Card>
 
