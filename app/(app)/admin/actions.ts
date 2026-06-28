@@ -148,6 +148,54 @@ export async function deployBooking(input: {
   return { ok: true };
 }
 
+/**
+ * Create a Back Job Order — an after-sales support / maintenance ticket for an
+ * already-completed client. It reuses the bookings table (flagged
+ * is_back_job_order) so it shows in Deployment and the field officer dashboard,
+ * carrying over the original client's info and assigned team.
+ */
+export async function createBackJobOrder(input: {
+  parentBookingId: string;
+  scheduledDate: string | null;
+  scheduledTime: string | null;
+  note: string;
+}) {
+  const profile = await requireRole(["admin", "admin_staff"]);
+  const supabase = createClient();
+
+  const { data: parent } = await supabase
+    .from("bookings")
+    .select(
+      "client_number, client_name, email, address, contact_number, assigned_field_officer_id, assigned_installer_id",
+    )
+    .eq("id", input.parentBookingId)
+    .single();
+  if (!parent) return { error: "Client record not found" };
+
+  const { error } = await supabase.from("bookings").insert({
+    client_number: parent.client_number,
+    client_name: parent.client_name,
+    email: parent.email,
+    address: parent.address,
+    contact_number: parent.contact_number,
+    preferred_date: input.scheduledDate || null,
+    preferred_time: input.scheduledTime || null,
+    notes: input.note || null,
+    is_back_job_order: true,
+    parent_booking_id: input.parentBookingId,
+    assigned_field_officer_id: parent.assigned_field_officer_id,
+    assigned_installer_id: parent.assigned_installer_id,
+    source: "manual",
+    status: "scheduled",
+    created_by: profile.id,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/deployment");
+  return { ok: true };
+}
+
 export async function createManualBooking(input: {
   client_number: string | null;
   client_name: string;

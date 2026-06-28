@@ -413,6 +413,60 @@ export async function saveAcknowledgement(input: {
   return { ok: true };
 }
 
+/** Save the field officer's free-text job order for a back job order ticket. */
+export async function saveBackJobNote(input: {
+  bookingId: string;
+  note: string;
+}) {
+  const profile = await me();
+  await assertAssigned(input.bookingId, profile.id);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("bookings")
+    .update({ back_job_field_note: input.note || null })
+    .eq("id", input.bookingId);
+  if (error) return { error: error.message };
+  revalidatePath(`/field/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+/**
+ * Mark a back job order (support ticket) done. Requires documentation photos;
+ * payment is optional for support work. Sets the booking to "completed".
+ */
+export async function completeBackJobOrder(bookingId: string) {
+  const profile = await me();
+  await assertAssigned(bookingId, profile.id);
+  const supabase = createClient();
+
+  const { data: docs } = await supabase
+    .from("documentation")
+    .select("file_urls")
+    .eq("booking_id", bookingId);
+  const docsOk = ((docs as { file_urls: string[] }[] | null) ?? []).some(
+    (d) => (d.file_urls ?? []).length > 0,
+  );
+  if (!docsOk) {
+    return { error: "Attach documentation photos before finishing." };
+  }
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      status: "completed",
+      installation_done_at: new Date().toISOString(),
+    })
+    .eq("id", bookingId);
+  if (error) return { error: error.message };
+
+  revalidatePath(`/field/bookings/${bookingId}`);
+  revalidatePath("/field");
+  revalidatePath("/field/clients");
+  revalidatePath("/admin/deployment");
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
 export async function uploadDocumentation(input: {
   bookingId: string;
   filePaths: string[];
