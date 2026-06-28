@@ -80,11 +80,20 @@ export function JobOrderForm({
   );
   // Amounts are kept as raw strings while editing so the input clears cleanly
   // (a numeric controlled input leaves a stuck leading "0").
+  // Adjustments are stored alongside job works but with a NEGATIVE amount, so
+  // they decrement the billing. We split them apart by sign for editing.
   const [jobWorks, setJobWorks] = useState<WorkInput[]>(
-    (existing?.additional_job_works ?? []).map((w) => ({
-      description: w.description,
-      amount: String(w.amount),
-    })),
+    (existing?.additional_job_works ?? [])
+      .filter((w) => w.amount >= 0)
+      .map((w) => ({ description: w.description, amount: String(w.amount) })),
+  );
+  const [adjustments, setAdjustments] = useState<WorkInput[]>(
+    (existing?.additional_job_works ?? [])
+      .filter((w) => w.amount < 0)
+      .map((w) => ({
+        description: w.description,
+        amount: String(Math.abs(w.amount)),
+      })),
   );
   const [notes, setNotes] = useState(existing?.notes ?? "");
   // The client must re-sign on each (re)submission to acknowledge the order.
@@ -95,10 +104,17 @@ export function JobOrderForm({
   const enc = enclosures.find((e) => e.id === enclosureId) ?? null;
   const bundled = pkg?.enclosure_included ?? false;
 
-  const jobWorksNum: JobWork[] = jobWorks.map((w) => ({
-    description: w.description,
-    amount: Number(w.amount) || 0,
-  }));
+  // Charges are positive; adjustments are negated so they reduce the total.
+  const jobWorksNum: JobWork[] = [
+    ...jobWorks.map((w) => ({
+      description: w.description,
+      amount: Number(w.amount) || 0,
+    })),
+    ...adjustments.map((w) => ({
+      description: w.description,
+      amount: -(Number(w.amount) || 0),
+    })),
+  ];
 
   const pricing = useMemo(
     () =>
@@ -111,7 +127,7 @@ export function JobOrderForm({
         additionalJobWorks: jobWorksNum,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pkg, enc, addSeparateEnclosure, wireMeters, jobWorks, wireRate],
+    [pkg, enc, addSeparateEnclosure, wireMeters, jobWorks, adjustments, wireRate],
   );
 
   // A submitted/locked order is read-only until management approves a change.
@@ -127,6 +143,16 @@ export function JobOrderForm({
   }
   function removeWork(i: number) {
     setJobWorks((w) => w.filter((_, idx) => idx !== i));
+  }
+
+  function addAdjustment() {
+    setAdjustments((a) => [...a, { description: "", amount: "" }]);
+  }
+  function updateAdjustment(i: number, patch: Partial<WorkInput>) {
+    setAdjustments((a) => a.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
+  }
+  function removeAdjustment(i: number) {
+    setAdjustments((a) => a.filter((_, idx) => idx !== i));
   }
 
   // Validate, then open the acknowledgment prompt before locking.
@@ -405,6 +431,54 @@ export function JobOrderForm({
               size="icon"
               variant="ghost"
               onClick={() => removeWork(i)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label>Adjustment</Label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={addAdjustment}
+          >
+            <Plus className="h-4 w-4" /> Add
+          </Button>
+        </div>
+        {adjustments.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            Add a discount or deduction (description + amount). The amount is
+            subtracted from the billing.
+          </p>
+        )}
+        {adjustments.map((w, i) => (
+          <div key={i} className="flex gap-2">
+            <Input
+              placeholder="Description (e.g. discount)"
+              value={w.description}
+              onChange={(e) =>
+                updateAdjustment(i, { description: e.target.value })
+              }
+            />
+            <Input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              placeholder="− ₱ amount"
+              className="w-28"
+              value={w.amount}
+              onChange={(e) => updateAdjustment(i, { amount: e.target.value })}
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={() => removeAdjustment(i)}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
