@@ -8,6 +8,7 @@ import {
   type JobOrderDetail,
 } from "@/components/admin/job-order-amount";
 import { ConfirmPaymentButton } from "@/components/admin/confirm-payment-button";
+import { PaymentDetails } from "@/components/admin/payment-details";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -52,13 +53,18 @@ export default async function DeploymentPage() {
     {
       amount: number;
       status: "pending" | "confirmed";
+      method: string;
+      referenceNo: string | null;
+      paidAt: string | null;
       proofUrl: string | null;
     }
   >();
   if (allIds.length > 0) {
     const { data: pays } = await supabase
       .from("payments")
-      .select("booking_id, amount, status, proof_url, created_at")
+      .select(
+        "booking_id, amount, status, method, reference_no, paid_at, proof_url, created_at",
+      )
       .in("booking_id", allIds)
       .order("created_at", { ascending: false });
     for (const p of (pays as
@@ -66,6 +72,9 @@ export default async function DeploymentPage() {
           booking_id: string;
           amount: number;
           status: "pending" | "confirmed";
+          method: string;
+          reference_no: string | null;
+          paid_at: string | null;
           proof_url: string | null;
         }[]
       | null) ?? []) {
@@ -80,6 +89,9 @@ export default async function DeploymentPage() {
       payByBooking.set(p.booking_id, {
         amount: Number(p.amount),
         status: p.status,
+        method: p.method,
+        referenceNo: p.reference_no,
+        paidAt: p.paid_at,
         proofUrl,
       });
     }
@@ -206,13 +218,17 @@ export default async function DeploymentPage() {
                           No payment
                         </span>
                       ) : pay.status === "confirmed" ? (
-                        <Badge variant="accent">Paid</Badge>
+                        <div className="flex flex-col items-start gap-1.5">
+                          <Badge variant="accent">Paid</Badge>
+                          <PaymentDetails payment={pay} />
+                        </div>
                       ) : (
                         <div className="flex flex-col items-start gap-1.5">
                           <span className="font-medium text-red-600">
                             Payment pending
                           </span>
                           <ConfirmPaymentButton bookingId={b.id} />
+                          <PaymentDetails payment={pay} />
                         </div>
                       )}
                     </TableCell>
