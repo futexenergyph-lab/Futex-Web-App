@@ -71,7 +71,7 @@ export function JobOrderForm({
     existing?.enclosure_id ?? defaults.enclosureId ?? "",
   );
   const [addSeparateEnclosure, setAddSeparate] = useState(
-    existing?.add_separate_enclosure ?? false,
+    existing?.add_separate_enclosure ?? true,
   );
   const [wireMeters, setWireMeters] = useState(
     existing?.additional_wire_meters

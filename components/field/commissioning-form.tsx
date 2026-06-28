@@ -63,6 +63,13 @@ export function CommissioningForm({
     init.client_name = prefill.client_name ?? "";
     init.site_address = prefill.site_address ?? "";
     init.contact_person = prefill.contact_person ?? "";
+    // Default the installation date to today (the day of installation).
+    init.installation_date = new Date().toLocaleDateString("en-US", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
     return init;
   });
 
