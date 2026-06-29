@@ -60,9 +60,17 @@ export async function updateBooking(input: {
   enclosure_protection_notes: string | null;
   notes: string | null;
 }) {
-  await requireRole(["admin", "admin_staff"]);
+  const profile = await requireRole(["admin", "admin_staff"]);
   const supabase = createClient();
   const { id, ...fields } = input;
+
+  // Snapshot before for the audit log (so the edit can be reverted).
+  const { data: before } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase
     .from("bookings")
     .update({
@@ -76,8 +84,26 @@ export async function updateBooking(input: {
     })
     .eq("id", id);
   if (error) return { error: error.message };
+
+  const { data: after } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("id", id)
+    .single();
+  await supabase.from("audit_logs").insert({
+    table_name: "bookings",
+    record_id: id,
+    action: "update",
+    label: `Client — ${fields.client_name}`,
+    before_data: before,
+    after_data: after,
+    actor_id: profile.id,
+    actor_name: profile.full_name,
+  });
+
   revalidatePath("/admin");
   revalidatePath("/admin/clients");
+  revalidatePath("/admin/logs");
   return { ok: true };
 }
 
