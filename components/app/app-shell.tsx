@@ -122,6 +122,7 @@ export function AppShell({
         : [
             { href: "/field", label: "My Jobs", icon: ClipboardList },
             { href: "/field/clients", label: "Client Master List", icon: Contact },
+            { href: "/field/expenses", label: "Expenses", icon: Receipt },
             { href: "/field/attendance", label: "Time In / Out", icon: Clock },
           ];
   } else {
