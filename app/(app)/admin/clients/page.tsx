@@ -29,7 +29,8 @@ interface Row {
 }
 
 export default async function ClientMasterListPage() {
-  await requireRole(["admin", "admin_staff"]);
+  const me = await requireRole(["admin", "admin_staff"]);
+  const canManage = me.role === "admin" || me.role === "owner";
   const supabase = createClient();
   const { data } = await supabase
     .from("bookings")
@@ -95,7 +96,7 @@ export default async function ClientMasterListPage() {
       />
       <Card>
         <CardContent className="pt-6">
-          <ClientMasterList clients={clients} />
+          <ClientMasterList clients={clients} canManage={canManage} />
         </CardContent>
       </Card>
     </div>

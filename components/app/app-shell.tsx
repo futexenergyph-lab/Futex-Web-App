@@ -22,6 +22,7 @@ import {
   ArrowLeftRight,
   FolderOpen,
   Contact,
+  History,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -125,6 +126,10 @@ export function AppShell({
           ];
   } else {
     ({ label: areaLabel, nav } = AREAS[area]);
+    // The Owner gets an extra audit "Logs" module.
+    if (profile.role === "owner") {
+      nav = [...nav, { href: "/admin/logs", label: "Logs", icon: History }];
+    }
   }
 
   const NavLinks = () => (

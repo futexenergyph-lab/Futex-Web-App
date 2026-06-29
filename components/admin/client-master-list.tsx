@@ -17,6 +17,7 @@ import {
   DocumentationViewer,
   type DocPhoto,
 } from "@/components/admin/documentation-viewer";
+import { DeleteRecordButton } from "@/components/admin/delete-record-button";
 import { formatDate } from "@/lib/utils";
 import {
   BOOKING_STATUS_LABELS,
@@ -49,7 +50,13 @@ type SortKey =
   | "created_at"
   | "preferred_date";
 
-export function ClientMasterList({ clients }: { clients: ClientRow[] }) {
+export function ClientMasterList({
+  clients,
+  canManage = false,
+}: {
+  clients: ClientRow[];
+  canManage?: boolean;
+}) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<BookingStatus | "all">("all");
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
@@ -160,6 +167,7 @@ export function ClientMasterList({ clients }: { clients: ClientRow[] }) {
               <SortHead k="created_at" label="Submitted" />
               <TableHead>Commissioning &amp; Warranty</TableHead>
               <TableHead>Documentation</TableHead>
+              {canManage && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -210,12 +218,21 @@ export function ClientMasterList({ clients }: { clients: ClientRow[] }) {
                 <TableCell className="text-sm">
                   <DocumentationViewer photos={c.documentation} />
                 </TableCell>
+                {canManage && (
+                  <TableCell>
+                    <DeleteRecordButton
+                      table="bookings"
+                      id={c.id}
+                      label={`Client — ${c.client_name}`}
+                    />
+                  </TableCell>
+                )}
               </TableRow>
             ))}
             {filtered.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={12}
+                  colSpan={canManage ? 13 : 12}
                   className="py-10 text-center text-muted-foreground"
                 >
                   No clients match your filter.

@@ -18,6 +18,7 @@ import {
   ExpenseForm,
   DeleteExpenseButton,
 } from "@/components/accounting/expense-form";
+import { DeleteRecordButton } from "@/components/admin/delete-record-button";
 import { php, formatDate } from "@/lib/utils";
 import {
   EXPENSE_TYPE_LABELS,
@@ -170,7 +171,15 @@ export default async function ExpensesPage({
                     {php(e.amount)}
                   </TableCell>
                   <TableCell>
-                    <DeleteExpenseButton id={e.id} />
+                    {me?.role === "admin" || me?.role === "owner" ? (
+                      <DeleteRecordButton
+                        table="expenses"
+                        id={e.id}
+                        label={`Expense ${php(e.amount)} — ${EXPENSE_TYPE_LABELS[e.type] ?? e.type}`}
+                      />
+                    ) : (
+                      <DeleteExpenseButton id={e.id} />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
