@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { CsvExport } from "@/components/csv-export";
 import { MixPieChart, CategoryBarChart } from "@/components/charts";
 import { DateRangeFilter } from "@/components/accounting/date-range-filter";
+import { PaymentEditDialog } from "@/components/admin/payment-edit-dialog";
+import { DeleteRecordButton } from "@/components/admin/delete-record-button";
 import { php, formatDate, phDay } from "@/lib/utils";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/types";
 
@@ -42,6 +44,8 @@ export default async function AccountingPage({
   // backtracking); everyone else may filter by date range.
   const me = await getProfile();
   const limited = me?.role === "admin_staff";
+  // Only Management & Owner may edit/delete records.
+  const canManage = me?.role === "admin" || me?.role === "owner";
   const today = phDay(new Date().toISOString());
   const from = limited ? today : searchParams.from;
   const to = limited ? today : searchParams.to;
@@ -171,6 +175,7 @@ export default async function AccountingPage({
                 <TableHead>Method</TableHead>
                 <TableHead>Officer</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
+                {canManage && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -194,11 +199,32 @@ export default async function AccountingPage({
                   <TableCell className="text-right font-medium tabular-nums">
                     {php(p.amount)}
                   </TableCell>
+                  {canManage && (
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <PaymentEditDialog
+                          payment={{
+                            id: p.id,
+                            amount: Number(p.amount),
+                            method: p.method,
+                            reference_no: p.reference_no,
+                            status: p.status,
+                          }}
+                          clientName={p.bookings?.client_name ?? "—"}
+                        />
+                        <DeleteRecordButton
+                          table="payments"
+                          id={p.id}
+                          label={`Payment ${php(p.amount)} — ${p.bookings?.client_name ?? "—"}`}
+                        />
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
               {confirmed.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={canManage ? 7 : 6} className="py-10 text-center text-muted-foreground">
                     No confirmed payments yet.
                   </TableCell>
                 </TableRow>
