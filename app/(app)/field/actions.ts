@@ -35,11 +35,24 @@ export async function savePersonalDataSheet(input: {
 }) {
   const profile = await requireRole(["field_officer", "installer"]);
   const supabase = createClient();
+  // Position & Date Hired are HR-only — preserve whatever HR set, ignore any
+  // values coming from the employee's own form.
+  const { data: existing } = await supabase
+    .from("personal_data_sheets")
+    .select("data")
+    .eq("user_id", profile.id)
+    .maybeSingle();
+  const existingData = (existing?.data as Record<string, string> | null) ?? {};
+  const data = {
+    ...input.data,
+    position: existingData.position ?? "",
+    date_hired: existingData.date_hired ?? "",
+  };
   const { error } = await supabase.from("personal_data_sheets").upsert(
     {
       user_id: profile.id,
       photo_url: input.photoUrl,
-      data: input.data,
+      data,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" },
