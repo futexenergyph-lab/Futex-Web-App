@@ -28,6 +28,28 @@ async function assertAssigned(bookingId: string, userId: string) {
   }
 }
 
+/** Save (upsert) the current user's Personal Data Sheet. */
+export async function savePersonalDataSheet(input: {
+  photoUrl: string | null;
+  data: Record<string, string>;
+}) {
+  const profile = await requireRole(["field_officer", "installer"]);
+  const supabase = createClient();
+  const { error } = await supabase.from("personal_data_sheets").upsert(
+    {
+      user_id: profile.id,
+      photo_url: input.photoUrl,
+      data: input.data,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" },
+  );
+  if (error) return { error: error.message };
+  revalidatePath("/field/pds");
+  revalidatePath("/hr/201-files");
+  return { ok: true };
+}
+
 /** Field officer records a draft expense (own row only). */
 export async function addFieldExpense(input: {
   expense_date: string;

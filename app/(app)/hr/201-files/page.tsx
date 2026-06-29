@@ -14,20 +14,44 @@ export default async function Files201Page() {
   const { data: officers } = await supabase
     .from("profiles")
     .select("id, full_name, role, phone")
-    .eq("role", "field_officer")
+    .in("role", ["field_officer", "installer"])
     .order("full_name");
+
+  const employees =
+    (officers as Pick<Profile, "id" | "full_name" | "role" | "phone">[]) ?? [];
+
+  // Personal data sheets surface here for each employee.
+  const pdsById: Record<
+    string,
+    { photoUrl: string | null; data: Record<string, string> }
+  > = {};
+  if (employees.length > 0) {
+    const { data: sheets } = await supabase
+      .from("personal_data_sheets")
+      .select("user_id, photo_url, data")
+      .in(
+        "user_id",
+        employees.map((e) => e.id),
+      );
+    for (const s of (sheets as
+      | {
+          user_id: string;
+          photo_url: string | null;
+          data: Record<string, string>;
+        }[]
+      | null) ?? [])
+      pdsById[s.user_id] = { photoUrl: s.photo_url, data: s.data ?? {} };
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="201 Files"
-        description="Employee files for registered field officers. Click a name to view and attach documents."
+        description="Employee files for field staff — personal data sheets and HR documents."
       />
       <Card>
         <CardContent className="pt-6">
-          <Employee201List
-            employees={(officers as Pick<Profile, "id" | "full_name" | "role" | "phone">[]) ?? []}
-          />
+          <Employee201List employees={employees} pdsById={pdsById} />
         </CardContent>
       </Card>
     </div>

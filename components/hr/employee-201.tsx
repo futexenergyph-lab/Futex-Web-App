@@ -16,8 +16,14 @@ import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
 import { ROLE_LABELS, type Profile } from "@/lib/types";
+import { PDS_ALL_SECTIONS } from "@/lib/pds";
 
 const BUCKET = "employee-201";
+
+export interface PdsView {
+  photoUrl: string | null;
+  data: Record<string, string>;
+}
 
 interface FileRow {
   name: string; // storage object name (timestamp-prefixed)
@@ -29,24 +35,84 @@ interface FileRow {
 
 type Employee = Pick<Profile, "id" | "full_name" | "role" | "phone">;
 
-export function Employee201List({ employees }: { employees: Employee[] }) {
+export function Employee201List({
+  employees,
+  pdsById = {},
+}: {
+  employees: Employee[];
+  pdsById?: Record<string, PdsView>;
+}) {
   if (employees.length === 0) {
     return (
       <p className="rounded-md border bg-secondary/40 px-4 py-8 text-center text-sm text-muted-foreground">
-        No registered field officers yet.
+        No registered field staff yet.
       </p>
     );
   }
   return (
     <div className="space-y-2">
       {employees.map((e) => (
-        <EmployeeRow key={e.id} employee={e} />
+        <EmployeeRow key={e.id} employee={e} pds={pdsById[e.id]} />
       ))}
     </div>
   );
 }
 
-function EmployeeRow({ employee }: { employee: Employee }) {
+function PdsBlock({ pds }: { pds: PdsView }) {
+  const has = Object.values(pds.data ?? {}).some((v) => v);
+  if (!has && !pds.photoUrl) {
+    return (
+      <p className="rounded-md border bg-background px-3 py-4 text-center text-xs text-muted-foreground">
+        No personal data sheet submitted yet.
+      </p>
+    );
+  }
+  return (
+    <div className="rounded-md border bg-background p-3">
+      <div className="flex gap-4">
+        {pds.photoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={pds.photoUrl}
+            alt="ID photo"
+            className="aspect-[3/4] w-24 shrink-0 rounded border object-cover"
+          />
+        )}
+        <div className="min-w-0 flex-1 space-y-3">
+          {PDS_ALL_SECTIONS.map((section) => {
+            const rows = section.fields.filter((f) => pds.data?.[f.key]);
+            if (rows.length === 0) return null;
+            return (
+              <div key={section.title}>
+                <p className="mb-1 text-xs font-semibold text-muted-foreground">
+                  {section.title}
+                </p>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  {rows.map((f) => (
+                    <div key={f.key} className="min-w-0">
+                      <dt className="text-[11px] text-muted-foreground">
+                        {f.label}
+                      </dt>
+                      <dd className="truncate">{pds.data[f.key]}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmployeeRow({
+  employee,
+  pds,
+}: {
+  employee: Employee;
+  pds?: PdsView;
+}) {
   const [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -164,6 +230,14 @@ function EmployeeRow({ employee }: { employee: Employee }) {
 
       {open && (
         <div className="border-t bg-secondary/20 px-4 py-3">
+          {pds && (
+            <div className="mb-3">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Personal Data Sheet
+              </p>
+              <PdsBlock pds={pds} />
+            </div>
+          )}
           <div className="mb-3 flex items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">
               201 file — contracts, IDs, certificates, and other HR documents.
