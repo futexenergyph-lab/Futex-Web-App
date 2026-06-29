@@ -13,11 +13,15 @@ export async function addExpense(input: {
 }) {
   const profile = await requireRole(["accounting", "admin", "admin_staff"]);
   const supabase = createClient();
+  // The limited Admin records drafts that they submit to accounting; everyone
+  // else (accounting/management/owner) records final entries directly.
+  const status = profile.role === "admin_staff" ? "draft" : "finalized";
   const { error } = await supabase.from("expenses").insert({
     expense_date: input.expense_date,
     type: input.type,
     description: input.description || null,
     amount: input.amount,
+    status,
     created_by: profile.id,
   });
   if (error) return { error: error.message };
@@ -27,7 +31,7 @@ export async function addExpense(input: {
 }
 
 export async function deleteExpense(id: string) {
-  await requireRole(["accounting", "admin"]);
+  await requireRole(["accounting", "admin", "admin_staff"]);
   const supabase = createClient();
   const { error } = await supabase.from("expenses").delete().eq("id", id);
   if (error) return { error: error.message };
@@ -37,17 +41,32 @@ export async function deleteExpense(id: string) {
 }
 
 /**
- * Admin/Owner forwards a field officer's submitted expenses to accounting.
- * (submitted -> admin_reviewed, at which point they count in accounting.)
+ * Admin (management/owner/limited Admin) forwards a field officer's submitted
+ * expenses to accounting (submitted -> admin_reviewed, where they count).
  */
 export async function submitFieldOfficerExpenses(officerId: string) {
-  await requireRole(["admin"]); // management + owner
+  await requireRole(["admin", "admin_staff"]);
   const supabase = createClient();
   const { error } = await supabase
     .from("expenses")
     .update({ status: "admin_reviewed" })
     .eq("created_by", officerId)
     .eq("status", "submitted");
+  if (error) return { error: error.message };
+  revalidatePath("/accounting/expenses");
+  revalidatePath("/accounting/cashflow");
+  return { ok: true };
+}
+
+/** The limited Admin submits their own recorded (draft) expenses to accounting. */
+export async function submitOwnDraftExpenses() {
+  const profile = await requireRole(["admin_staff", "admin"]);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("expenses")
+    .update({ status: "admin_reviewed" })
+    .eq("created_by", profile.id)
+    .eq("status", "draft");
   if (error) return { error: error.message };
   revalidatePath("/accounting/expenses");
   revalidatePath("/accounting/cashflow");
@@ -66,7 +85,7 @@ export async function editExpenseRecord(input: {
   description: string | null;
   amount: number;
 }) {
-  const profile = await requireRole(["accounting", "admin"]);
+  const profile = await requireRole(["accounting", "admin", "admin_staff"]);
   const supabase = createClient();
 
   const { data: before } = await supabase
@@ -86,8 +105,8 @@ export async function editExpenseRecord(input: {
     .eq("id", input.id);
   if (error) return { error: error.message };
 
-  // Audit log for management/owner edits (RLS allows is_admin to insert).
-  if (profile.role === "admin" || profile.role === "owner") {
+  // Audit log for admin-tier edits (RLS allows is_admin to insert).
+  if (profile.role !== "accounting") {
     const { data: after } = await supabase
       .from("expenses")
       .select("*")

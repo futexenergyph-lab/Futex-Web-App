@@ -21,6 +21,7 @@ import {
 import {
   ExpenseEditDialog,
   SubmitOfficerExpensesButton,
+  SubmitOwnExpensesButton,
 } from "@/components/accounting/expense-edit-dialog";
 import { DeleteRecordButton } from "@/components/admin/delete-record-button";
 import { php, formatDate } from "@/lib/utils";
@@ -42,11 +43,47 @@ export default async function ExpensesPage({
   // history of past records (no backtracking).
   const me = await getProfile();
   if (me?.role === "admin_staff") {
+    const supabase = createClient();
+    const [{ data: ownData }, { data: subData }] = await Promise.all([
+      supabase
+        .from("expenses")
+        .select("*")
+        .eq("created_by", me.id)
+        .eq("status", "draft")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("expenses")
+        .select("*")
+        .eq("status", "submitted")
+        .order("created_at", { ascending: false }),
+    ]);
+    const ownDrafts = (ownData as Expense[] | null) ?? [];
+    const submitted = (subData as Expense[] | null) ?? [];
+
+    const officerIds = [
+      ...new Set(submitted.map((e) => e.created_by)),
+    ].filter(Boolean) as string[];
+    const nameById = new Map<string, string>();
+    if (officerIds.length > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", officerIds);
+      for (const p of (profs as { id: string; full_name: string }[] | null) ??
+        [])
+        nameById.set(p.id, p.full_name);
+    }
+    const byOfficer = new Map<string, Expense[]>();
+    for (const e of submitted) {
+      const k = e.created_by ?? "—";
+      byOfficer.set(k, [...(byOfficer.get(k) ?? []), e]);
+    }
+
     return (
       <div className="space-y-6">
         <PageHeader
           title="Expenses & Payables"
-          description="Record an outflow for today."
+          description="Record your expenses and review field officer expenses, then submit to accounting."
         />
         <Card>
           <CardHeader>
@@ -56,10 +93,113 @@ export default async function ExpensesPage({
             <ExpenseForm />
           </CardContent>
         </Card>
-        <p className="rounded-md bg-secondary/60 px-3 py-2 text-sm text-muted-foreground">
-          You can add expenses. The history of recorded expenses isn&apos;t
-          available on this account.
-        </p>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>My expenses to submit ({ownDrafts.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {ownDrafts.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No expenses to submit. Record one above.
+              </p>
+            ) : (
+              <>
+                <div className="divide-y">
+                  {ownDrafts.map((e) => (
+                    <div key={e.id} className="flex items-center gap-3 py-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">
+                            {EXPENSE_TYPE_LABELS[e.type] ?? e.type}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDate(e.expense_date)}
+                          </span>
+                        </div>
+                        {e.description && (
+                          <p className="mt-0.5 truncate text-sm">
+                            {e.description}
+                          </p>
+                        )}
+                      </div>
+                      <span className="font-medium tabular-nums">
+                        {php(e.amount)}
+                      </span>
+                      <ExpenseEditDialog expense={e} />
+                      <DeleteExpenseButton id={e.id} />
+                    </div>
+                  ))}
+                </div>
+                <SubmitOwnExpensesButton count={ownDrafts.length} />
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {submitted.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Field officer submitted expenses</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <p className="text-sm text-muted-foreground">
+                Review and edit if needed, then submit each officer&apos;s
+                expenses to accounting.
+              </p>
+              {[...byOfficer.entries()].map(([officerId, items]) => {
+                const subtotal = items.reduce(
+                  (s, e) => s + Number(e.amount),
+                  0,
+                );
+                return (
+                  <div key={officerId} className="rounded-lg border">
+                    <div className="flex items-center justify-between gap-3 border-b bg-secondary/40 px-4 py-2.5">
+                      <p className="font-medium">
+                        {nameById.get(officerId) ?? "—"}{" "}
+                        <span className="text-sm text-muted-foreground">
+                          · {items.length} item(s) · {php(subtotal)}
+                        </span>
+                      </p>
+                      <SubmitOfficerExpensesButton
+                        officerId={officerId}
+                        count={items.length}
+                      />
+                    </div>
+                    <div className="divide-y">
+                      {items.map((e) => (
+                        <div
+                          key={e.id}
+                          className="flex items-center gap-3 px-4 py-2.5"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary">
+                                {EXPENSE_TYPE_LABELS[e.type] ?? e.type}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(e.expense_date)}
+                              </span>
+                            </div>
+                            {e.description && (
+                              <p className="mt-0.5 truncate text-sm">
+                                {e.description}
+                              </p>
+                            )}
+                          </div>
+                          <span className="font-medium tabular-nums">
+                            {php(e.amount)}
+                          </span>
+                          <ExpenseEditDialog expense={e} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }

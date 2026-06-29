@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   editExpenseRecord,
   submitFieldOfficerExpenses,
+  submitOwnDraftExpenses,
 } from "@/app/(app)/accounting/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,6 +153,42 @@ export function SubmitOfficerExpensesButton({
         <Send className="h-3.5 w-3.5" />
       )}
       Submit {count} to accounting
+    </Button>
+  );
+}
+
+/** Limited Admin submits their own recorded (draft) expenses to accounting. */
+export function SubmitOwnExpensesButton({ count }: { count: number }) {
+  const [pending, start] = useTransition();
+  const router = useRouter();
+  return (
+    <Button
+      size="lg"
+      className="w-full"
+      disabled={pending || count === 0}
+      onClick={() =>
+        start(async () => {
+          if (
+            !confirm(
+              `Submit ${count} expense(s) to accounting? This sends them to the accounting tally.`,
+            )
+          )
+            return;
+          const res = await submitOwnDraftExpenses();
+          if (res?.error) toast.error(res.error);
+          else {
+            toast.success("Submitted to accounting");
+            router.refresh();
+          }
+        })
+      }
+    >
+      {pending ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Send className="h-4 w-4" />
+      )}
+      Submit {count > 0 ? `${count} ` : ""}to accounting
     </Button>
   );
 }
