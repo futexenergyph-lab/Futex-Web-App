@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
 import { ROLE_LABELS, type Profile } from "@/lib/types";
-import { PDS_ALL_SECTIONS } from "@/lib/pds";
+import { Pds201Editor } from "@/components/hr/pds-201-editor";
 
 const BUCKET = "employee-201";
 
@@ -58,54 +58,6 @@ export function Employee201List({
   );
 }
 
-function PdsBlock({ pds }: { pds: PdsView }) {
-  const has = Object.values(pds.data ?? {}).some((v) => v);
-  if (!has && !pds.photoUrl) {
-    return (
-      <p className="rounded-md border bg-background px-3 py-4 text-center text-xs text-muted-foreground">
-        No personal data sheet submitted yet.
-      </p>
-    );
-  }
-  return (
-    <div className="rounded-md border bg-background p-3">
-      <div className="flex gap-4">
-        {pds.photoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={pds.photoUrl}
-            alt="ID photo"
-            className="aspect-[3/4] w-24 shrink-0 rounded border object-cover"
-          />
-        )}
-        <div className="min-w-0 flex-1 space-y-3">
-          {PDS_ALL_SECTIONS.map((section) => {
-            const rows = section.fields.filter((f) => pds.data?.[f.key]);
-            if (rows.length === 0) return null;
-            return (
-              <div key={section.title}>
-                <p className="mb-1 text-xs font-semibold text-muted-foreground">
-                  {section.title}
-                </p>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  {rows.map((f) => (
-                    <div key={f.key} className="min-w-0">
-                      <dt className="text-[11px] text-muted-foreground">
-                        {f.label}
-                      </dt>
-                      <dd className="truncate">{pds.data[f.key]}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function EmployeeRow({
   employee,
   pds,
@@ -114,6 +66,7 @@ function EmployeeRow({
   pds?: PdsView;
 }) {
   const [open, setOpen] = useState(false);
+  const [pdsOpen, setPdsOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -212,6 +165,18 @@ function EmployeeRow({
           ) : (
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           )}
+          {pds?.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={pds.photoUrl}
+              alt=""
+              className="aspect-[3/4] h-10 shrink-0 rounded border object-cover"
+            />
+          ) : (
+            <span className="flex aspect-[3/4] h-10 shrink-0 items-center justify-center rounded border bg-secondary/50 text-[9px] text-muted-foreground">
+              3:4
+            </span>
+          )}
           <span>
             <span className="font-medium">{employee.full_name}</span>
             <span className="block text-xs text-muted-foreground">
@@ -230,14 +195,32 @@ function EmployeeRow({
 
       {open && (
         <div className="border-t bg-secondary/20 px-4 py-3">
-          {pds && (
-            <div className="mb-3">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Personal Data Sheet
-              </p>
-              <PdsBlock pds={pds} />
-            </div>
-          )}
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={() => setPdsOpen((v) => !v)}
+              className="flex w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-left text-sm font-semibold hover:bg-secondary/50"
+            >
+              {pdsOpen ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+              Personal Data Sheet
+              <span className="text-xs font-normal text-muted-foreground">
+                — tap to view &amp; edit
+              </span>
+            </button>
+            {pdsOpen && (
+              <div className="mt-2">
+                <Pds201Editor
+                  employeeId={employee.id}
+                  initialPhotoUrl={pds?.photoUrl ?? null}
+                  initialData={pds?.data ?? {}}
+                />
+              </div>
+            )}
+          </div>
           <div className="mb-3 flex items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">
               201 file — contracts, IDs, certificates, and other HR documents.

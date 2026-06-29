@@ -76,31 +76,47 @@ export function PersonalDataSheet({
     }
   }
 
-  const field = (key: string, label: string, type?: string) =>
-    type === "textarea" ? (
+  // Position & Date Hired are filled by HR only.
+  const HR_ONLY = new Set(["position", "date_hired"]);
+
+  const field = (key: string, label: string, type?: string) => {
+    const locked = HR_ONLY.has(key);
+    const lockLabel = locked ? (
+      <Label htmlFor={`pds-${key}`} className="text-xs">
+        {label}{" "}
+        <span className="text-[10px] font-normal text-muted-foreground">
+          (set by HR)
+        </span>
+      </Label>
+    ) : (
+      <Label htmlFor={`pds-${key}`} className="text-xs">
+        {label}
+      </Label>
+    );
+    return type === "textarea" ? (
       <div key={key} className="space-y-1.5 sm:col-span-2">
-        <Label htmlFor={`pds-${key}`} className="text-xs">
-          {label}
-        </Label>
+        {lockLabel}
         <Textarea
           id={`pds-${key}`}
           value={values[key] ?? ""}
+          disabled={locked}
           onChange={(e) => setVal(key, e.target.value)}
         />
       </div>
     ) : (
       <div key={key} className="space-y-1.5">
-        <Label htmlFor={`pds-${key}`} className="text-xs">
-          {label}
-        </Label>
+        {lockLabel}
         <Input
           id={`pds-${key}`}
           type={type === "date" ? "date" : "text"}
           value={values[key] ?? ""}
+          disabled={locked}
+          className={locked ? "bg-secondary text-muted-foreground" : ""}
           onChange={(e) => setVal(key, e.target.value)}
         />
       </div>
     );
+  };
 
   return (
     <div className="space-y-6">
