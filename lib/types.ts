@@ -303,12 +303,20 @@ export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
   others: "Others",
 };
 
+export type ExpenseStatus =
+  | "draft"
+  | "submitted"
+  | "admin_reviewed"
+  | "finalized";
+
 export interface Expense {
   id: string;
   expense_date: string;
   type: ExpenseType;
   description: string | null;
   amount: number;
+  status: ExpenseStatus;
+  booking_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

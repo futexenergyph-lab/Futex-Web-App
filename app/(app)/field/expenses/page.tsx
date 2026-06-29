@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   FieldExpenseForm,
   FieldExpenseDelete,
+  SubmitExpensesButton,
+  type ExpenseClient,
 } from "@/components/field/field-expense-form";
 import { php, formatDate } from "@/lib/utils";
 import {
@@ -21,21 +23,70 @@ export default async function FieldExpensesPage() {
   const profile = await requireRole(["field_officer"]);
   const supabase = createClient();
 
-  const { data } = await supabase
-    .from("expenses")
-    .select("*")
-    .eq("created_by", profile.id)
-    .order("expense_date", { ascending: false })
-    .order("created_at", { ascending: false });
+  const today = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Asia/Manila",
+  });
 
-  const expenses = (data as Expense[] | null) ?? [];
-  const total = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  const [{ data: expData }, { data: bkData }] = await Promise.all([
+    supabase
+      .from("expenses")
+      .select("*")
+      .eq("created_by", profile.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("bookings")
+      .select("id, client_name, status")
+      .eq("assigned_field_officer_id", profile.id)
+      .not("status", "in", "(closed)")
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const expenses = (expData as Expense[] | null) ?? [];
+  const drafts = expenses.filter((e) => e.status === "draft");
+  const submitted = expenses.filter((e) => e.status !== "draft");
+
+  const clients: ExpenseClient[] = (
+    (bkData as { id: string; client_name: string }[] | null) ?? []
+  ).map((b) => ({ id: b.id, label: b.client_name }));
+
+  const STATUS_LABEL: Record<string, string> = {
+    submitted: "Submitted",
+    admin_reviewed: "With accounting",
+    finalized: "Finalized",
+  };
+
+  function Row({ e, deletable }: { e: Expense; deletable: boolean }) {
+    return (
+      <div className="flex items-center gap-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">
+              {EXPENSE_TYPE_LABELS[e.type as ExpenseType] ?? e.type}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              {formatDate(e.expense_date)}
+            </span>
+            {e.status !== "draft" && (
+              <Badge variant="accent">
+                {STATUS_LABEL[e.status] ?? e.status}
+              </Badge>
+            )}
+          </div>
+          {e.description && (
+            <p className="mt-0.5 truncate text-sm">{e.description}</p>
+          )}
+        </div>
+        <span className="font-medium tabular-nums">{php(e.amount)}</span>
+        {deletable && <FieldExpenseDelete id={e.id} />}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader
         title="Expenses"
-        description="Record your field expenses (fare, meals, supplies)."
+        description="Record your field expenses, then submit them to the admin."
       />
 
       <Card>
@@ -43,49 +94,49 @@ export default async function FieldExpensesPage() {
           <CardTitle>Record an expense</CardTitle>
         </CardHeader>
         <CardContent>
-          <FieldExpenseForm />
+          <FieldExpenseForm today={today} clients={clients} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>My expenses</CardTitle>
+          <CardTitle>To submit ({drafts.length})</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            Total recorded: <span className="font-semibold">{php(total)}</span>
-          </p>
-          {expenses.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No expenses recorded yet.
+        <CardContent className="space-y-3">
+          {drafts.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              No draft expenses. Record one above.
             </p>
           ) : (
-            <div className="divide-y">
-              {expenses.map((e) => (
-                <div key={e.id} className="flex items-center gap-3 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">
-                        {EXPENSE_TYPE_LABELS[e.type as ExpenseType] ?? e.type}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDate(e.expense_date)}
-                      </span>
-                    </div>
-                    {e.description && (
-                      <p className="mt-0.5 truncate text-sm">{e.description}</p>
-                    )}
-                  </div>
-                  <span className="font-medium tabular-nums">
-                    {php(e.amount)}
-                  </span>
-                  <FieldExpenseDelete id={e.id} />
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="divide-y">
+                {drafts.map((e) => (
+                  <Row key={e.id} e={e} deletable />
+                ))}
+              </div>
+              <SubmitExpensesButton count={drafts.length} />
+            </>
           )}
         </CardContent>
       </Card>
+
+      {submitted.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Submitted</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Submitted expenses are locked — the admin reviews them next.
+            </p>
+            <div className="divide-y">
+              {submitted.map((e) => (
+                <Row key={e.id} e={e} deletable={false} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

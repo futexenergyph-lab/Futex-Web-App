@@ -18,6 +18,10 @@ import {
   ExpenseForm,
   DeleteExpenseButton,
 } from "@/components/accounting/expense-form";
+import {
+  ExpenseEditDialog,
+  SubmitOfficerExpensesButton,
+} from "@/components/accounting/expense-edit-dialog";
 import { DeleteRecordButton } from "@/components/admin/delete-record-button";
 import { php, formatDate } from "@/lib/utils";
 import {
@@ -60,6 +64,7 @@ export default async function ExpensesPage({
     );
   }
 
+  const canManage = me?.role === "admin" || me?.role === "owner";
   const { from, to } = searchParams;
   const supabase = createClient();
   let query = supabase
@@ -71,8 +76,35 @@ export default async function ExpensesPage({
   if (to) query = query.lte("expense_date", to);
   const { data } = await query;
 
-  const expenses = (data as Expense[] | null) ?? [];
+  const allExpenses = (data as Expense[] | null) ?? [];
+
+  // Field-officer expenses awaiting admin review (Management/Owner only).
+  const pendingReview = allExpenses.filter((e) => e.status === "submitted");
+  // Official records that count in accounting (exclude field draft/submitted).
+  const expenses = allExpenses.filter(
+    (e) => e.status !== "draft" && e.status !== "submitted",
+  );
   const total = expenses.reduce((s, e) => s + Number(e.amount), 0);
+
+  // Names for the per–field-officer review section.
+  const officerIds = [...new Set(pendingReview.map((e) => e.created_by))].filter(
+    Boolean,
+  ) as string[];
+  const nameById = new Map<string, string>();
+  if (officerIds.length > 0) {
+    const { data: profs } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", officerIds);
+    for (const p of (profs as { id: string; full_name: string }[] | null) ?? [])
+      nameById.set(p.id, p.full_name);
+  }
+  // Group pending review by officer.
+  const byOfficer = new Map<string, Expense[]>();
+  for (const e of pendingReview) {
+    const k = e.created_by ?? "—";
+    byOfficer.set(k, [...(byOfficer.get(k) ?? []), e]);
+  }
 
   const byType = new Map<string, number>();
   for (const e of expenses) {
@@ -138,6 +170,72 @@ export default async function ExpensesPage({
         </Card>
       </div>
 
+      {canManage && pendingReview.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Field officer submitted expenses</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <p className="text-sm text-muted-foreground">
+              Review and edit if needed, then submit each officer&apos;s
+              expenses to accounting.
+            </p>
+            {[...byOfficer.entries()].map(([officerId, items]) => {
+              const subtotal = items.reduce((s, e) => s + Number(e.amount), 0);
+              return (
+                <div key={officerId} className="rounded-lg border">
+                  <div className="flex items-center justify-between gap-3 border-b bg-secondary/40 px-4 py-2.5">
+                    <p className="font-medium">
+                      {nameById.get(officerId) ?? "—"}{" "}
+                      <span className="text-sm text-muted-foreground">
+                        · {items.length} item(s) · {php(subtotal)}
+                      </span>
+                    </p>
+                    <SubmitOfficerExpensesButton
+                      officerId={officerId}
+                      count={items.length}
+                    />
+                  </div>
+                  <div className="divide-y">
+                    {items.map((e) => (
+                      <div
+                        key={e.id}
+                        className="flex items-center gap-3 px-4 py-2.5"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">
+                              {EXPENSE_TYPE_LABELS[e.type] ?? e.type}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDate(e.expense_date)}
+                            </span>
+                          </div>
+                          {e.description && (
+                            <p className="mt-0.5 truncate text-sm">
+                              {e.description}
+                            </p>
+                          )}
+                        </div>
+                        <span className="font-medium tabular-nums">
+                          {php(e.amount)}
+                        </span>
+                        <ExpenseEditDialog expense={e} />
+                        <DeleteRecordButton
+                          table="expenses"
+                          id={e.id}
+                          label={`Expense ${php(e.amount)} — ${nameById.get(officerId) ?? ""}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Expense records</CardTitle>
@@ -171,15 +269,18 @@ export default async function ExpensesPage({
                     {php(e.amount)}
                   </TableCell>
                   <TableCell>
-                    {me?.role === "admin" || me?.role === "owner" ? (
-                      <DeleteRecordButton
-                        table="expenses"
-                        id={e.id}
-                        label={`Expense ${php(e.amount)} — ${EXPENSE_TYPE_LABELS[e.type] ?? e.type}`}
-                      />
-                    ) : (
-                      <DeleteExpenseButton id={e.id} />
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      <ExpenseEditDialog expense={e} />
+                      {canManage ? (
+                        <DeleteRecordButton
+                          table="expenses"
+                          id={e.id}
+                          label={`Expense ${php(e.amount)} — ${EXPENSE_TYPE_LABELS[e.type] ?? e.type}`}
+                        />
+                      ) : (
+                        <DeleteExpenseButton id={e.id} />
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

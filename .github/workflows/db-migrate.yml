@@ -110,4 +110,8 @@ jobs:
           run_sql 'drop policy if exists expenses_select_own on public.expenses; create policy expenses_select_own on public.expenses for select using (created_by = auth.uid());'
           run_sql 'drop policy if exists expenses_delete_own on public.expenses; create policy expenses_delete_own on public.expenses for delete using (created_by = auth.uid());'
 
+          # Expense approval workflow (field officer -> admin -> accounting)
+          run_sql "alter table public.expenses add column if not exists status text not null default 'finalized', add column if not exists booking_id uuid references public.bookings(id) on delete set null;"
+          run_sql "drop policy if exists expenses_update_own on public.expenses; create policy expenses_update_own on public.expenses for update using (created_by = auth.uid() and status = 'draft') with check (created_by = auth.uid());"
+
           echo "Done."

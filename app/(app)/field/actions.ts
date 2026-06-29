@@ -28,12 +28,13 @@ async function assertAssigned(bookingId: string, userId: string) {
   }
 }
 
-/** Field officer records an expense (own row only). */
+/** Field officer records a draft expense (own row only). */
 export async function addFieldExpense(input: {
   expense_date: string;
   type: string;
   description: string;
   amount: number;
+  bookingId: string | null;
 }) {
   const profile = await requireRole(["field_officer"]);
   const supabase = createClient();
@@ -42,6 +43,8 @@ export async function addFieldExpense(input: {
     type: input.type,
     description: input.description || null,
     amount: input.amount,
+    booking_id: input.bookingId,
+    status: "draft",
     created_by: profile.id,
   });
   if (error) return { error: error.message };
@@ -49,7 +52,7 @@ export async function addFieldExpense(input: {
   return { ok: true };
 }
 
-/** Field officer deletes one of their own expenses. */
+/** Field officer deletes one of their own DRAFT expenses. */
 export async function deleteFieldExpense(id: string) {
   const profile = await requireRole(["field_officer"]);
   const supabase = createClient();
@@ -57,9 +60,28 @@ export async function deleteFieldExpense(id: string) {
     .from("expenses")
     .delete()
     .eq("id", id)
-    .eq("created_by", profile.id);
+    .eq("created_by", profile.id)
+    .eq("status", "draft");
   if (error) return { error: error.message };
   revalidatePath("/field/expenses");
+  return { ok: true };
+}
+
+/**
+ * Submit all the field officer's draft expenses to the admin for review.
+ * Once submitted they can no longer be edited by the field officer.
+ */
+export async function submitFieldExpenses() {
+  const profile = await requireRole(["field_officer"]);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("expenses")
+    .update({ status: "submitted" })
+    .eq("created_by", profile.id)
+    .eq("status", "draft");
+  if (error) return { error: error.message };
+  revalidatePath("/field/expenses");
+  revalidatePath("/accounting/expenses");
   return { ok: true };
 }
 
