@@ -23,6 +23,7 @@ import {
   FolderOpen,
   Contact,
   History,
+  IdCard,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -118,11 +119,13 @@ export function AppShell({
         ? [
             { href: "/field", label: "My Jobs", icon: ClipboardList },
             { href: "/field/customers", label: "My Customers", icon: Users },
+            { href: "/field/pds", label: "Personal Data Sheet", icon: IdCard },
           ]
         : [
             { href: "/field", label: "My Jobs", icon: ClipboardList },
             { href: "/field/clients", label: "Client Master List", icon: Contact },
             { href: "/field/expenses", label: "Expenses", icon: Receipt },
+            { href: "/field/pds", label: "Personal Data Sheet", icon: IdCard },
             { href: "/field/attendance", label: "Time In / Out", icon: Clock },
           ];
   } else {
