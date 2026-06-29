@@ -36,7 +36,11 @@ export default async function FinancialOverviewPage({
       .from("payments")
       .select("amount, paid_at, created_at, status")
       .eq("status", "confirmed"),
-    supabase.from("expenses").select("amount, expense_date, type"),
+    // Only expenses that have cleared the field→admin review count officially.
+    supabase
+      .from("expenses")
+      .select("amount, expense_date, type, status")
+      .not("status", "in", "(draft,submitted)"),
   ]);
 
   const inflow = (payments ?? [])
