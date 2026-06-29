@@ -28,6 +28,41 @@ async function assertAssigned(bookingId: string, userId: string) {
   }
 }
 
+/** Field officer records an expense (own row only). */
+export async function addFieldExpense(input: {
+  expense_date: string;
+  type: string;
+  description: string;
+  amount: number;
+}) {
+  const profile = await requireRole(["field_officer"]);
+  const supabase = createClient();
+  const { error } = await supabase.from("expenses").insert({
+    expense_date: input.expense_date,
+    type: input.type,
+    description: input.description || null,
+    amount: input.amount,
+    created_by: profile.id,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/field/expenses");
+  return { ok: true };
+}
+
+/** Field officer deletes one of their own expenses. */
+export async function deleteFieldExpense(id: string) {
+  const profile = await requireRole(["field_officer"]);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("expenses")
+    .delete()
+    .eq("id", id)
+    .eq("created_by", profile.id);
+  if (error) return { error: error.message };
+  revalidatePath("/field/expenses");
+  return { ok: true };
+}
+
 export async function recordAttendance(input: {
   type: "time_in" | "time_out";
   photoPath: string | null;

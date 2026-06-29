@@ -105,4 +105,9 @@ jobs:
           run_sql 'drop policy if exists audit_logs_insert on public.audit_logs; create policy audit_logs_insert on public.audit_logs for insert with check (public.is_admin());'
           run_sql 'drop policy if exists audit_logs_update on public.audit_logs; create policy audit_logs_update on public.audit_logs for update using (public.is_admin()) with check (public.is_admin());'
 
+          # Field officers may record their own expenses
+          run_sql 'drop policy if exists expenses_insert_own on public.expenses; create policy expenses_insert_own on public.expenses for insert with check (created_by = auth.uid());'
+          run_sql 'drop policy if exists expenses_select_own on public.expenses; create policy expenses_select_own on public.expenses for select using (created_by = auth.uid());'
+          run_sql 'drop policy if exists expenses_delete_own on public.expenses; create policy expenses_delete_own on public.expenses for delete using (created_by = auth.uid());'
+
           echo "Done."
