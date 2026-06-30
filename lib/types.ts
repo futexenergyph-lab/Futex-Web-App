@@ -320,6 +320,8 @@ export interface Expense {
   amount: number;
   status: ExpenseStatus;
   booking_id: string | null;
+  submission_id: string | null;
+  submitted_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

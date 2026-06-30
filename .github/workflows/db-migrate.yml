@@ -133,4 +133,8 @@ jobs:
           # Decline a field-recorded payment (lets the officer resubmit)
           run_sql "alter type public.payment_status add value if not exists 'declined';"
 
+          # Expense submission batches (group + total per submission)
+          run_sql 'alter table public.expenses add column if not exists submission_id uuid, add column if not exists submitted_at timestamptz;'
+          run_sql 'create index if not exists idx_expenses_submission on public.expenses(submission_id);'
+
           echo "Done."
