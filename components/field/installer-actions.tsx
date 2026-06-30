@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import {
   confirmDeployment,
   declineDeployment,
-  markInstallationDone,
+  installerDone,
 } from "@/app/(app)/field/actions";
 import { Button } from "@/components/ui/button";
 
@@ -99,10 +99,10 @@ export function InstallationDoneButton({ bookingId }: { bookingId: string }) {
 
   async function done() {
     setPending(true);
-    const res = await markInstallationDone(bookingId);
+    const res = await installerDone(bookingId);
     if (res?.error) toast.error(res.error);
     else {
-      toast.success("Installation marked as done");
+      toast.success("Your installation is marked done");
       router.refresh();
     }
     setPending(false);

@@ -21,10 +21,30 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
-import type { JobWork } from "@/lib/types";
+import type { BookingWithRelations, JobWork } from "@/lib/types";
 
 export const metadata = { title: "Deployment" };
 export const dynamic = "force-dynamic";
+
+// Per-actor deployment status shown below each name.
+function fieldOfficerStatus(b: BookingWithRelations): string {
+  if (b.status === "completed" || b.status === "closed")
+    return "Completed installation";
+  if (
+    b.field_officer_arrived_at ||
+    ["on_site", "in_progress", "paid"].includes(b.status)
+  )
+    return "Arrived on site";
+  return "Deployed";
+}
+
+function installerStatus(b: BookingWithRelations): string {
+  if (b.installer_done_at) return "Done installation";
+  if (b.installer_arrived_at) return "Arrived on site";
+  if (b.installer_confirmed_at) return "Accepted deployment";
+  if (b.installer_declined_at) return "Declined";
+  return "Deployed";
+}
 
 interface JobOrderRow {
   id: string;
@@ -233,12 +253,26 @@ export default async function DeploymentPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {b.assigned_field_officer?.full_name ?? (
+                      {b.assigned_field_officer?.full_name ? (
+                        <div>
+                          <p>{b.assigned_field_officer.full_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {fieldOfficerStatus(b)}
+                          </p>
+                        </div>
+                      ) : (
                         <span className="text-muted-foreground">Unassigned</span>
                       )}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {b.assigned_installer?.full_name ?? (
+                      {b.assigned_installer?.full_name ? (
+                        <div>
+                          <p>{b.assigned_installer.full_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {installerStatus(b)}
+                          </p>
+                        </div>
+                      ) : (
                         <span className="text-muted-foreground">Unassigned</span>
                       )}
                     </TableCell>

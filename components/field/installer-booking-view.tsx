@@ -16,16 +16,17 @@ export function InstallerBookingView({
   booking: b,
   updates,
   userId,
+  userName,
 }: {
   booking: BookingWithRelations;
   updates: JobUpdate[];
   userId: string;
+  userName?: string;
 }) {
   const confirmed = !!b.installer_confirmed_at;
   const declined = !!b.installer_declined_at;
-  const done = !!b.installation_done_at;
-  const arrived =
-    b.status === "on_site" || b.status === "in_progress" || done;
+  const done = !!b.installer_done_at;
+  const arrived = !!b.installer_arrived_at || done;
   const mapsHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.address)}`;
 
   return (
@@ -89,7 +90,7 @@ export function InstallerBookingView({
       )}
 
       {/* Step 2: arrival (after accepting) */}
-      {confirmed && !done && b.status === "deployed" && (
+      {confirmed && !arrived && (
         <Card>
           <CardContent className="pt-6">
             <p className="mb-3 text-sm text-muted-foreground">
@@ -104,7 +105,9 @@ export function InstallerBookingView({
       {done && (
         <div className="flex items-center gap-2 rounded-lg border border-futex-green/40 bg-accent/10 p-4 text-sm font-medium text-accent-foreground">
           <CheckCircle2 className="h-5 w-5 text-futex-green" />
-          Installation completed on {formatDateTime(b.installation_done_at)}.
+          You marked your installation done on{" "}
+          {formatDateTime(b.installer_done_at)}. The field officer finalizes the
+          job.
         </div>
       )}
 
@@ -115,7 +118,13 @@ export function InstallerBookingView({
             <CardTitle className="text-base">On-site updates</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!done && <UpdateForm bookingId={b.id} userId={userId} />}
+            {!done && (
+              <UpdateForm
+                bookingId={b.id}
+                userId={userId}
+                stampName={userName}
+              />
+            )}
             <div className="space-y-2">
               {updates.map((u) => (
                 <div key={u.id} className="rounded-md border p-3 text-sm">
