@@ -31,6 +31,7 @@ const TABLE_LABELS: Record<string, string> = {
   payments: "Payment",
   expenses: "Expense",
   bookings: "Booking / Client",
+  attendance: "Attendance",
 };
 
 export default async function LogsPage() {

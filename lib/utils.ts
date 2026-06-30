@@ -59,3 +59,28 @@ export function phDay(value: string): string {
     timeZone: PH_TIME_ZONE,
   });
 }
+
+/**
+ * Format an instant as a `datetime-local` input value ("YYYY-MM-DDTHH:mm")
+ * expressed in Philippine time (UTC+8).
+ */
+export function phDateTimeLocal(value: string | null | undefined): string {
+  if (!value) return "";
+  const d = new Date(value);
+  const date = d.toLocaleDateString("en-CA", { timeZone: PH_TIME_ZONE });
+  const time = d.toLocaleTimeString("en-GB", {
+    timeZone: PH_TIME_ZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `${date}T${time}`;
+}
+
+/**
+ * Convert a `datetime-local` value entered in Philippine time (UTC+8) back to
+ * a UTC ISO string. PHT has no DST, so the fixed +08:00 offset is exact.
+ */
+export function phLocalToUtc(local: string): string {
+  return new Date(`${local}:00+08:00`).toISOString();
+}

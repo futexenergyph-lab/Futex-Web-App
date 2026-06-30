@@ -11,5 +11,5 @@ export default async function HRPage({
 }) {
   // Management/Owner only — the limited Admin role cannot view HR.
   await requireRole(["admin"]);
-  return <AttendanceReport searchParams={searchParams} />;
+  return <AttendanceReport searchParams={searchParams} canManage />;
 }
