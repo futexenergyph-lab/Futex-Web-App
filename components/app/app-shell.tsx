@@ -128,7 +128,7 @@ export function AppShell({
       profile.role === "installer"
         ? [
             { href: "/field", label: "My Jobs", icon: ClipboardList },
-            { href: "/field/customers", label: "My Customers", icon: Users },
+            { href: "/field/masterlist", label: "Client Master List", icon: Contact },
             { href: "/field/pds", label: "Personal Data Sheet", icon: IdCard },
           ]
         : [
