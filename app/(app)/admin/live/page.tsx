@@ -2,16 +2,33 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDateTime } from "@/lib/utils";
+import { PhotoThumbs } from "@/components/hr/photo-thumbs";
+import { DateRangeFilter } from "@/components/app/date-range-filter";
+import { formatDateTime, resolveDateRange } from "@/lib/utils";
 import { Clock, Camera } from "lucide-react";
 
 export const metadata = { title: "Live Status" };
 export const dynamic = "force-dynamic";
 
-export default async function LiveStatusPage() {
+export default async function LiveStatusPage({
+  searchParams,
+}: {
+  searchParams: { range?: string; from?: string; to?: string };
+}) {
   const supabase = createClient();
+  const range = resolveDateRange(searchParams);
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+
+  let updatesQuery = supabase
+    .from("job_updates")
+    .select(
+      "id, message, photo_urls, created_at, profiles(full_name), bookings(client_name)",
+    )
+    .order("created_at", { ascending: false })
+    .limit(60);
+  if (range.fromISO) updatesQuery = updatesQuery.gte("created_at", range.fromISO);
+  if (range.toISO) updatesQuery = updatesQuery.lt("created_at", range.toISO);
 
   const [{ data: attendance }, { data: updates }] = await Promise.all([
     supabase
@@ -19,13 +36,7 @@ export default async function LiveStatusPage() {
       .select("id, type, timestamp, user_id, profiles(full_name)")
       .gte("timestamp", todayStart.toISOString())
       .order("timestamp", { ascending: false }),
-    supabase
-      .from("job_updates")
-      .select(
-        "id, message, photo_urls, created_at, profiles(full_name), bookings(client_name)",
-      )
-      .order("created_at", { ascending: false })
-      .limit(20),
+    updatesQuery,
   ]);
 
   // Sign the first photo of each update for preview.
@@ -61,7 +72,9 @@ export default async function LiveStatusPage() {
       <PageHeader
         title="Live Status"
         description="Who has timed in today and the latest on-site updates."
-      />
+      >
+        <DateRangeFilter />
+      </PageHeader>
 
       <Card>
         <CardHeader>
@@ -109,16 +122,11 @@ export default async function LiveStatusPage() {
               </p>
               {u.message && <p className="mt-2 text-sm">{u.message}</p>}
               {u.signed.length > 0 && (
-                <div className="mt-3 flex gap-2 overflow-x-auto">
-                  {u.signed.map((src, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      key={i}
-                      src={src}
-                      alt="Site update"
-                      className="h-24 w-24 rounded-md object-cover"
-                    />
-                  ))}
+                <div className="mt-3">
+                  <PhotoThumbs
+                    photos={u.signed.map((src) => ({ src, alt: "Site update" }))}
+                    className="h-24 w-24"
+                  />
                 </div>
               )}
             </div>

@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CategoryBarChart, RevenueLineChart, MixPieChart } from "@/components/charts";
+import { DateRangeFilter } from "@/components/app/date-range-filter";
+import { resolveDateRange } from "@/lib/utils";
 import {
   BOOKING_STATUSES,
   BOOKING_STATUS_LABELS,
@@ -22,15 +24,24 @@ interface Row {
   enclosures: { name: string } | null;
 }
 
-export default async function AnalyticsPage() {
+export default async function AnalyticsPage({
+  searchParams,
+}: {
+  searchParams: { range?: string; from?: string; to?: string };
+}) {
   const supabase = createClient();
-  const { data } = await supabase
+  const range = resolveDateRange(searchParams);
+
+  let query = supabase
     .from("bookings")
     .select(
       `id, status, preferred_date, created_at,
        packages:packages!bookings_preferred_package_id_fkey(name),
        enclosures:enclosures!bookings_preferred_enclosure_id_fkey(name)`,
     );
+  if (range.fromISO) query = query.gte("created_at", range.fromISO);
+  if (range.toISO) query = query.lt("created_at", range.toISO);
+  const { data } = await query;
 
   const rows = (data as unknown as Row[]) ?? [];
 
@@ -84,7 +95,9 @@ export default async function AnalyticsPage() {
       <PageHeader
         title="Analytics"
         description="Demand, funnel and capacity insights across the operation."
-      />
+      >
+        <DateRangeFilter />
+      </PageHeader>
 
       <div className="grid gap-4 sm:grid-cols-4">
         <Stat label="Total bookings" value={String(totalNew)} />

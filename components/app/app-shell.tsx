@@ -52,8 +52,8 @@ const AREAS: Record<
     label: "Management",
     nav: [
       { href: "/admin", label: "Bookings Kanban", icon: LayoutDashboard },
-      { href: "/admin/clients", label: "Client Master List", icon: Contact },
       { href: "/admin/deployment", label: "Deployment", icon: Truck },
+      { href: "/admin/clients", label: "Client Master List", icon: Contact },
       { href: "/admin/utilization", label: "Utilization", icon: CalendarClock },
       { href: "/admin/live", label: "Live Status", icon: Activity },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
@@ -89,8 +89,8 @@ const AREAS: Record<
     label: "Admin",
     nav: [
       { href: "/admin", label: "Bookings Kanban", icon: LayoutDashboard },
-      { href: "/admin/clients", label: "Client Master List", icon: Contact },
       { href: "/admin/deployment", label: "Deployment", icon: Truck },
+      { href: "/admin/clients", label: "Client Master List", icon: Contact },
       { href: "/admin/utilization", label: "Utilization", icon: CalendarClock },
       { href: "/admin/live", label: "Live Status", icon: Activity },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
