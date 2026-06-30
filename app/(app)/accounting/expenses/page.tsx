@@ -2,14 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { CsvExport } from "@/components/csv-export";
 import { CategoryBarChart } from "@/components/charts";
@@ -23,6 +15,10 @@ import {
   SubmitOfficerExpensesButton,
   SubmitOwnExpensesButton,
 } from "@/components/accounting/expense-edit-dialog";
+import {
+  ExpenseBatches,
+  type ExpenseBatch,
+} from "@/components/accounting/expense-batches";
 import { DeleteRecordButton } from "@/components/admin/delete-record-button";
 import { php, formatDate } from "@/lib/utils";
 import {
@@ -226,16 +222,16 @@ export default async function ExpensesPage({
   );
   const total = expenses.reduce((s, e) => s + Number(e.amount), 0);
 
-  // Names for the per–field-officer review section.
-  const officerIds = [...new Set(pendingReview.map((e) => e.created_by))].filter(
-    Boolean,
-  ) as string[];
+  // Names for the review section + record batches.
+  const allIds = [
+    ...new Set([...pendingReview, ...expenses].map((e) => e.created_by)),
+  ].filter(Boolean) as string[];
   const nameById = new Map<string, string>();
-  if (officerIds.length > 0) {
+  if (allIds.length > 0) {
     const { data: profs } = await supabase
       .from("profiles")
       .select("id, full_name")
-      .in("id", officerIds);
+      .in("id", allIds);
     for (const p of (profs as { id: string; full_name: string }[] | null) ?? [])
       nameById.set(p.id, p.full_name);
   }
@@ -245,6 +241,31 @@ export default async function ExpensesPage({
     const k = e.created_by ?? "—";
     byOfficer.set(k, [...(byOfficer.get(k) ?? []), e]);
   }
+
+  // Group official records into submission batches (per user submission).
+  const batchMap = new Map<string, ExpenseBatch>();
+  for (const e of expenses) {
+    const key = e.submission_id ?? `direct-${e.created_by ?? "none"}`;
+    const when = e.submitted_at ?? e.created_at ?? e.expense_date;
+    const existingBatch = batchMap.get(key);
+    if (existingBatch) {
+      existingBatch.items.push(e);
+      existingBatch.total += Number(e.amount);
+      if (when > existingBatch.date) existingBatch.date = when;
+    } else {
+      batchMap.set(key, {
+        key,
+        userName: e.created_by
+          ? (nameById.get(e.created_by) ?? "—")
+          : "Direct entry",
+        date: when,
+        total: Number(e.amount),
+        isSubmission: !!e.submission_id,
+        items: [e],
+      });
+    }
+  }
+  const batches = [...batchMap.values()];
 
   const byType = new Map<string, number>();
   for (const e of expenses) {
@@ -380,62 +401,8 @@ export default async function ExpensesPage({
         <CardHeader>
           <CardTitle>Expense records</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="w-12" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {expenses.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell className="text-sm">
-                    {formatDate(e.expense_date)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">
-                      {EXPENSE_TYPE_LABELS[e.type] ?? e.type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {e.description ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    {php(e.amount)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      <ExpenseEditDialog expense={e} />
-                      {canManage ? (
-                        <DeleteRecordButton
-                          table="expenses"
-                          id={e.id}
-                          label={`Expense ${php(e.amount)} — ${EXPENSE_TYPE_LABELS[e.type] ?? e.type}`}
-                        />
-                      ) : (
-                        <DeleteExpenseButton id={e.id} />
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {expenses.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="py-10 text-center text-muted-foreground"
-                  >
-                    No expenses recorded yet.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+        <CardContent>
+          <ExpenseBatches batches={batches} canManage={canManage} />
         </CardContent>
       </Card>
     </div>

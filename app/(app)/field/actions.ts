@@ -111,7 +111,11 @@ export async function submitFieldExpenses() {
   const supabase = createClient();
   const { error } = await supabase
     .from("expenses")
-    .update({ status: "submitted" })
+    .update({
+      status: "submitted",
+      submission_id: crypto.randomUUID(),
+      submitted_at: new Date().toISOString(),
+    })
     .eq("created_by", profile.id)
     .eq("status", "draft");
   if (error) return { error: error.message };
