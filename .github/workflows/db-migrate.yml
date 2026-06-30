@@ -137,4 +137,9 @@ jobs:
           run_sql 'alter table public.expenses add column if not exists submission_id uuid, add column if not exists submitted_at timestamptz;'
           run_sql 'create index if not exists idx_expenses_submission on public.expenses(submission_id);'
 
+          # Backfill installer_done_at for jobs installers completed before the
+          # per-actor done split, so every installer's Client Master List shows
+          # their past completed installations.
+          run_sql 'update public.bookings set installer_done_at = installation_done_at where installer_done_at is null and installation_done_at is not null and assigned_installer_id is not null;'
+
           echo "Done."
