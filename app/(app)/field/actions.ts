@@ -203,6 +203,60 @@ export async function markInstallationDone(bookingId: string) {
   return { ok: true };
 }
 
+/**
+ * Mark arrival on site. Field officer arrival moves the booking to on_site;
+ * the installer's arrival only updates their own deployment status.
+ */
+export async function recordArrival(bookingId: string) {
+  const profile = await me();
+  await assertAssigned(bookingId, profile.id);
+  const supabase = createClient();
+  const now = new Date().toISOString();
+  if (profile.role === "installer") {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ installer_arrived_at: now })
+      .eq("id", bookingId);
+    if (error) return { error: error.message };
+  } else {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ field_officer_arrived_at: now })
+      .eq("id", bookingId);
+    if (error) return { error: error.message };
+    await supabase
+      .from("bookings")
+      .update({ status: "on_site" })
+      .eq("id", bookingId)
+      .eq("status", "deployed");
+  }
+  revalidatePath(`/field/bookings/${bookingId}`);
+  revalidatePath("/field");
+  revalidatePath("/admin/deployment");
+  return { ok: true };
+}
+
+/**
+ * Installer marks their installation done. This updates only the installer's
+ * deployment status — it does NOT complete the booking. Only the field officer
+ * completing moves the job to the master list.
+ */
+export async function installerDone(bookingId: string) {
+  const profile = await requireRole(["installer"]);
+  await assertAssigned(bookingId, profile.id);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("bookings")
+    .update({ installer_done_at: new Date().toISOString() })
+    .eq("id", bookingId);
+  if (error) return { error: error.message };
+  revalidatePath(`/field/bookings/${bookingId}`);
+  revalidatePath("/field");
+  revalidatePath("/field/customers");
+  revalidatePath("/admin/deployment");
+  return { ok: true };
+}
+
 export async function setBookingStatusByField(
   bookingId: string,
   status: BookingStatus,

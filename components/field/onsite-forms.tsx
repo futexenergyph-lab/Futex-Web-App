@@ -7,10 +7,11 @@ import { toast } from "sonner";
 import {
   confirmPayment,
   postJobUpdate,
-  setBookingStatusByField,
+  recordArrival,
   uploadDocumentation,
 } from "@/app/(app)/field/actions";
 import { uploadToBucket } from "@/lib/storage";
+import { stampPhoto } from "@/lib/photo-stamp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,7 +43,7 @@ export function ArrivalButton({ bookingId }: { bookingId: string }) {
   const router = useRouter();
   async function markArrived() {
     setPending(true);
-    const res = await setBookingStatusByField(bookingId, "on_site");
+    const res = await recordArrival(bookingId);
     if (res?.error) toast.error(res.error);
     else {
       toast.success("Marked as arrived on site");
@@ -66,9 +67,12 @@ export function ArrivalButton({ bookingId }: { bookingId: string }) {
 export function UpdateForm({
   bookingId,
   userId,
+  stampName,
 }: {
   bookingId: string;
   userId: string;
+  /** When set, photos are stamped with this name + PHT time + GPS (installers). */
+  stampName?: string;
 }) {
   const { files, ref, onPick, reset } = usePhotos();
   const [message, setMessage] = useState("");
@@ -84,7 +88,12 @@ export function UpdateForm({
     try {
       const paths: string[] = [];
       for (const f of files) {
-        paths.push(await uploadToBucket("job-updates", f, userId, bookingId));
+        const toUpload = stampName
+          ? await stampPhoto(f, { name: stampName })
+          : f;
+        paths.push(
+          await uploadToBucket("job-updates", toUpload, userId, bookingId),
+        );
       }
       const res = await postJobUpdate({
         bookingId,

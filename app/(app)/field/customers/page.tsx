@@ -18,8 +18,8 @@ export default async function InstallerCustomersPage() {
     .from("bookings")
     .select(BOOKING_SELECT)
     .eq("assigned_installer_id", profile.id)
-    .not("installation_done_at", "is", null)
-    .order("installation_done_at", { ascending: false });
+    .not("installer_done_at", "is", null)
+    .order("installer_done_at", { ascending: false });
 
   const customers = (data as unknown as BookingWithRelations[]) ?? [];
 
@@ -61,7 +61,7 @@ export default async function InstallerCustomersPage() {
                   )}
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Completed: {formatDateTime(b.installation_done_at)}
+                  Completed: {formatDateTime(b.installer_done_at)}
                 </p>
               </CardContent>
             </Card>

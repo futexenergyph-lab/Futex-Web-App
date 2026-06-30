@@ -127,4 +127,7 @@ jobs:
           run_sql 'drop policy if exists "profiles insert hr admin" on storage.objects; create policy "profiles insert hr admin" on storage.objects for insert to authenticated with check (bucket_id = '"'"'profiles'"'"' and (public.is_hr() or public.is_admin()));'
           run_sql 'drop policy if exists "profiles update hr admin" on storage.objects; create policy "profiles update hr admin" on storage.objects for update to authenticated using (bucket_id = '"'"'profiles'"'"' and (public.is_hr() or public.is_admin()));'
 
+          # Per-actor deployment status (field officer vs installer)
+          run_sql 'alter table public.bookings add column if not exists field_officer_arrived_at timestamptz, add column if not exists installer_arrived_at timestamptz, add column if not exists installer_done_at timestamptz;'
+
           echo "Done."

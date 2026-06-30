@@ -67,6 +67,7 @@ export default async function FieldBookingDetail({
         booking={b}
         updates={(updates as JobUpdate[]) ?? []}
         userId={profile.id}
+        userName={profile.full_name}
       />
     );
   }
