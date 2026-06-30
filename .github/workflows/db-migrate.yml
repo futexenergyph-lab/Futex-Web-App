@@ -130,4 +130,7 @@ jobs:
           # Per-actor deployment status (field officer vs installer)
           run_sql 'alter table public.bookings add column if not exists field_officer_arrived_at timestamptz, add column if not exists installer_arrived_at timestamptz, add column if not exists installer_done_at timestamptz;'
 
+          # Decline a field-recorded payment (lets the officer resubmit)
+          run_sql "alter type public.payment_status add value if not exists 'declined';"
+
           echo "Done."

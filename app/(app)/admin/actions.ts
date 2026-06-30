@@ -139,6 +139,35 @@ export async function confirmDeploymentPayment(bookingId: string) {
   return { ok: true };
 }
 
+/**
+ * Decline a field-recorded payment. Marks the latest pending payment declined
+ * so the field officer can correct the form and resubmit.
+ */
+export async function declineDeploymentPayment(bookingId: string) {
+  await requireRole(["admin", "admin_staff"]);
+  const supabase = createClient();
+  const { data: pay } = await supabase
+    .from("payments")
+    .select("id")
+    .eq("booking_id", bookingId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!pay) return { error: "No pending payment to decline." };
+
+  const { error } = await supabase
+    .from("payments")
+    .update({ status: "declined" })
+    .eq("id", pay.id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/deployment");
+  revalidatePath("/admin");
+  revalidatePath(`/field/bookings/${bookingId}`);
+  return { ok: true };
+}
+
 export async function deployBooking(input: {
   bookingId: string;
   fieldOfficerId: string | null;

@@ -35,7 +35,7 @@ export function JobOrderAmount({
   amount: number;
   detail: JobOrderDetail;
   bookingId?: string;
-  paymentStatus?: "pending" | "confirmed" | null;
+  paymentStatus?: "pending" | "confirmed" | "declined" | null;
   paymentProofUrl?: string | null;
 }) {
   const [open, setOpen] = useState(false);
