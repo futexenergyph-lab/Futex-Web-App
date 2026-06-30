@@ -234,8 +234,8 @@ export const BOOKING_STATUSES: BookingStatus[] = [
   "deployed",
   "on_site",
   "in_progress",
-  "completed",
   "paid",
+  "completed",
   "closed",
   "declined",
 ];
