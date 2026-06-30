@@ -185,17 +185,18 @@ export function PaymentForm({
       toast.error("Enter the amount");
       return;
     }
+    if (!files[0]) {
+      toast.error("Attach a proof of payment photo");
+      return;
+    }
     setPending(true);
     try {
-      let proofPath: string | null = null;
-      if (files[0]) {
-        proofPath = await uploadToBucket(
-          "payment-proofs",
-          files[0],
-          userId,
-          bookingId,
-        );
-      }
+      const proofPath = await uploadToBucket(
+        "payment-proofs",
+        files[0],
+        userId,
+        bookingId,
+      );
       const res = await confirmPayment({
         bookingId,
         jobOrderId: jobOrder?.id ?? null,
@@ -299,12 +300,21 @@ export function PaymentForm({
         <Camera className="h-4 w-4" /> Upload proof
         {files.length > 0 ? " ✓" : ""}
       </Button>
+      <p className="text-xs text-muted-foreground">
+        {files.length > 0
+          ? "Proof of payment attached."
+          : "A proof of payment photo is required."}
+      </p>
       {jobOrder && (
         <p className="text-xs text-muted-foreground">
           Job order total: {php(jobOrder.final_total)}
         </p>
       )}
-      <Button onClick={submit} disabled={pending} className="w-full">
+      <Button
+        onClick={submit}
+        disabled={pending || files.length === 0}
+        className="w-full"
+      >
         {pending && <Loader2 className="h-4 w-4 animate-spin" />}
         Confirm payment
       </Button>
