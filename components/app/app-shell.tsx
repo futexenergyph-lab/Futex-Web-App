@@ -108,6 +108,16 @@ export function AppShell({
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
+  // Clicking the logo returns the user to their main dashboard.
+  const homePath =
+    profile.role === "accounting"
+      ? "/accounting"
+      : profile.role === "hr"
+        ? "/hr"
+        : profile.role === "field_officer" || profile.role === "installer"
+          ? "/field"
+          : "/admin";
+
   // The field area's nav differs by role: installers don't track time and
   // get a "My Customers" record instead.
   let areaLabel: string;
@@ -168,7 +178,9 @@ export function AppShell({
   const SidebarBody = () => (
     <div className="flex h-full flex-col">
       <div className="flex h-16 items-center border-b px-4">
-        <Logo />
+        <Link href={homePath} onClick={() => setOpen(false)} aria-label="Home">
+          <Logo />
+        </Link>
       </div>
       <div className="px-4 py-3">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -210,7 +222,9 @@ export function AppShell({
         <Button variant="ghost" size="icon" onClick={() => setOpen(true)}>
           <Menu className="h-5 w-5" />
         </Button>
-        <Logo showText={false} />
+        <Link href={homePath} aria-label="Home">
+          <Logo showText={false} />
+        </Link>
         <span className="text-sm font-semibold">{areaLabel}</span>
       </header>
 
