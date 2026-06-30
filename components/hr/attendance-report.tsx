@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CsvExport } from "@/components/csv-export";
 import { PhotoThumbs } from "@/components/hr/photo-thumbs";
+import { AttendanceRowActions } from "@/components/hr/attendance-row-actions";
 import { formatDateTime, phDay, phMinutes } from "@/lib/utils";
 import { ROLE_LABELS, type UserRole } from "@/lib/types";
 
@@ -35,6 +36,9 @@ interface DaySummary {
   date: string;
   firstIn: string | null;
   lastOut: string | null;
+  firstInId: string | null;
+  lastOutId: string | null;
+  allIds: string[];
   hours: number;
   late: boolean;
   photos: string[];
@@ -46,8 +50,11 @@ interface DaySummary {
  */
 export async function AttendanceReport({
   searchParams,
+  canManage = false,
 }: {
   searchParams: { person?: string; from?: string; to?: string };
+  /** Management & Owner may edit/delete records (logged to the audit trail). */
+  canManage?: boolean;
 }) {
   const supabase = createClient();
 
@@ -101,6 +108,8 @@ export async function AttendanceReport({
     const outs = recs.filter((r) => r.type === "time_out");
     const firstIn = ins[0]?.timestamp ?? null;
     const lastOut = outs[outs.length - 1]?.timestamp ?? null;
+    const firstInId = ins[0]?.id ?? null;
+    const lastOutId = outs[outs.length - 1]?.id ?? null;
     let hours = 0;
     if (firstIn && lastOut) {
       hours =
@@ -119,6 +128,9 @@ export async function AttendanceReport({
       date,
       firstIn,
       lastOut,
+      firstInId,
+      lastOutId,
+      allIds: recs.map((r) => r.id),
       hours: Math.max(0, Math.round(hours * 10) / 10),
       late,
       photos: recs.map((r) => signedFor.get(r.id)).filter(Boolean) as string[],
@@ -215,6 +227,7 @@ export async function AttendanceReport({
                 <TableHead>Hours</TableHead>
                 <TableHead>Flag</TableHead>
                 <TableHead>Photos</TableHead>
+                {canManage && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -244,11 +257,24 @@ export async function AttendanceReport({
                       photos={s.photos.slice(0, 3).map((src) => ({ src }))}
                     />
                   </TableCell>
+                  {canManage && (
+                    <TableCell className="text-right">
+                      <AttendanceRowActions
+                        name={s.user}
+                        date={s.date}
+                        firstInId={s.firstInId}
+                        firstIn={s.firstIn}
+                        lastOutId={s.lastOutId}
+                        lastOut={s.lastOut}
+                        allIds={s.allIds}
+                      />
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
               {summaries.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={canManage ? 8 : 7} className="py-10 text-center text-muted-foreground">
                     No attendance records for this filter.
                   </TableCell>
                 </TableRow>
