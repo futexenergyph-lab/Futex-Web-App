@@ -11,12 +11,18 @@ export const BOOKING_SELECT = `
   job_orders(id,final_total,change_requested_at,change_request_reason,change_approved_at,created_at)
 `;
 
-export async function fetchBookings(): Promise<BookingWithRelations[]> {
+export async function fetchBookings(window?: {
+  fromISO: string | null;
+  toISO: string | null;
+}): Promise<BookingWithRelations[]> {
   const supabase = createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("bookings")
     .select(BOOKING_SELECT)
     .order("created_at", { ascending: false });
+  if (window?.fromISO) query = query.gte("created_at", window.fromISO);
+  if (window?.toISO) query = query.lt("created_at", window.toISO);
+  const { data } = await query;
   return (data as unknown as BookingWithRelations[]) ?? [];
 }
 

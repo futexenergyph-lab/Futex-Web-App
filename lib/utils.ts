@@ -84,3 +84,97 @@ export function phDateTimeLocal(value: string | null | undefined): string {
 export function phLocalToUtc(local: string): string {
   return new Date(`${local}:00+08:00`).toISOString();
 }
+
+// -----------------------------------------------------------------------------
+// Date-range filtering (shared by Kanban / Live Status / Analytics)
+// -----------------------------------------------------------------------------
+
+export type DateRangeKey = "day" | "week" | "month" | "year" | "all" | "custom";
+
+export interface ResolvedRange {
+  key: DateRangeKey;
+  /** Inclusive lower bound (UTC ISO) or null for "all time". */
+  fromISO: string | null;
+  /** Exclusive upper bound (UTC ISO) or null for "all time". */
+  toISO: string | null;
+}
+
+export const DATE_RANGE_PRESETS: { value: DateRangeKey; label: string }[] = [
+  { value: "day", label: "Today" },
+  { value: "week", label: "This week" },
+  { value: "month", label: "This month" },
+  { value: "year", label: "This year" },
+  { value: "all", label: "All time" },
+];
+
+/** Today's calendar parts evaluated in Philippine time (UTC+8). */
+function phTodayParts(): { y: number; m: number; d: number } {
+  const [y, m, d] = new Date()
+    .toLocaleDateString("en-CA", { timeZone: PH_TIME_ZONE })
+    .split("-")
+    .map(Number);
+  return { y, m, d };
+}
+
+/** The UTC instant of Philippine-time midnight for a calendar date. */
+function phMidnightISO(y: number, m: number, d: number): string {
+  const mm = String(m).padStart(2, "0");
+  const dd = String(d).padStart(2, "0");
+  return new Date(`${y}-${mm}-${dd}T00:00:00+08:00`).toISOString();
+}
+
+/** Add whole days to a UTC ISO instant (safe: PHT has no DST shifts). */
+function addDaysISO(iso: string, days: number): string {
+  const d = new Date(iso);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString();
+}
+
+/**
+ * Resolve a date-range filter from URL search params into UTC bounds. An
+ * explicit custom `from`+`to` (YYYY-MM-DD) wins; otherwise a `range` preset is
+ * used, defaulting to the current day.
+ */
+export function resolveDateRange(sp: {
+  range?: string;
+  from?: string;
+  to?: string;
+}): ResolvedRange {
+  // Explicit custom window (inclusive of the whole `to` day).
+  if (sp.from && sp.to) {
+    const [fy, fm, fd] = sp.from.split("-").map(Number);
+    const [ty, tm, td] = sp.to.split("-").map(Number);
+    if (fy && fm && fd && ty && tm && td) {
+      return {
+        key: "custom",
+        fromISO: phMidnightISO(fy, fm, fd),
+        toISO: addDaysISO(phMidnightISO(ty, tm, td), 1),
+      };
+    }
+  }
+
+  const key = (sp.range as DateRangeKey) || "day";
+  if (key === "all") return { key: "all", fromISO: null, toISO: null };
+
+  const { y, m, d } = phTodayParts();
+  const startToday = phMidnightISO(y, m, d);
+
+  switch (key) {
+    case "week": {
+      const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
+      const fromMonday = (wd + 6) % 7;
+      const fromISO = addDaysISO(startToday, -fromMonday);
+      return { key, fromISO, toISO: addDaysISO(fromISO, 7) };
+    }
+    case "month": {
+      const fromISO = phMidnightISO(y, m, 1);
+      const toISO = m === 12 ? phMidnightISO(y + 1, 1, 1) : phMidnightISO(y, m + 1, 1);
+      return { key, fromISO, toISO };
+    }
+    case "year":
+      return { key, fromISO: phMidnightISO(y, 1, 1), toISO: phMidnightISO(y + 1, 1, 1) };
+    case "day":
+    default:
+      return { key: "day", fromISO: startToday, toISO: addDaysISO(startToday, 1) };
+  }
+}
