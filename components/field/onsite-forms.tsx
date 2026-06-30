@@ -160,7 +160,7 @@ export function PaymentForm({
   bookingId: string;
   jobOrder: JobOrder | null;
   userId: string;
-  existingStatus: "pending" | "confirmed" | null;
+  existingStatus: "pending" | "confirmed" | "declined" | null;
 }) {
   const { files, ref, onPick, reset } = usePhotos();
   const [amount, setAmount] = useState(String(jobOrder?.final_total ?? ""));
@@ -169,7 +169,8 @@ export function PaymentForm({
   const [pending, setPending] = useState(false);
   const router = useRouter();
 
-  if (existingStatus) {
+  // Confirmed/pending lock the form; declined re-opens it for a correction.
+  if (existingStatus === "confirmed" || existingStatus === "pending") {
     return (
       <p className="rounded-md bg-accent/10 px-3 py-2 text-sm">
         {existingStatus === "confirmed"
@@ -216,6 +217,12 @@ export function PaymentForm({
 
   return (
     <div className="space-y-3">
+      {existingStatus === "declined" && (
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+          Your payment submission was declined by management. Please correct the
+          details and resubmit.
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label htmlFor="amount">Amount (₱)</Label>

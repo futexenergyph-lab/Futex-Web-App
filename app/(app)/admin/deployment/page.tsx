@@ -7,7 +7,10 @@ import {
   JobOrderAmount,
   type JobOrderDetail,
 } from "@/components/admin/job-order-amount";
-import { ConfirmPaymentButton } from "@/components/admin/confirm-payment-button";
+import {
+  ConfirmPaymentButton,
+  DeclinePaymentButton,
+} from "@/components/admin/confirm-payment-button";
 import { PaymentDetails } from "@/components/admin/payment-details";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -72,7 +75,7 @@ export default async function DeploymentPage() {
     string,
     {
       amount: number;
-      status: "pending" | "confirmed";
+      status: "pending" | "confirmed" | "declined";
       method: string;
       referenceNo: string | null;
       paidAt: string | null;
@@ -91,7 +94,7 @@ export default async function DeploymentPage() {
       | {
           booking_id: string;
           amount: number;
-          status: "pending" | "confirmed";
+          status: "pending" | "confirmed" | "declined";
           method: string;
           reference_no: string | null;
           paid_at: string | null;
@@ -242,12 +245,20 @@ export default async function DeploymentPage() {
                           <Badge variant="accent">Paid</Badge>
                           <PaymentDetails payment={pay} />
                         </div>
+                      ) : pay.status === "declined" ? (
+                        <div className="flex flex-col items-start gap-1.5">
+                          <span className="font-medium text-destructive">
+                            Declined — awaiting resubmission
+                          </span>
+                          <PaymentDetails payment={pay} />
+                        </div>
                       ) : (
                         <div className="flex flex-col items-start gap-1.5">
                           <span className="font-medium text-red-600">
                             Payment pending
                           </span>
                           <ConfirmPaymentButton bookingId={b.id} />
+                          <DeclinePaymentButton bookingId={b.id} />
                           <PaymentDetails payment={pay} />
                         </div>
                       )}

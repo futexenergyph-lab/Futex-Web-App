@@ -14,7 +14,7 @@ export interface PaymentInfo {
   amount: number;
   method: string;
   referenceNo: string | null;
-  status: "pending" | "confirmed";
+  status: "pending" | "confirmed" | "declined";
   paidAt: string | null;
   proofUrl: string | null;
 }
