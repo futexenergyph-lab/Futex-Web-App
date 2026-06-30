@@ -24,9 +24,12 @@ import {
   Contact,
   History,
   IdCard,
+  Megaphone,
+  Bell,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { AnnouncementGate } from "@/components/app/announcement-gate";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ROLE_LABELS, type Profile } from "@/lib/types";
@@ -61,6 +64,7 @@ const AREAS: Record<
       { href: "/accounting", label: "Payments", icon: Wallet },
       { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
       { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
+      { href: "/announcements", label: "Announcements", icon: Megaphone },
       { href: "/admin/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -92,6 +96,7 @@ const AREAS: Record<
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/accounting", label: "Payments", icon: Wallet },
       { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
+      { href: "/announcements", label: "Announcements", icon: Megaphone },
     ],
   },
 };
@@ -189,6 +194,20 @@ export function AppShell({
       </div>
       <NavLinks />
       <div className="border-t p-3">
+        {/* Notification Log — every user has an inbox of announcements. */}
+        <Link
+          href="/notifications"
+          onClick={() => setOpen(false)}
+          className={cn(
+            "mb-3 flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+            pathname === "/notifications"
+              ? "bg-primary text-primary-foreground"
+              : "text-foreground/70 hover:bg-secondary hover:text-foreground",
+          )}
+        >
+          <Bell className="h-4 w-4" />
+          Notifications
+        </Link>
         <div className="mb-2 px-3">
           <p className="truncate text-sm font-medium">{profile.full_name}</p>
           <p className="text-xs text-muted-foreground">
@@ -212,6 +231,9 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-secondary/40">
+      {/* Centered prompt for unread announcements (shown across the app). */}
+      <AnnouncementGate />
+
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r bg-background md:block">
         <SidebarBody />
