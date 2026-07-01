@@ -9,7 +9,8 @@ import {
   SubmitExpensesButton,
   type ExpenseClient,
 } from "@/components/field/field-expense-form";
-import { php, formatDate } from "@/lib/utils";
+import { DateRangeFilter } from "@/components/app/date-range-filter";
+import { php, formatDate, resolveDateRange, phDay } from "@/lib/utils";
 import {
   EXPENSE_TYPE_LABELS,
   type Expense,
@@ -19,7 +20,11 @@ import {
 export const metadata = { title: "Expenses" };
 export const dynamic = "force-dynamic";
 
-export default async function FieldExpensesPage() {
+export default async function FieldExpensesPage({
+  searchParams,
+}: {
+  searchParams: { range?: string; from?: string; to?: string };
+}) {
   const profile = await requireRole(["field_officer"]);
   const supabase = createClient();
 
@@ -45,10 +50,24 @@ export default async function FieldExpensesPage() {
   const drafts = expenses.filter((e) => e.status === "draft");
   const submitted = expenses.filter((e) => e.status !== "draft");
 
+  // Submitted records are filtered by their expense date, defaulting to today.
+  const range = resolveDateRange(searchParams);
+  const dateWindow =
+    range.fromISO && range.toISO
+      ? { fromDay: phDay(range.fromISO), toDayExclusive: phDay(range.toISO) }
+      : null;
+  const submittedShown = dateWindow
+    ? submitted.filter(
+        (e) =>
+          e.expense_date >= dateWindow.fromDay &&
+          e.expense_date < dateWindow.toDayExclusive,
+      )
+    : submitted;
+
   const sum = (list: Expense[]) =>
     list.reduce((t, e) => t + Number(e.amount), 0);
   const draftsTotal = sum(drafts);
-  const submittedTotal = sum(submitted);
+  const submittedTotal = sum(submittedShown);
 
   function TotalRow({ amount }: { amount: number }) {
     return (
@@ -137,19 +156,28 @@ export default async function FieldExpensesPage() {
 
       {submitted.length > 0 && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
             <CardTitle>Submitted</CardTitle>
+            <DateRangeFilter />
           </CardHeader>
           <CardContent>
             <p className="mb-2 text-xs text-muted-foreground">
               Submitted expenses are locked — the admin reviews them next.
             </p>
-            <div className="divide-y">
-              {submitted.map((e) => (
-                <Row key={e.id} e={e} deletable={false} />
-              ))}
-            </div>
-            <TotalRow amount={submittedTotal} />
+            {submittedShown.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No submitted expenses for the selected date.
+              </p>
+            ) : (
+              <>
+                <div className="divide-y">
+                  {submittedShown.map((e) => (
+                    <Row key={e.id} e={e} deletable={false} />
+                  ))}
+                </div>
+                <TotalRow amount={submittedTotal} />
+              </>
+            )}
           </CardContent>
         </Card>
       )}
