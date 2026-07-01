@@ -69,6 +69,14 @@ export function InstallerBookingView({
               Package: {b.preferred_package.name}
             </p>
           )}
+          {b.notes && (
+            <div className="rounded-md border bg-secondary/40 p-3">
+              <p className="text-xs font-semibold text-muted-foreground">
+                Booking notes
+              </p>
+              <p className="mt-0.5 whitespace-pre-wrap">{b.notes}</p>
+            </div>
+          )}
           {confirmed && !done && (
             <Badge variant="accent" className="gap-1">
               <CheckCircle2 className="h-3 w-3" /> Deployment accepted

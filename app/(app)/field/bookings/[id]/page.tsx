@@ -128,10 +128,14 @@ export default async function FieldBookingDetail({
 
   // "Done installation" gating: every module must be complete.
   const docsOk = docRows.some((d) => (d.file_urls ?? []).length > 0);
+  // The acknowledgement receipt is generated in the Payment tab; once filed it
+  // becomes the latest commissioning document (title carries "Acknowledgement").
+  const ackDone = !!commDoc?.title?.includes("Acknowledgement");
   const doneModules = [
     { label: "Job Order submitted", ok: !!jo },
     { label: "Commissioning checklist filed", ok: !!commDoc },
     { label: "Payment confirmed by management", ok: pay?.status === "confirmed" },
+    { label: "Acknowledgement receipt generated", ok: ackDone },
     { label: "Documentation uploaded", ok: docsOk },
   ];
   const alreadyCompleted = b.status === "completed" || b.status === "closed";
@@ -181,7 +185,6 @@ export default async function FieldBookingDetail({
       timeZone: "Asia/Manila",
     })
     .toUpperCase();
-  const ackDone = !!commDoc?.title?.includes("Acknowledgement");
   // One documentation photo (full quality) to embed in the receipt.
   let ackPhotoUrl: string | null = null;
   const firstPhotoPath = docRows
@@ -389,6 +392,14 @@ export default async function FieldBookingDetail({
             <p className="text-muted-foreground">
               Preferred package: {b.preferred_package.name}
             </p>
+          )}
+          {b.notes && (
+            <div className="rounded-md border bg-secondary/40 p-3">
+              <p className="text-xs font-semibold text-muted-foreground">
+                Booking notes
+              </p>
+              <p className="mt-0.5 whitespace-pre-wrap">{b.notes}</p>
+            </div>
           )}
           {b.status === "deployed" && (
             <div className="pt-2">
