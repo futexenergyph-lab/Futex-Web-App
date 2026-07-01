@@ -284,16 +284,23 @@ function Column({
   );
 }
 
+// New & Scheduled are backlog columns — always visible regardless of the date
+// window. Every later (installation-progress) status is scoped to the window.
+const ALWAYS_SHOW: BookingStatus[] = ["new", "scheduled"];
+
 export function KanbanBoard({
   initial,
   packages,
   enclosures,
   staff,
+  dateWindow,
 }: {
   initial: BookingWithRelations[];
   packages: Option[];
   enclosures: Option[];
   staff: Staff[];
+  /** Installation-date window (PHT calendar days) or null for "all time". */
+  dateWindow: { fromDay: string; toDayExclusive: string } | null;
 }) {
   const router = useRouter();
   const [items, setItems] = useState(initial);
@@ -354,6 +361,16 @@ export function KanbanBoard({
 
   const active = items.find((b) => b.id === activeId);
 
+  // A booking shows in a date-scoped column when its installation
+  // (preferred) date falls in the window. New/Scheduled ignore the window,
+  // as do cards without an installation date (nothing to match on).
+  function inWindow(b: BookingWithRelations): boolean {
+    if (!dateWindow || ALWAYS_SHOW.includes(b.status)) return true;
+    const pd = b.preferred_date;
+    if (!pd) return true;
+    return pd >= dateWindow.fromDay && pd < dateWindow.toDayExclusive;
+  }
+
   return (
     <DndContext
       sensors={sensors}
@@ -365,7 +382,7 @@ export function KanbanBoard({
           <Column
             key={status}
             status={status}
-            bookings={items.filter((b) => b.status === status)}
+            bookings={items.filter((b) => b.status === status && inWindow(b))}
             packages={packages}
             enclosures={enclosures}
             staff={staff}

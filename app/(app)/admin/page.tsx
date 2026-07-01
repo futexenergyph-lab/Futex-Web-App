@@ -8,7 +8,7 @@ import {
 } from "@/components/admin/back-job-order-dialog";
 import { DateRangeFilter } from "@/components/app/date-range-filter";
 import { createClient } from "@/lib/supabase/server";
-import { resolveDateRange } from "@/lib/utils";
+import { resolveDateRange, phDay } from "@/lib/utils";
 
 export const metadata = { title: "Bookings" };
 export const dynamic = "force-dynamic";
@@ -19,10 +19,13 @@ export default async function AdminBookingsPage({
   searchParams: { range?: string; from?: string; to?: string };
 }) {
   const range = resolveDateRange(searchParams);
-  const [bookings, staff] = await Promise.all([
-    fetchBookings({ fromISO: range.fromISO, toISO: range.toISO }),
-    fetchStaff(),
-  ]);
+  // Fetch every booking; the board keeps New/Scheduled always visible and only
+  // scopes the installation-progress columns to the selected date window.
+  const [bookings, staff] = await Promise.all([fetchBookings(), fetchStaff()]);
+  const dateWindow =
+    range.fromISO && range.toISO
+      ? { fromDay: phDay(range.fromISO), toDayExclusive: phDay(range.toISO) }
+      : null;
   const supabase = createClient();
   const [{ data: packages }, { data: enclosures }, { data: completed }] =
     await Promise.all([
@@ -60,6 +63,7 @@ export default async function AdminBookingsPage({
         packages={packages ?? []}
         enclosures={enclosures ?? []}
         staff={staff}
+        dateWindow={dateWindow}
       />
     </div>
   );
