@@ -45,6 +45,20 @@ export default async function FieldExpensesPage() {
   const drafts = expenses.filter((e) => e.status === "draft");
   const submitted = expenses.filter((e) => e.status !== "draft");
 
+  const sum = (list: Expense[]) =>
+    list.reduce((t, e) => t + Number(e.amount), 0);
+  const draftsTotal = sum(drafts);
+  const submittedTotal = sum(submitted);
+
+  function TotalRow({ amount }: { amount: number }) {
+    return (
+      <div className="flex items-center justify-between border-t pt-3 text-sm font-semibold">
+        <span>Total</span>
+        <span className="tabular-nums">{php(amount)}</span>
+      </div>
+    );
+  }
+
   const clients: ExpenseClient[] = (
     (bkData as { id: string; client_name: string }[] | null) ?? []
   ).map((b) => ({ id: b.id, label: b.client_name }));
@@ -114,6 +128,7 @@ export default async function FieldExpensesPage() {
                   <Row key={e.id} e={e} deletable />
                 ))}
               </div>
+              <TotalRow amount={draftsTotal} />
               <SubmitExpensesButton count={drafts.length} />
             </>
           )}
@@ -134,6 +149,7 @@ export default async function FieldExpensesPage() {
                 <Row key={e.id} e={e} deletable={false} />
               ))}
             </div>
+            <TotalRow amount={submittedTotal} />
           </CardContent>
         </Card>
       )}
