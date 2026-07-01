@@ -251,6 +251,50 @@ export async function createBackJobOrder(input: {
   return { ok: true };
 }
 
+/**
+ * Create a Back Job Order for a client with NO existing record — e.g. an
+ * installation completed before the system was deployed. The admin enters the
+ * client's information manually; there is no parent booking to carry over from.
+ */
+export async function createManualBackJobOrder(input: {
+  client_name: string;
+  client_number: string | null;
+  email: string | null;
+  address: string;
+  contact_number: string;
+  scheduledDate: string | null;
+  scheduledTime: string | null;
+  note: string;
+}) {
+  const profile = await requireRole(["admin", "admin_staff"]);
+  const supabase = createClient();
+
+  if (!input.client_name.trim() || !input.address.trim()) {
+    return { error: "Client name and address are required." };
+  }
+
+  const { error } = await supabase.from("bookings").insert({
+    client_number: input.client_number || null,
+    client_name: input.client_name,
+    email: input.email || null,
+    address: input.address,
+    contact_number: input.contact_number,
+    preferred_date: input.scheduledDate || null,
+    preferred_time: input.scheduledTime || null,
+    notes: input.note || null,
+    is_back_job_order: true,
+    parent_booking_id: null,
+    source: "manual",
+    status: "scheduled",
+    created_by: profile.id,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/deployment");
+  return { ok: true };
+}
+
 export async function createManualBooking(input: {
   client_number: string | null;
   client_name: string;
