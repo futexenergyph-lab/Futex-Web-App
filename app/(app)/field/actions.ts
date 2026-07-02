@@ -293,12 +293,16 @@ export async function postJobUpdate(input: {
     photo_urls: input.photoPaths,
   });
   if (error) return { error: error.message };
-  // First update implies arrival on site.
-  await supabase
-    .from("bookings")
-    .update({ status: "on_site" })
-    .eq("id", input.bookingId)
-    .eq("status", "deployed");
+  // Only the field officer's presence moves the whole deployment to on_site.
+  // An installer posting an update updates their own status only, not the
+  // overall deployment status.
+  if (profile.role !== "installer") {
+    await supabase
+      .from("bookings")
+      .update({ status: "on_site" })
+      .eq("id", input.bookingId)
+      .eq("status", "deployed");
+  }
   revalidatePath(`/field/bookings/${input.bookingId}`);
   return { ok: true };
 }
