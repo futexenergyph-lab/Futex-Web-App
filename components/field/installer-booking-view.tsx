@@ -78,9 +78,16 @@ export function InstallerBookingView({
             </div>
           )}
           {confirmed && !done && (
-            <Badge variant="accent" className="gap-1">
-              <CheckCircle2 className="h-3 w-3" /> Deployment accepted
-            </Badge>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="accent" className="gap-1">
+                <CheckCircle2 className="h-3 w-3" /> Deployment accepted
+              </Badge>
+              {arrived && (
+                <Badge variant="accent" className="gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> You arrived on site
+                </Badge>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
