@@ -7,7 +7,9 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "FUTEX",
     short_name: "FUTEX",
     description: "FUTEX Energy Solution — Future-Ready Power Solutions",
-    start_url: "/",
+    // The app launches at the login screen (logged-in users are redirected on
+    // to their dashboard); scope stays site-wide so all navigation is in-app.
+    start_url: "/login",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
