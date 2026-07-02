@@ -123,13 +123,16 @@ export function UpdateForm({
         ref={ref}
         type="file"
         accept="image/*"
-        capture="environment"
         multiple
         className="hidden"
         onChange={onPick}
       />
       <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={() => ref.current?.click()}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => ref.current?.click()}
+        >
           <Camera className="h-4 w-4" /> Add photos
         </Button>
         {files.length > 0 && (
@@ -292,11 +295,14 @@ export function PaymentForm({
         ref={ref}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={onPick}
       />
-      <Button variant="outline" onClick={() => ref.current?.click()}>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => ref.current?.click()}
+      >
         <Camera className="h-4 w-4" /> Upload proof
         {files.length > 0 ? " ✓" : ""}
       </Button>
@@ -373,7 +379,11 @@ export function DocumentationForm({
         className="hidden"
         onChange={onPick}
       />
-      <Button variant="outline" onClick={() => ref.current?.click()}>
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => ref.current?.click()}
+      >
         <Upload className="h-4 w-4" /> Attach photos
       </Button>
       {files.length > 0 && (

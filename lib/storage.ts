@@ -13,16 +13,34 @@ export async function uploadToBucket(
   subPath?: string,
 ): Promise<string> {
   const supabase = createClient();
-  const ext = file.name.split(".").pop() ?? "jpg";
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const stamp = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
   const path = [userId, subPath, `${stamp}.${ext}`].filter(Boolean).join("/");
 
-  const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    cacheControl: "3600",
-    upsert: false,
-  });
-  if (error) throw error;
-  return path;
+  // Retry transient failures (flaky mobile networks are the main cause of
+  // uploads "not pushing through"). Each attempt uses a fresh unique path so a
+  // partial/failed upload never blocks the retry.
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const tryPath =
+      attempt === 0
+        ? path
+        : [userId, subPath, `${stamp}-${attempt}.${ext}`]
+            .filter(Boolean)
+            .join("/");
+    const { error } = await supabase.storage.from(bucket).upload(tryPath, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || undefined,
+    });
+    if (!error) return tryPath;
+    lastError = error;
+    // Small backoff before retrying.
+    await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Upload failed. Check your connection and try again.");
 }
 
 /**
