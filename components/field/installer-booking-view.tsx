@@ -9,7 +9,7 @@ import {
   DeploymentConfirm,
   InstallationDoneButton,
 } from "@/components/field/installer-actions";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime, formatTime12h } from "@/lib/utils";
 import type { BookingWithRelations, JobUpdate } from "@/lib/types";
 
 export function InstallerBookingView({
@@ -61,7 +61,7 @@ export function InstallerBookingView({
           {b.preferred_date && (
             <p className="text-muted-foreground">
               Scheduled: {formatDate(b.preferred_date)}
-              {b.preferred_time ? ` · ${b.preferred_time}` : ""}
+              {b.preferred_time ? ` · ${formatTime12h(b.preferred_time)}` : ""}
             </p>
           )}
           {b.preferred_package && (
