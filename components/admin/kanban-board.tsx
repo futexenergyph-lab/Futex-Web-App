@@ -32,7 +32,7 @@ import {
 import { EditBookingDialog } from "@/components/admin/edit-booking-dialog";
 import { DeployDialog } from "@/components/admin/deploy-dialog";
 import { StatusBadge } from "@/components/status-badge";
-import { cn, formatDate, php } from "@/lib/utils";
+import { cn, formatDate, formatTime12h, php } from "@/lib/utils";
 import {
   BOOKING_STATUSES,
   BOOKING_STATUS_LABELS,
@@ -137,7 +137,7 @@ function BookingCard({
         <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
           <Calendar className="h-3 w-3" />
           {formatDate(booking.preferred_date)}
-          {booking.preferred_time ? ` · ${booking.preferred_time}` : ""}
+          {booking.preferred_time ? ` · ${formatTime12h(booking.preferred_time)}` : ""}
         </p>
       )}
       {booking.preferred_package && (

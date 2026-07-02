@@ -23,7 +23,7 @@ import {
 } from "@/components/field/onsite-forms";
 import { InstallerBookingView } from "@/components/field/installer-booking-view";
 import { FREE_WIRE_METERS } from "@/lib/pricing";
-import { formatDate, formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime, formatTime12h } from "@/lib/utils";
 import {
   PAYMENT_METHOD_LABELS,
   type BookingWithRelations,
@@ -241,7 +241,7 @@ export default async function FieldBookingDetail({
             {b.preferred_date && (
               <p className="text-muted-foreground">
                 Scheduled: {formatDate(b.preferred_date)}
-                {b.preferred_time ? ` · ${b.preferred_time}` : ""}
+                {b.preferred_time ? ` · ${formatTime12h(b.preferred_time)}` : ""}
               </p>
             )}
             {b.notes && (
@@ -385,7 +385,7 @@ export default async function FieldBookingDetail({
           {b.preferred_date && (
             <p className="text-muted-foreground">
               Scheduled: {formatDate(b.preferred_date)}
-              {b.preferred_time ? ` · ${b.preferred_time}` : ""}
+              {b.preferred_time ? ` · ${formatTime12h(b.preferred_time)}` : ""}
             </p>
           )}
           {b.preferred_package && (

@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatTime12h } from "@/lib/utils";
 import type { BookingWithRelations, JobWork } from "@/lib/types";
 
 export const metadata = { title: "Deployment" };
@@ -217,7 +217,7 @@ export default async function DeploymentPage() {
                     </TableCell>
                     <TableCell className="text-sm">
                       {formatDate(b.preferred_date)}
-                      {b.preferred_time ? ` · ${b.preferred_time}` : ""}
+                      {b.preferred_time ? ` · ${formatTime12h(b.preferred_time)}` : ""}
                     </TableCell>
                     <TableCell className="text-sm">
                       {b.preferred_package?.name ?? "—"}

@@ -6,7 +6,7 @@ import { BOOKING_SELECT } from "@/lib/queries";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatTime12h } from "@/lib/utils";
 import type { BookingWithRelations } from "@/lib/types";
 
 export const metadata = { title: "My Jobs" };
@@ -80,7 +80,7 @@ function JobCard({ b }: { b: BookingWithRelations }) {
               {b.preferred_date && (
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" /> {formatDate(b.preferred_date)}
-                  {b.preferred_time ? ` · ${b.preferred_time}` : ""}
+                  {b.preferred_time ? ` · ${formatTime12h(b.preferred_time)}` : ""}
                 </span>
               )}
             </div>

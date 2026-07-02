@@ -40,6 +40,20 @@ export function formatDate(value: string | null | undefined): string {
   });
 }
 
+/**
+ * Format a "HH:mm" 24-hour time (e.g. a booking slot like "14:00") as a
+ * 12-hour time with AM/PM (e.g. "2:00 PM"). Returns "" for empty values.
+ */
+export function formatTime12h(value: string | null | undefined): string {
+  if (!value) return "";
+  const [hStr, mStr = "00"] = value.split(":");
+  const h = parseInt(hStr, 10);
+  if (Number.isNaN(h)) return value;
+  const period = h < 12 ? "AM" : "PM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${mStr.padStart(2, "0")} ${period}`;
+}
+
 /** Minute-of-day for an instant, evaluated in Philippine time (UTC+8). */
 export function phMinutes(value: string): number {
   const parts = new Date(value).toLocaleString("en-US", {
