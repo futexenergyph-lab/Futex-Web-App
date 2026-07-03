@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { QuotationForm } from "@/components/admin/quotation-form";
+import { SolarQuotationForm } from "@/components/admin/solar-quotation-form";
 
 export const metadata = { title: "New Quotation" };
 export const dynamic = "force-dynamic";
@@ -30,7 +31,11 @@ export default async function NewQuotationPage({
       />
       <Card>
         <CardContent className="pt-6">
-          <QuotationForm type={type} preparedByName={profile.full_name} />
+          {type === "solar" ? (
+            <SolarQuotationForm />
+          ) : (
+            <QuotationForm type="ev" preparedByName={profile.full_name} />
+          )}
         </CardContent>
       </Card>
     </div>

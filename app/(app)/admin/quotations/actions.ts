@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { solarTotal, type SolarQuoteData } from "@/lib/solar-quote";
 
 export interface QuoteItemInput {
   description: string;
@@ -10,11 +11,7 @@ export interface QuoteItemInput {
   unit_price: number;
 }
 
-/**
- * Create a quotation record (Management/Owner/Admin). Returns the new id and a
- * generated quote number so the client can build + upload the branded PDF.
- */
-export async function createQuotation(input: {
+interface QuoteInput {
   type: "ev" | "solar";
   client_name: string;
   client_address: string;
@@ -24,21 +21,63 @@ export async function createQuotation(input: {
   vat_enabled: boolean;
   validity_days: number;
   notes: string;
-}) {
+  details: SolarQuoteData | null; // structured solar payload
+}
+
+/** Compute the persisted numeric fields for either quotation type. */
+function computeTotals(input: QuoteInput) {
+  if (input.type === "solar" && input.details) {
+    const total = solarTotal(input.details);
+    return { subtotal: total, vat: 0, total };
+  }
+  const items = input.items.filter((i) => i.description.trim() || i.unit_price > 0);
+  const subtotal = items.reduce((t, i) => t + i.qty * i.unit_price, 0);
+  const vat = input.vat_enabled ? Math.round(subtotal * 0.12 * 100) / 100 : 0;
+  return { subtotal, vat, total: subtotal + vat, items };
+}
+
+function validate(input: QuoteInput): string | null {
+  if (!input.client_name.trim()) return "Client name is required.";
+  if (input.type === "ev") {
+    const items = input.items.filter((i) => i.description.trim() || i.unit_price > 0);
+    if (items.length === 0) return "Add at least one line item.";
+  } else if (!input.details || input.details.proposedCost.length === 0) {
+    return "Add at least one proposed-cost row.";
+  }
+  return null;
+}
+
+function payload(input: QuoteInput) {
+  const t = computeTotals(input);
+  const items =
+    input.type === "ev"
+      ? input.items.filter((i) => i.description.trim() || i.unit_price > 0)
+      : [];
+  return {
+    type: input.type,
+    client_name: input.client_name,
+    client_address: input.client_address || null,
+    client_contact: input.client_contact || null,
+    client_email: input.client_email || null,
+    items,
+    subtotal: t.subtotal,
+    vat_enabled: input.type === "ev" ? input.vat_enabled : false,
+    vat: t.vat,
+    total: t.total,
+    validity_days: input.validity_days,
+    notes: input.notes || null,
+    details: input.type === "solar" ? input.details : null,
+  };
+}
+
+/** Create a quotation. Returns the new id + generated quote number. */
+export async function createQuotation(input: QuoteInput) {
   const profile = await requireRole(["admin", "admin_staff"]);
   const supabase = createClient();
 
-  if (!input.client_name.trim()) return { error: "Client name is required." };
-  const items = input.items.filter(
-    (i) => i.description.trim() || i.unit_price > 0,
-  );
-  if (items.length === 0) return { error: "Add at least one line item." };
+  const err = validate(input);
+  if (err) return { error: err };
 
-  const subtotal = items.reduce((t, i) => t + i.qty * i.unit_price, 0);
-  const vat = input.vat_enabled ? Math.round(subtotal * 0.12 * 100) / 100 : 0;
-  const total = subtotal + vat;
-
-  // Sequential quote number: Q-YYYY-####
   const year = new Date().getFullYear();
   const { count } = await supabase
     .from("quotations")
@@ -48,22 +87,31 @@ export async function createQuotation(input: {
   const { data, error } = await supabase
     .from("quotations")
     .insert({
+      ...payload(input),
       quote_no: quoteNo,
-      type: input.type,
-      client_name: input.client_name,
-      client_address: input.client_address || null,
-      client_contact: input.client_contact || null,
-      client_email: input.client_email || null,
-      items,
-      subtotal,
-      vat_enabled: input.vat_enabled,
-      vat,
-      total,
-      validity_days: input.validity_days,
-      notes: input.notes || null,
       prepared_by: profile.id,
       prepared_by_name: profile.full_name,
     })
+    .select("id, quote_no")
+    .single();
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/quotations");
+  return { ok: true, id: data.id as string, quoteNo: data.quote_no as string };
+}
+
+/** Update an existing quotation (keeps its quote number). */
+export async function updateQuotation(id: string, input: QuoteInput) {
+  await requireRole(["admin", "admin_staff"]);
+  const supabase = createClient();
+
+  const err = validate(input);
+  if (err) return { error: err };
+
+  const { data, error } = await supabase
+    .from("quotations")
+    .update(payload(input))
+    .eq("id", id)
     .select("id, quote_no")
     .single();
   if (error) return { error: error.message };

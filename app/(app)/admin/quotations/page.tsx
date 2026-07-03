@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Zap, Sun, Download, FileText } from "lucide-react";
+import { Zap, Sun, Download, FileText, Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
@@ -143,6 +143,11 @@ export default async function QuotationsPage() {
                           No PDF
                         </span>
                       )}
+                      <Button asChild variant="ghost" size="icon" title="Edit">
+                        <Link href={`/admin/quotations/${r.id}/edit`}>
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                      </Button>
                       <DeleteQuotationButton id={r.id} />
                     </div>
                   </TableCell>
