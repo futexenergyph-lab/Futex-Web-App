@@ -26,6 +26,7 @@ import {
   IdCard,
   Megaphone,
   Bell,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -54,6 +55,7 @@ const AREAS: Record<
       { href: "/admin", label: "Bookings Kanban", icon: LayoutDashboard },
       { href: "/admin/deployment", label: "Deployment", icon: Truck },
       { href: "/admin/clients", label: "Client Master List", icon: Contact },
+      { href: "/admin/quotations", label: "Quotations", icon: FileText },
       { href: "/admin/utilization", label: "Utilization", icon: CalendarClock },
       { href: "/admin/live", label: "Live Status", icon: Activity },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
@@ -91,6 +93,7 @@ const AREAS: Record<
       { href: "/admin", label: "Bookings Kanban", icon: LayoutDashboard },
       { href: "/admin/deployment", label: "Deployment", icon: Truck },
       { href: "/admin/clients", label: "Client Master List", icon: Contact },
+      { href: "/admin/quotations", label: "Quotations", icon: FileText },
       { href: "/admin/utilization", label: "Utilization", icon: CalendarClock },
       { href: "/admin/live", label: "Live Status", icon: Activity },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
