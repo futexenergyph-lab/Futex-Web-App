@@ -27,6 +27,7 @@ import {
   Megaphone,
   Bell,
   FileText,
+  ShoppingCart,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -65,6 +66,7 @@ const AREAS: Record<
       { href: "/accounting/cashflow", label: "Accounting Overview", icon: ArrowLeftRight },
       { href: "/accounting", label: "Payments", icon: Wallet },
       { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
+      { href: "/accounting/retail", label: "Retail Purchases", icon: ShoppingCart },
       { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
       { href: "/announcements", label: "Announcements", icon: Megaphone },
       { href: "/admin/settings", label: "Settings", icon: Settings },
@@ -76,6 +78,7 @@ const AREAS: Record<
       { href: "/accounting/cashflow", label: "Overview", icon: ArrowLeftRight },
       { href: "/accounting", label: "Payments", icon: Wallet },
       { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
+      { href: "/accounting/retail", label: "Retail Purchases", icon: ShoppingCart },
       { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
     ],
   },

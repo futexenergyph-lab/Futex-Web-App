@@ -17,7 +17,12 @@ import { DateRangeFilter } from "@/components/accounting/date-range-filter";
 import { PaymentEditDialog } from "@/components/admin/payment-edit-dialog";
 import { DeleteRecordButton } from "@/components/admin/delete-record-button";
 import { php, formatDate, phDay } from "@/lib/utils";
-import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/types";
+import { fetchRetailRevenue } from "@/lib/retail";
+import {
+  PAYMENT_METHOD_LABELS,
+  RETAIL_PURCHASE_TYPE_LABELS,
+  type PaymentMethod,
+} from "@/lib/types";
 
 export const metadata = { title: "Payments" };
 export const dynamic = "force-dynamic";
@@ -71,7 +76,15 @@ export default async function AccountingPage({
   );
   const confirmed = payments.filter((p) => p.status === "confirmed");
 
-  const total = confirmed.reduce((s, p) => s + Number(p.amount), 0);
+  // Submitted retail purchases count as revenue under a "Retail Purchase"
+  // category, filtered to the same date window.
+  const retail = (await fetchRetailRevenue(supabase)).filter((r) =>
+    inRange(r.day),
+  );
+  const retailTotal = retail.reduce((s, r) => s + r.amount, 0);
+
+  const confirmedTotal = confirmed.reduce((s, p) => s + Number(p.amount), 0);
+  const total = confirmedTotal + retailTotal;
 
   // By method
   const byMethod = new Map<string, number>();
@@ -81,6 +94,8 @@ export default async function AccountingPage({
     label: PAYMENT_METHOD_LABELS[k as PaymentMethod],
     value: v,
   }));
+  if (retailTotal > 0)
+    methodData.push({ label: "Retail Purchase", value: retailTotal });
 
   // By officer
   const byOfficer = new Map<string, number>();
@@ -130,7 +145,7 @@ export default async function AccountingPage({
         <Stat label="Payments" value={String(confirmed.length)} />
         <Stat
           label="Avg payment"
-          value={php(confirmed.length ? total / confirmed.length : 0)}
+          value={php(confirmed.length ? confirmedTotal / confirmed.length : 0)}
         />
       </div>
 
@@ -233,6 +248,48 @@ export default async function AccountingPage({
           </Table>
         </CardContent>
       </Card>
+
+      {retail.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Retail purchases (profit)</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Recorded by</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {retail.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="text-sm">{formatDate(r.day)}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">
+                        {RETAIL_PURCHASE_TYPE_LABELS[r.type] ?? r.type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {r.description ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {r.created_by_name ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {php(r.amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

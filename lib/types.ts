@@ -306,6 +306,42 @@ export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
   others: "Others",
 };
 
+export type RetailPurchaseType =
+  | "charger"
+  | "enclosure"
+  | "extension"
+  | "supplies"
+  | "others";
+
+export const RETAIL_PURCHASE_TYPES: RetailPurchaseType[] = [
+  "charger",
+  "enclosure",
+  "extension",
+  "supplies",
+  "others",
+];
+
+export const RETAIL_PURCHASE_TYPE_LABELS: Record<RetailPurchaseType, string> = {
+  charger: "Charger",
+  enclosure: "Enclosure",
+  extension: "Extension",
+  supplies: "Supplies",
+  others: "Others",
+};
+
+export interface RetailPurchase {
+  id: string;
+  purchase_date: string;
+  type: RetailPurchaseType;
+  description: string | null;
+  amount: number;
+  status: "recorded" | "submitted";
+  created_by: string | null;
+  created_by_name: string | null;
+  submitted_at: string | null;
+  created_at: string;
+}
+
 export type ExpenseStatus =
   | "draft"
   | "submitted"
