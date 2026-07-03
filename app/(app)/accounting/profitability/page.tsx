@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { CsvExport } from "@/components/csv-export";
 import { RevenueLineChart, CategoryBarChart } from "@/components/charts";
 import { php, formatDate } from "@/lib/utils";
+import { fetchRetailRevenue } from "@/lib/retail";
 
 export const metadata = { title: "Profitability" };
 export const dynamic = "force-dynamic";
@@ -50,10 +51,12 @@ export default async function ProfitabilityPage() {
     (payments ?? []).map((p) => p.booking_id as string),
   );
 
-  const totalRevenue = (payments ?? []).reduce(
-    (s, p) => s + Number(p.amount),
-    0,
-  );
+  // Submitted retail purchases count as revenue ("Retail Purchase" category).
+  const retail = await fetchRetailRevenue(supabase);
+  const retailTotal = retail.reduce((s, r) => s + r.amount, 0);
+
+  const totalRevenue =
+    (payments ?? []).reduce((s, p) => s + Number(p.amount), 0) + retailTotal;
   const totalQuoted = jos.reduce((s, j) => s + Number(j.final_total), 0);
 
   // Outstanding = job order exists but booking not yet paid.
@@ -63,12 +66,13 @@ export default async function ProfitabilityPage() {
     0,
   );
 
-  // Revenue over time (by day) from confirmed payments.
+  // Revenue over time (by day) from confirmed payments + retail purchases.
   const byDay = new Map<string, number>();
   for (const p of payments ?? []) {
     const day = (p.paid_at ?? p.created_at)?.slice(0, 10) ?? "—";
     byDay.set(day, (byDay.get(day) ?? 0) + Number(p.amount));
   }
+  for (const r of retail) byDay.set(r.day, (byDay.get(r.day) ?? 0) + r.amount);
   const revenueSeries = [...byDay.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([label, value]) => ({ label: label.slice(5), value }));
@@ -79,6 +83,7 @@ export default async function ProfitabilityPage() {
     const name = j.packages?.name ?? "—";
     byPackage.set(name, (byPackage.get(name) ?? 0) + Number(j.final_total));
   }
+  if (retailTotal > 0) byPackage.set("Retail Purchase", retailTotal);
   const packageData = [...byPackage.entries()].map(([label, value]) => ({
     label,
     value,

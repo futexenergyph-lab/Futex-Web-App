@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InOutChart, CategoryBarChart } from "@/components/charts";
 import { DateRangeFilter } from "@/components/accounting/date-range-filter";
 import { php, cn } from "@/lib/utils";
+import { fetchRetailRevenue } from "@/lib/retail";
 import { EXPENSE_TYPE_LABELS, type Expense, type ExpenseType } from "@/lib/types";
 
 export const metadata = { title: "Financial Overview" };
@@ -43,12 +44,16 @@ export default async function FinancialOverviewPage({
       .not("status", "in", "(draft,submitted)"),
   ]);
 
-  const inflow = (payments ?? [])
-    .map((p) => ({
+  // Submitted retail purchases are additional revenue (inflow).
+  const retail = await fetchRetailRevenue(supabase);
+
+  const inflow = [
+    ...(payments ?? []).map((p) => ({
       when: ((p.paid_at as string) ?? (p.created_at as string)).slice(0, 10),
       amount: Number(p.amount),
-    }))
-    .filter((x) => inRange(x.when, from, to));
+    })),
+    ...retail.map((r) => ({ when: r.day, amount: r.amount })),
+  ].filter((x) => inRange(x.when, from, to));
 
   const outflow = ((expenses as Expense[] | null) ?? [])
     .map((e) => ({
