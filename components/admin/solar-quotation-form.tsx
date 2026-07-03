@@ -277,7 +277,7 @@ export function SolarQuotationForm({
                 <Input
                   type="number"
                   min={1}
-                  value={r.noOfPackage}
+                  value={r.noOfPackage || ""}
                   onChange={(e) =>
                     setCost(i, { noOfPackage: Number(e.target.value) || 0 })
                   }
@@ -288,7 +288,7 @@ export function SolarQuotationForm({
                 <Input
                   type="number"
                   min={0}
-                  value={r.netPrice}
+                  value={r.netPrice || ""}
                   onChange={(e) =>
                     setCost(i, { netPrice: Number(e.target.value) || 0 })
                   }
@@ -299,7 +299,7 @@ export function SolarQuotationForm({
                 <Input
                   type="number"
                   min={0}
-                  value={r.discountedPrice}
+                  value={r.discountedPrice || ""}
                   onChange={(e) =>
                     setCost(i, { discountedPrice: Number(e.target.value) || 0 })
                   }
@@ -399,7 +399,7 @@ export function SolarQuotationForm({
                     <Input
                       type="number"
                       min={0}
-                      value={m.qty}
+                      value={m.qty || ""}
                       onChange={(e) =>
                         setMaterial(pi, mi, { qty: Number(e.target.value) || 0 })
                       }
