@@ -266,38 +266,40 @@ export function buildSolarQuotationPdf(o: SolarQuotationPdfOpts): Blob {
   const contentW = W - MARGIN * 2;
   let y = MARGIN;
 
-  const ensure = (needed: number) => {
-    if (y + needed > H - MARGIN) {
-      doc.addPage();
-      y = MARGIN;
-    }
-  };
+  // Compact, single-page layout. Bullet metrics adapt to the accessory count so
+  // the whole quotation — including the red warranty note — stays on one page.
+  const products = o.data.products;
+  let maxBullets = 0;
+  for (const p of products) maxBullets = Math.max(maxBullets, productBullets(p).length);
+  // Tighten line height when a product has many bullets (e.g. accessories).
+  const bulletLH = maxBullets > 18 ? 8.5 : maxBullets > 12 ? 9.5 : 11;
+  const bulletFS = maxBullets > 18 ? 7.5 : 8.5;
 
   // ---- Logo (centered) ----
   if (o.logo) {
     try {
-      doc.addImage(o.logo, "PNG", W / 2 - 55, y, 110, 40);
+      doc.addImage(o.logo, "PNG", W / 2 - 50, y, 100, 36);
     } catch {
       /* ignore */
     }
   }
-  y += 52;
+  y += 42;
 
   // ---- Title bar ----
-  const barH = 26;
+  const barH = 22;
   doc.setDrawColor(BORDER);
   doc.setFillColor(BLUE[0], BLUE[1], BLUE[2]);
   doc.rect(MARGIN, y, contentW, barH, "FD");
   doc.setTextColor(255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
-  doc.text("DIGITAL QUOTATION", W / 2, y + 18, { align: "center" });
+  doc.setFontSize(14);
+  doc.text("DIGITAL QUOTATION", W / 2, y + 16, { align: "center" });
   y += barH;
 
   // ---- Client / date / address / contact grid ----
   doc.setTextColor(0);
-  const lab1 = 90;
-  const lab2 = 110;
+  const lab1 = 88;
+  const lab2 = 100;
   const val2 = 95;
   const val1 = contentW - lab1 - lab2 - val2;
   const xL1 = MARGIN;
@@ -306,54 +308,53 @@ export function buildSolarQuotationPdf(o: SolarQuotationPdfOpts): Blob {
   const xV2 = xL2 + lab2;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10.5);
+  doc.setFontSize(10);
   const nameLines = doc.splitTextToSize(o.client.name || "—", val1 - 12) as string[];
-  const r1H = Math.max(24, nameLines.length * 13 + 10);
+  const r1H = Math.max(22, nameLines.length * 12 + 8);
   doc.rect(xL1, y, lab1, r1H);
   doc.rect(xV1, y, val1, r1H);
   doc.rect(xL2, y, lab2, r1H);
   doc.rect(xV2, y, val2, r1H);
-  doc.text("Client Name:", xV1 - 6, y + r1H / 2 + 4, { align: "right" });
+  doc.text("Client Name:", xV1 - 6, y + r1H / 2 + 3.5, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(nameLines, xV1 + val1 / 2, y + r1H / 2 + 4 - (nameLines.length - 1) * 6, {
+  doc.text(nameLines, xV1 + val1 / 2, y + r1H / 2 + 3.5 - (nameLines.length - 1) * 6, {
     align: "center",
   });
   doc.setFont("helvetica", "normal");
-  doc.text("Date:", xV2 - 6, y + r1H / 2 + 4, { align: "right" });
+  doc.text("Date:", xV2 - 6, y + r1H / 2 + 3.5, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(o.date, xV2 + val2 / 2, y + r1H / 2 + 4, { align: "center" });
+  doc.text(o.date, xV2 + val2 / 2, y + r1H / 2 + 3.5, { align: "center" });
   doc.setFont("helvetica", "normal");
   y += r1H;
 
   const addrLines = doc.splitTextToSize(o.client.address || "—", val1 - 12) as string[];
-  const r2H = Math.max(30, addrLines.length * 13 + 10);
+  const r2H = Math.max(24, addrLines.length * 12 + 8);
   doc.rect(xL1, y, lab1, r2H);
   doc.rect(xV1, y, val1, r2H);
   doc.rect(xL2, y, lab2, r2H);
   doc.rect(xV2, y, val2, r2H);
-  doc.text("Address:", xV1 - 6, y + r2H / 2 + 4, { align: "right" });
+  doc.text("Address:", xV1 - 6, y + r2H / 2 + 3.5, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(addrLines, xV1 + val1 / 2, y + r2H / 2 + 4 - (addrLines.length - 1) * 6, {
+  doc.text(addrLines, xV1 + val1 / 2, y + r2H / 2 + 3.5 - (addrLines.length - 1) * 6, {
     align: "center",
   });
   doc.setFont("helvetica", "normal");
-  doc.text("Contact Number:", xV2 - 6, y + r2H / 2 + 4, { align: "right" });
+  doc.text("Contact Number:", xV2 - 6, y + r2H / 2 + 3.5, { align: "right" });
   doc.setFont("helvetica", "bold");
-  doc.text(o.client.contact || "—", xV2 + val2 / 2, y + r2H / 2 + 4, {
+  doc.text(o.client.contact || "—", xV2 + val2 / 2, y + r2H / 2 + 3.5, {
     align: "center",
   });
   doc.setFont("helvetica", "normal");
-  y += r2H + 16;
+  y += r2H + 10;
 
   // ---- Section bar helper ----
   const sectionBar = (label: string) => {
-    ensure(barH + 20);
     doc.setFillColor(BLUE[0], BLUE[1], BLUE[2]);
     doc.rect(MARGIN, y, contentW, barH, "FD");
     doc.setTextColor(255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.text(label, W / 2, y + 18, { align: "center" });
+    doc.setFontSize(12);
+    doc.text(label, W / 2, y + 15, { align: "center" });
     doc.setTextColor(0);
     y += barH;
   };
@@ -363,28 +364,27 @@ export function buildSolarQuotationPdf(o: SolarQuotationPdfOpts): Blob {
   const cPkg = 100, cNo = 80, cNet = 120, cDisc = 110;
   const cTot = contentW - cPkg - cNo - cNet - cDisc;
   const xPkg = MARGIN, xNo = xPkg + cPkg, xNet = xNo + cNo, xDisc = xNet + cNet, xTot = xDisc + cDisc;
-  const gH = 22;
+  const gH = 20;
   doc.setFillColor(GREEN[0], GREEN[1], GREEN[2]);
   doc.rect(xPkg, y, contentW, gH, "FD");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
-  doc.text("Package", xPkg + cPkg / 2, y + 15, { align: "center" });
-  doc.text("No. of Package", xNo + cNo / 2, y + 15, { align: "center" });
-  doc.text("Nert Price/ Package", xNet + cNet / 2, y + 15, { align: "center" });
-  doc.text("Discounted Price", xDisc + cDisc / 2, y + 15, { align: "center" });
-  doc.text("TOTAL", xTot + cTot / 2, y + 15, { align: "center" });
+  doc.text("Package", xPkg + cPkg / 2, y + 14, { align: "center" });
+  doc.text("No. of Package", xNo + cNo / 2, y + 14, { align: "center" });
+  doc.text("Nert Price/ Package", xNet + cNet / 2, y + 14, { align: "center" });
+  doc.text("Discounted Price", xDisc + cDisc / 2, y + 14, { align: "center" });
+  doc.text("TOTAL", xTot + cTot / 2, y + 14, { align: "center" });
   y += gH;
 
   doc.setFontSize(10);
   for (const r of o.data.proposedCost) {
-    const rowH = 30;
-    ensure(rowH);
+    const rowH = 26;
     doc.rect(xPkg, y, cPkg, rowH);
     doc.rect(xNo, y, cNo, rowH);
     doc.rect(xNet, y, cNet, rowH);
     doc.rect(xDisc, y, cDisc, rowH);
     doc.rect(xTot, y, cTot, rowH);
-    const ty = y + rowH / 2 + 4;
+    const ty = y + rowH / 2 + 3.5;
     doc.setFont("helvetica", "bold");
     doc.text(r.packageName || "—", xPkg + cPkg / 2, ty, { align: "center" });
     doc.setFont("helvetica", "normal");
@@ -398,42 +398,39 @@ export function buildSolarQuotationPdf(o: SolarQuotationPdfOpts): Blob {
     doc.setFont("helvetica", "normal");
     y += rowH;
   }
-  // Grand total row (bold total on the right).
   const grand = solarTotal(o.data);
   if (o.data.proposedCost.length > 1) {
-    const rowH = 24;
-    ensure(rowH);
+    const rowH = 22;
     doc.rect(xPkg, y, cPkg + cNo + cNet, rowH);
     doc.rect(xDisc, y, cDisc, rowH);
     doc.rect(xTot, y, cTot, rowH);
     doc.setFont("helvetica", "bold");
-    doc.text("TOTAL", xDisc + cDisc - 8, y + 15, { align: "right" });
-    doc.text(pesoAmt(grand), xTot + cTot / 2, y + 15, { align: "center" });
+    doc.text("TOTAL", xDisc + cDisc - 8, y + 14, { align: "right" });
+    doc.text(pesoAmt(grand), xTot + cTot / 2, y + 14, { align: "center" });
     doc.setFont("helvetica", "normal");
     y += rowH;
   }
-  y += 20;
+  y += 10;
 
   // ================= B. PRODUCT DETAIL =================
   sectionBar("B. PRODUCT DETAIL");
   const cProd = 150, cIncl = 150;
   const cDet = contentW - cProd - cIncl;
   const xProd = MARGIN, xIncl = xProd + cProd, xDet = xIncl + cIncl;
-  const ph = 22;
+  const ph = 20;
   doc.setFillColor(GREEN[0], GREEN[1], GREEN[2]);
   doc.rect(xProd, y, contentW, ph, "FD");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.text("Product", xProd + cProd / 2, y + 15, { align: "center" });
-  doc.text("Inclusion", xIncl + cIncl / 2, y + 15, { align: "center" });
-  doc.text("Total Product Detail", xDet + cDet / 2, y + 15, { align: "center" });
+  doc.text("Product", xProd + cProd / 2, y + 14, { align: "center" });
+  doc.text("Inclusion", xIncl + cIncl / 2, y + 14, { align: "center" });
+  doc.text("Total Product Detail", xDet + cDet / 2, y + 14, { align: "center" });
   y += ph;
 
   for (const p of o.data.products) {
     const bullets = productBullets(p);
     const inclLines = doc.splitTextToSize(p.inclusion || "", cIncl - 16) as string[];
-    // Measure bullet wrap height.
-    doc.setFontSize(9);
+    doc.setFontSize(bulletFS);
     let bulletLineCount = 0;
     const wrapped: string[][] = bullets.map((b) => {
       const w = doc.splitTextToSize(b, cDet - 26) as string[];
@@ -441,11 +438,10 @@ export function buildSolarQuotationPdf(o: SolarQuotationPdfOpts): Blob {
       return w;
     });
     const rowH = Math.max(
-      52,
-      bulletLineCount * 12 + 16,
-      inclLines.length * 12 + 16,
+      34,
+      bulletLineCount * bulletLH + 12,
+      inclLines.length * 11 + 12,
     );
-    ensure(rowH);
     doc.setDrawColor(BORDER);
     doc.rect(xProd, y, cProd, rowH);
     doc.rect(xIncl, y, cIncl, rowH);
@@ -453,46 +449,45 @@ export function buildSolarQuotationPdf(o: SolarQuotationPdfOpts): Blob {
 
     // Product title + brand (centered vertically).
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     const titleLines = doc.splitTextToSize(p.title, cProd - 12) as string[];
     const brandLine = p.brand ? `(${p.brand})` : "";
     const brandWrapped = brandLine
       ? (doc.splitTextToSize(brandLine, cProd - 12) as string[])
       : [];
-    const titleBlockH = titleLines.length * 13 + (brandWrapped.length ? brandWrapped.length * 11 + 2 : 0);
-    let tY = y + rowH / 2 - titleBlockH / 2 + 10;
+    const titleBlockH = titleLines.length * 12 + (brandWrapped.length ? brandWrapped.length * 9 + 2 : 0);
+    let tY = y + rowH / 2 - titleBlockH / 2 + 9;
     doc.text(titleLines, xProd + cProd / 2, tY, { align: "center" });
-    tY += titleLines.length * 13;
+    tY += titleLines.length * 12;
     if (brandWrapped.length) {
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
       doc.text(brandWrapped, xProd + cProd / 2, tY, { align: "center" });
     }
 
     // Inclusion (centered).
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    doc.text(inclLines, xIncl + cIncl / 2, y + rowH / 2 - (inclLines.length - 1) * 6 + 4, {
+    doc.setFontSize(9);
+    doc.text(inclLines, xIncl + cIncl / 2, y + rowH / 2 - (inclLines.length - 1) * 5.5 + 3.5, {
       align: "center",
     });
 
     // Bullets (left aligned).
-    doc.setFontSize(9);
-    let by = y + 14;
+    doc.setFontSize(bulletFS);
+    let by = y + 12;
     for (const w of wrapped) {
       doc.text("•", xDet + 8, by);
       doc.text(w, xDet + 18, by);
-      by += w.length * 12;
+      by += w.length * bulletLH;
     }
     y += rowH;
   }
-  y += 18;
+  y += 12;
 
-  // ---- Red warranty disclaimer ----
+  // ---- Red warranty disclaimer (kept on the same page) ----
   if (o.data.disclaimer) {
-    ensure(60);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.5);
+    doc.setFontSize(8.5);
     doc.setTextColor(RED[0], RED[1], RED[2]);
     const dl = doc.splitTextToSize(o.data.disclaimer, contentW - 40) as string[];
     doc.text(dl, W / 2, y + 10, { align: "center" });
