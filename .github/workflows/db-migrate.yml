@@ -156,4 +156,14 @@ jobs:
           run_sql 'drop policy if exists announcement_reads_select on public.announcement_reads; create policy announcement_reads_select on public.announcement_reads for select using (public.is_admin() or user_id = auth.uid());'
           run_sql 'drop policy if exists announcement_reads_insert on public.announcement_reads; create policy announcement_reads_insert on public.announcement_reads for insert with check (user_id = auth.uid());'
 
+          # Quotations (EV Charger / Solar Solution) + private PDF bucket
+          run_sql "create table if not exists public.quotations (id uuid primary key default gen_random_uuid(), quote_no text, type text not null default 'ev', client_name text not null, client_address text, client_contact text, client_email text, items jsonb not null default '[]', subtotal numeric(12,2) not null default 0, vat_enabled boolean not null default false, vat numeric(12,2) not null default 0, total numeric(12,2) not null default 0, validity_days integer not null default 30, notes text, storage_path text, prepared_by uuid references public.profiles(id) on delete set null, prepared_by_name text, created_at timestamptz not null default now());"
+          run_sql 'create index if not exists idx_quotations_created on public.quotations(created_at desc);'
+          run_sql 'alter table public.quotations enable row level security;'
+          run_sql 'drop policy if exists quotations_all on public.quotations; create policy quotations_all on public.quotations for all using (public.is_admin()) with check (public.is_admin());'
+          run_sql "insert into storage.buckets (id, name, public) values ('quotations','quotations',false) on conflict (id) do nothing;"
+          run_sql 'drop policy if exists "quotations insert admin" on storage.objects; create policy "quotations insert admin" on storage.objects for insert to authenticated with check (bucket_id = '"'"'quotations'"'"' and public.is_admin());'
+          run_sql 'drop policy if exists "quotations read admin" on storage.objects; create policy "quotations read admin" on storage.objects for select to authenticated using (bucket_id = '"'"'quotations'"'"' and public.is_admin());'
+          run_sql 'drop policy if exists "quotations delete admin" on storage.objects; create policy "quotations delete admin" on storage.objects for delete to authenticated using (bucket_id = '"'"'quotations'"'"' and public.is_admin());'
+
           echo "Done."

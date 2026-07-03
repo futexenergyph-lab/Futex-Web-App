@@ -10,6 +10,7 @@ const ADMIN_STAFF_EXACT = new Set<string>([
 const ADMIN_STAFF_PREFIX = [
   "/admin/clients",
   "/admin/deployment",
+  "/admin/quotations",
   "/admin/utilization",
   "/admin/live",
   "/admin/analytics",
