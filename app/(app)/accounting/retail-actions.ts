@@ -23,7 +23,7 @@ export async function addRetailPurchase(input: {
   description: string;
   amount: number;
 }) {
-  const profile = await requireRole(["accounting", "admin"]);
+  const profile = await requireRole(["accounting", "admin", "admin_staff"]);
   const supabase = createClient();
   if (!input.amount || input.amount <= 0) return { error: "Enter an amount" };
   const { error } = await supabase.from("retail_purchases").insert({
@@ -42,7 +42,7 @@ export async function addRetailPurchase(input: {
 
 /** Delete a recorded (not yet submitted) retail purchase. */
 export async function deleteRetailPurchase(id: string) {
-  await requireRole(["accounting", "admin"]);
+  await requireRole(["accounting", "admin", "admin_staff"]);
   const supabase = createClient();
   const { error } = await supabase
     .from("retail_purchases")
@@ -56,7 +56,7 @@ export async function deleteRetailPurchase(id: string) {
 
 /** Submit all recorded retail purchases to the account as profit. */
 export async function submitRetailPurchases() {
-  await requireRole(["accounting", "admin"]);
+  await requireRole(["accounting", "admin", "admin_staff"]);
   const supabase = createClient();
   const { error } = await supabase
     .from("retail_purchases")

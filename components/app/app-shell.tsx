@@ -102,6 +102,7 @@ const AREAS: Record<
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/accounting", label: "Payments", icon: Wallet },
       { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
+      { href: "/accounting/retail", label: "Retail Purchases", icon: ShoppingCart },
       { href: "/announcements", label: "Announcements", icon: Megaphone },
     ],
   },

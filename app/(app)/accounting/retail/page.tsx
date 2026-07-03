@@ -19,7 +19,7 @@ export const metadata = { title: "Retail Purchases" };
 export const dynamic = "force-dynamic";
 
 export default async function RetailPurchasesPage() {
-  await requireRole(["accounting", "admin"]);
+  await requireRole(["accounting", "admin", "admin_staff"]);
   const supabase = createClient();
 
   const { data } = await supabase
