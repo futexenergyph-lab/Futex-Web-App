@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, ...props }, ref) => (
+  ({ className, type, onFocus, ...props }, ref) => (
     <input
       type={type}
       className={cn(
@@ -10,6 +10,20 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
         className,
       )}
       ref={ref}
+      onFocus={(e) => {
+        // Select existing content so typing replaces it (no leftover digits
+        // like a stray "0" when entering prices/quantities). Deferred so it
+        // also works for number/date inputs on mobile Safari.
+        const el = e.currentTarget;
+        requestAnimationFrame(() => {
+          try {
+            el.select();
+          } catch {
+            /* some input types don't support select() */
+          }
+        });
+        onFocus?.(e);
+      }}
       {...props}
     />
   ),

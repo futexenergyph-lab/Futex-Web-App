@@ -278,7 +278,7 @@ export function QuotationForm({
                 type="number"
                 min={0}
                 placeholder="Qty"
-                value={r.qty}
+                value={r.qty || ""}
                 onChange={(e) => setRow(i, { qty: Number(e.target.value) || 0 })}
                 className="w-16"
                 aria-label="Quantity"
@@ -287,7 +287,7 @@ export function QuotationForm({
                 type="number"
                 min={0}
                 placeholder="Unit price"
-                value={r.unit_price}
+                value={r.unit_price || ""}
                 onChange={(e) =>
                   setRow(i, { unit_price: Number(e.target.value) || 0 })
                 }
