@@ -15,6 +15,7 @@ const ADMIN_STAFF_PREFIX = [
   "/admin/live",
   "/admin/analytics",
   "/accounting/expenses", // Expenses (input only)
+  "/accounting/retail", // Retail Purchases
 ];
 
 /** Whether the limited Admin role may open the given path. */
