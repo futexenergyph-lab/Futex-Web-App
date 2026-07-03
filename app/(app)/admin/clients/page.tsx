@@ -45,30 +45,43 @@ export default async function ClientMasterListPage() {
 
   const rows = (data as unknown as Row[]) ?? [];
 
-  // Documents per booking (commissioning PDFs, etc.) with signed download URLs.
-  const docsByBooking = new Map<string, { title: string; url: string }[]>();
-  const { data: docs } = await supabase
-    .from("booking_documents")
-    .select("booking_id, title, storage_path, created_at")
-    .order("created_at", { ascending: false });
-  for (const d of (docs as
-    | { booking_id: string; title: string; storage_path: string }[]
-    | null) ?? []) {
-    const { data: signed } = await supabase.storage
-      .from("documents")
-      .createSignedUrl(d.storage_path, 3600);
-    if (!signed?.signedUrl) continue;
-    const list = docsByBooking.get(d.booking_id) ?? [];
-    list.push({ title: d.title, url: signed.signedUrl });
-    docsByBooking.set(d.booking_id, list);
-  }
-
-  // Documentation gallery photos per booking: on-site update photos +
-  // post-installation documentation photos (full quality, no resizing).
-  const docPhotosByBooking = await fetchBookingDocumentationPhotos(
-    supabase,
-    rows.map((r) => r.id),
-  );
+  // Documents per booking (commissioning PDFs) + documentation gallery photos,
+  // fetched in parallel. Signed URLs are batched (createSignedUrls) so this
+  // stays fast regardless of how many files exist.
+  const [docsByBooking, docPhotosByBooking] = await Promise.all([
+    (async () => {
+      const map = new Map<string, { title: string; url: string }[]>();
+      const { data: docs } = await supabase
+        .from("booking_documents")
+        .select("booking_id, title, storage_path, created_at")
+        .order("created_at", { ascending: false });
+      const list =
+        (docs as
+          | { booking_id: string; title: string; storage_path: string }[]
+          | null) ?? [];
+      const paths = [...new Set(list.map((d) => d.storage_path))];
+      const signed = new Map<string, string>();
+      for (let i = 0; i < paths.length; i += 100) {
+        const { data: s } = await supabase.storage
+          .from("documents")
+          .createSignedUrls(paths.slice(i, i + 100), 3600);
+        for (const x of s ?? [])
+          if (x.signedUrl && x.path) signed.set(x.path, x.signedUrl);
+      }
+      for (const d of list) {
+        const url = signed.get(d.storage_path);
+        if (!url) continue;
+        const l = map.get(d.booking_id) ?? [];
+        l.push({ title: d.title, url });
+        map.set(d.booking_id, l);
+      }
+      return map;
+    })(),
+    fetchBookingDocumentationPhotos(
+      supabase,
+      rows.map((r) => r.id),
+    ),
+  ]);
 
   const clients: ClientRow[] = rows.map((r) => ({
     id: r.id,
