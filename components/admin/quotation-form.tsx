@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
   createQuotation,
+  updateQuotation,
   attachQuotationPdf,
 } from "@/app/(app)/admin/quotations/actions";
 import { buildQuotationPdf } from "@/lib/quotation-pdf";
@@ -56,23 +57,43 @@ async function fetchDataUrl(url: string): Promise<string | null> {
   }
 }
 
+export interface EvQuoteInitial {
+  id: string;
+  client_name: string;
+  client_address: string | null;
+  client_contact: string | null;
+  client_email: string | null;
+  items: Row[];
+  vat_enabled: boolean;
+  validity_days: number;
+  notes: string | null;
+}
+
 export function QuotationForm({
   type,
   preparedByName,
+  initial,
 }: {
   type: "ev" | "solar";
   preparedByName: string;
+  initial?: EvQuoteInitial;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [clientName, setClientName] = useState("");
-  const [clientAddress, setClientAddress] = useState("");
-  const [clientContact, setClientContact] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [rows, setRows] = useState<Row[]>(DEFAULTS[type]);
-  const [vatEnabled, setVatEnabled] = useState(false);
-  const [validityDays, setValidityDays] = useState(30);
-  const [notes, setNotes] = useState("");
+  const [clientName, setClientName] = useState(initial?.client_name ?? "");
+  const [clientAddress, setClientAddress] = useState(
+    initial?.client_address ?? "",
+  );
+  const [clientContact, setClientContact] = useState(
+    initial?.client_contact ?? "",
+  );
+  const [clientEmail, setClientEmail] = useState(initial?.client_email ?? "");
+  const [rows, setRows] = useState<Row[]>(
+    initial && initial.items.length > 0 ? initial.items : DEFAULTS[type],
+  );
+  const [vatEnabled, setVatEnabled] = useState(initial?.vat_enabled ?? false);
+  const [validityDays, setValidityDays] = useState(initial?.validity_days ?? 30);
+  const [notes, setNotes] = useState(initial?.notes ?? "");
 
   const { subtotal, vat, total } = useMemo(() => {
     const s = rows.reduce((t, r) => t + r.qty * r.unit_price, 0);
@@ -93,7 +114,7 @@ export function QuotationForm({
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     start(async () => {
-      const res = await createQuotation({
+      const body = {
         type,
         client_name: clientName,
         client_address: clientAddress,
@@ -103,9 +124,13 @@ export function QuotationForm({
         vat_enabled: vatEnabled,
         validity_days: validityDays,
         notes,
-      });
+        details: null,
+      };
+      const res = initial
+        ? await updateQuotation(initial.id, body)
+        : await createQuotation(body);
       if (res?.error || !res?.id) {
-        toast.error(res?.error ?? "Failed to create quotation");
+        toast.error(res?.error ?? "Failed to save quotation");
         return;
       }
 
@@ -167,7 +192,9 @@ export function QuotationForm({
         );
       }
 
-      toast.success(`Quotation ${res.quoteNo} created`);
+      toast.success(
+        `Quotation ${res.quoteNo} ${initial ? "updated" : "created"}`,
+      );
       router.push("/admin/quotations");
       router.refresh();
     });
@@ -327,7 +354,7 @@ export function QuotationForm({
         ) : (
           <FileText className="mr-2 h-4 w-4" />
         )}
-        Generate quotation
+        {initial ? "Update quotation & regenerate PDF" : "Generate quotation"}
       </Button>
     </form>
   );
