@@ -15,21 +15,16 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { DeleteQuotationButton } from "@/components/admin/delete-quotation-button";
+import {
+  RegenerateQuotationButton,
+  type RegenQuote,
+} from "@/components/admin/regenerate-quotation-button";
 import { php, formatDate } from "@/lib/utils";
 
 export const metadata = { title: "Quotations" };
 export const dynamic = "force-dynamic";
 
-interface QuoteRow {
-  id: string;
-  quote_no: string | null;
-  type: "ev" | "solar";
-  client_name: string;
-  total: number;
-  storage_path: string | null;
-  prepared_by_name: string | null;
-  created_at: string;
-}
+type QuoteRow = RegenQuote & { storage_path: string | null };
 
 export default async function QuotationsPage() {
   await requireRole(["admin", "admin_staff"]);
@@ -38,7 +33,7 @@ export default async function QuotationsPage() {
   const { data } = await supabase
     .from("quotations")
     .select(
-      "id, quote_no, type, client_name, total, storage_path, prepared_by_name, created_at",
+      "id, quote_no, type, client_name, client_address, client_contact, client_email, items, subtotal, vat_enabled, vat, total, validity_days, notes, details, storage_path, prepared_by_name, created_at",
     )
     .order("created_at", { ascending: false });
   const rows = (data as QuoteRow[] | null) ?? [];
@@ -143,6 +138,7 @@ export default async function QuotationsPage() {
                           No PDF
                         </span>
                       )}
+                      <RegenerateQuotationButton quote={r} />
                       <Button asChild variant="ghost" size="icon" title="Edit">
                         <Link href={`/admin/quotations/${r.id}/edit`}>
                           <Pencil className="h-4 w-4" />
