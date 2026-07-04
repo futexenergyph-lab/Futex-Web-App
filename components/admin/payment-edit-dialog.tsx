@@ -16,7 +16,12 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/types";
+import { php } from "@/lib/utils";
+import {
+  PAYMENT_METHOD_LABELS,
+  type PaymentMethod,
+  type PaymentSplit,
+} from "@/lib/types";
 
 export function PaymentEditDialog({
   payment,
@@ -28,9 +33,11 @@ export function PaymentEditDialog({
     method: PaymentMethod;
     reference_no: string | null;
     status: string;
+    splits?: PaymentSplit[] | null;
   };
   clientName: string;
 }) {
+  const splits = payment.splits ?? null;
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -70,6 +77,22 @@ export function PaymentEditDialog({
         <DialogHeader>
           <DialogTitle>Edit payment — {clientName}</DialogTitle>
         </DialogHeader>
+        {splits && splits.length > 0 && (
+          <div className="rounded-md border bg-secondary/40 p-3 text-sm">
+            <p className="font-medium">Split payment</p>
+            <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+              {splits.map((s, i) => (
+                <li key={i} className="flex justify-between">
+                  <span>{PAYMENT_METHOD_LABELS[s.method]}</span>
+                  <span className="tabular-nums">{php(s.amount)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              The fields below edit the total and representative method only.
+            </p>
+          </div>
+        )}
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">

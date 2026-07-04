@@ -56,20 +56,3 @@ jobs:
             C=$(curl -s -w '%{http_code}' -o /tmp/b "$URL/rest/v1/$t?select=*&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE")
             echo "  $t -> HTTP $C  $(head -c 120 /tmp/b)"
           done
-
-          echo "============================================================"
-          echo "6) SPLIT PAYMENTS (splits not null):"
-          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/payments" \
-            --data-urlencode "select=amount,method,splits,status,created_at" \
-            --data-urlencode "splits=not.is.null" \
-            --data-urlencode "order=created_at.desc" \
-            --data-urlencode "limit=10" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1500
-          echo
-          echo "--- latest 5 payments (any) ---"
-          curl -s -G "$URL/rest/v1/payments" \
-            --data-urlencode "select=amount,method,splits,status,created_at" \
-            --data-urlencode "order=created_at.desc" \
-            --data-urlencode "limit=5" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1500
-          echo
