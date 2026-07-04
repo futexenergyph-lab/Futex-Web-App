@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { php } from "@/lib/utils";
+import { PAYMENT_METHOD_LABELS, type PaymentSplit } from "@/lib/types";
 
 export interface PaymentInfo {
   amount: number;
@@ -17,6 +18,7 @@ export interface PaymentInfo {
   status: "pending" | "confirmed" | "declined";
   paidAt: string | null;
   proofUrl: string | null;
+  splits?: PaymentSplit[] | null;
 }
 
 /** "See details" link that opens the full payment details + proof photo. */
@@ -59,9 +61,22 @@ export function PaymentDetails({ payment }: { payment: PaymentInfo }) {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Mode of payment</p>
-                <p className="font-medium capitalize">
-                  {payment.method.replace(/_/g, " ")}
-                </p>
+                {payment.splits && payment.splits.length > 0 ? (
+                  <div>
+                    <p className="font-medium">Split</p>
+                    <ul className="mt-0.5 space-y-0.5 text-xs text-muted-foreground">
+                      {payment.splits.map((s, i) => (
+                        <li key={i}>
+                          {PAYMENT_METHOD_LABELS[s.method]} — {php(s.amount)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="font-medium capitalize">
+                    {payment.method.replace(/_/g, " ")}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Reference no.</p>

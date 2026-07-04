@@ -174,4 +174,7 @@ jobs:
           run_sql 'alter table public.retail_purchases enable row level security;'
           run_sql 'drop policy if exists retail_purchases_all on public.retail_purchases; create policy retail_purchases_all on public.retail_purchases for all using (public.is_admin() or public.is_accounting()) with check (public.is_admin() or public.is_accounting());'
 
+          # Split payments (multiple methods for one payment)
+          run_sql 'alter table public.payments add column if not exists splits jsonb;'
+
           echo "Done."

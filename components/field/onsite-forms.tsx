@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Loader2, MapPin, Send, Upload } from "lucide-react";
+import { Camera, Loader2, MapPin, Send, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   confirmPayment,
@@ -170,7 +170,33 @@ export function PaymentForm({
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [referenceNo, setReferenceNo] = useState("");
   const [pending, setPending] = useState(false);
+  const [split, setSplit] = useState(false);
+  const [splits, setSplits] = useState<{ method: PaymentMethod; amount: string }[]>(
+    [
+      { method: "cash", amount: "" },
+      { method: "bank_transfer", amount: "" },
+    ],
+  );
   const router = useRouter();
+
+  const splitTotal = splits.reduce((t, s) => t + (Number(s.amount) || 0), 0);
+  const methods = Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[];
+  const showBank = split
+    ? splits.some((s) => s.method === "bank_transfer")
+    : method === "bank_transfer";
+  const showCheck = split
+    ? splits.some((s) => s.method === "check")
+    : method === "check";
+
+  function setSplitRow(i: number, patch: Partial<{ method: PaymentMethod; amount: string }>) {
+    setSplits((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  }
+  function addSplit() {
+    setSplits((prev) => [...prev, { method: "cash", amount: "" }]);
+  }
+  function removeSplit(i: number) {
+    setSplits((prev) => prev.filter((_, idx) => idx !== i));
+  }
 
   // Confirmed/pending lock the form; declined re-opens it for a correction.
   if (existingStatus === "confirmed" || existingStatus === "pending") {
@@ -184,8 +210,19 @@ export function PaymentForm({
   }
 
   async function submit() {
-    if (!amount || Number(amount) <= 0) {
-      toast.error("Enter the amount");
+    const splitPayload = split
+      ? splits
+          .map((s) => ({ method: s.method, amount: Number(s.amount) || 0 }))
+          .filter((s) => s.amount > 0)
+      : null;
+    const effectiveAmount = split ? splitTotal : Number(amount);
+
+    if (!effectiveAmount || effectiveAmount <= 0) {
+      toast.error(split ? "Enter the split amounts" : "Enter the amount");
+      return;
+    }
+    if (split && (!splitPayload || splitPayload.length < 2)) {
+      toast.error("Add at least two payment methods for a split");
       return;
     }
     if (!files[0]) {
@@ -203,10 +240,11 @@ export function PaymentForm({
       const res = await confirmPayment({
         bookingId,
         jobOrderId: jobOrder?.id ?? null,
-        amount: Number(amount),
-        method,
+        amount: effectiveAmount,
+        method: split ? splitPayload![0].method : method,
         referenceNo,
         proofPath,
+        splits: splitPayload,
       });
       if (res?.error) throw new Error(res.error);
       toast.success("Payment recorded — awaiting management confirmation");
@@ -227,36 +265,107 @@ export function PaymentForm({
           details and resubmit.
         </p>
       )}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor="amount">Amount (₱)</Label>
-          <Input
-            id="amount"
-            type="number"
-            min={0}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input
+          type="checkbox"
+          checked={split}
+          onChange={(e) => setSplit(e.target.checked)}
+          className="h-4 w-4"
+        />
+        Split payment (multiple methods)
+      </label>
+
+      {!split ? (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="amount">Amount (₱)</Label>
+            <Input
+              id="amount"
+              type="number"
+              min={0}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="method">Method</Label>
+            <select
+              id="method"
+              value={method}
+              onChange={(e) => setMethod(e.target.value as PaymentMethod)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {methods.map((m) => (
+                <option key={m} value={m}>
+                  {PAYMENT_METHOD_LABELS[m]}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="method">Method</Label>
-          <select
-            id="method"
-            value={method}
-            onChange={(e) => setMethod(e.target.value as PaymentMethod)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          >
-            {(
-              Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[]
-            ).map((m) => (
-              <option key={m} value={m}>
-                {PAYMENT_METHOD_LABELS[m]}
-              </option>
-            ))}
-          </select>
+      ) : (
+        <div className="space-y-2 rounded-md border p-3">
+          <Label>Split payments</Label>
+          {splits.map((s, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                placeholder="Amount"
+                value={s.amount}
+                onChange={(e) => setSplitRow(i, { amount: e.target.value })}
+                className="w-32"
+                aria-label="Split amount"
+              />
+              <select
+                value={s.method}
+                onChange={(e) =>
+                  setSplitRow(i, { method: e.target.value as PaymentMethod })
+                }
+                className="flex h-10 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+                aria-label="Split method"
+              >
+                {methods.map((m) => (
+                  <option key={m} value={m}>
+                    {PAYMENT_METHOD_LABELS[m]}
+                  </option>
+                ))}
+              </select>
+              {splits.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => removeSplit(i)}
+                  className="text-destructive"
+                  aria-label="Remove"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          ))}
+          <div className="flex items-center justify-between pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addSplit}
+            >
+              + Add payment
+            </Button>
+            <span className="text-sm font-semibold">
+              Total: {php(splitTotal)}
+            </span>
+          </div>
+          {jobOrder && splitTotal !== jobOrder.final_total && (
+            <p className="text-xs text-amber-600">
+              Split total doesn&apos;t match the job order total (
+              {php(jobOrder.final_total)}).
+            </p>
+          )}
         </div>
-      </div>
-      {method === "bank_transfer" && (
+      )}
+
+      {showBank && (
         <div className="space-y-1 rounded-md border bg-secondary/30 p-3">
           <p className="text-xs font-medium text-muted-foreground">
             Scan to pay via InstaPay (EastWest — FUTEX)
@@ -269,7 +378,7 @@ export function PaymentForm({
           />
         </div>
       )}
-      {method === "check" && (
+      {showCheck && (
         <div className="space-y-1 rounded-md border bg-secondary/30 p-3">
           <p className="text-xs font-medium text-muted-foreground">
             Check details
