@@ -60,7 +60,8 @@ export async function updateSession(request: NextRequest) {
   const isAppArea =
     path.startsWith("/admin") ||
     path.startsWith("/field") ||
-    path.startsWith("/accounting");
+    path.startsWith("/accounting") ||
+    path.startsWith("/hr");
 
   // Not signed in & hitting a protected area -> login.
   if (!user && isAppArea) {
@@ -98,7 +99,8 @@ export async function updateSession(request: NextRequest) {
         : (path.startsWith("/admin") && isManager) ||
           (path.startsWith("/accounting") &&
             (role === "accounting" || isManager)) ||
-          (path.startsWith("/hr") && (role === "hr" || isManager)) ||
+          (path.startsWith("/hr") &&
+            (role === "hr" || isManager)) ||
           (path.startsWith("/field") &&
             (role === "field_officer" || role === "installer"));
 
