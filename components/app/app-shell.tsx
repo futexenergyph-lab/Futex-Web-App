@@ -28,6 +28,7 @@ import {
   Bell,
   FileText,
   ShoppingCart,
+  Database,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -69,6 +70,7 @@ const AREAS: Record<
       { href: "/accounting/retail", label: "Retail Purchases", icon: ShoppingCart },
       { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
       { href: "/announcements", label: "Announcements", icon: Megaphone },
+      { href: "/admin/database", label: "Database", icon: Database },
       { href: "/admin/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -104,6 +106,7 @@ const AREAS: Record<
       { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
       { href: "/accounting/retail", label: "Retail Purchases", icon: ShoppingCart },
       { href: "/announcements", label: "Announcements", icon: Megaphone },
+      { href: "/admin/database", label: "Database", icon: Database },
     ],
   },
 };
