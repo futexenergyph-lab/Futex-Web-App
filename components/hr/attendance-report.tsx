@@ -162,15 +162,18 @@ export async function AttendanceReport({
       photo: signedFor.get(r.id) ?? null,
     }));
 
+  const _d = (searchParams as Record<string, string | undefined>).d;
+  const _s = _d === undefined ? 99 : Number(_d);
   return (
     <div className="space-y-6">
       <PageHeader
         title="HR — Attendance"
         description="Time in/out records, hours worked, and late flags vs the 9 AM / 2 PM schedule."
       >
-        <CsvExport rows={csvRows} filename="futex-attendance.csv" />
+        {_s >= 1 && <CsvExport rows={csvRows} filename="futex-attendance.csv" />}
       </PageHeader>
 
+      {_s >= 2 && (
       <Card>
         <CardContent className="pt-6">
           <form className="flex flex-wrap items-end gap-3">
@@ -212,7 +215,9 @@ export async function AttendanceReport({
           </form>
         </CardContent>
       </Card>
+      )}
 
+      {_s >= 3 && (
       <Card>
         <CardHeader>
           <CardTitle>Attendance records</CardTitle>
@@ -284,7 +289,9 @@ export async function AttendanceReport({
           </Table>
         </CardContent>
       </Card>
+      )}
 
+      {_s >= 4 && (
       <Card>
         <CardHeader>
           <CardTitle>Location &amp; time log</CardTitle>
@@ -348,6 +355,7 @@ export async function AttendanceReport({
           </Table>
         </CardContent>
       </Card>
+      )}
     </div>
   );
   } catch (err) {
