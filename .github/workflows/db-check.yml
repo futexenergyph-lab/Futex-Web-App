@@ -56,3 +56,23 @@ jobs:
             C=$(curl -s -w '%{http_code}' -o /tmp/b "$URL/rest/v1/$t?select=*&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE")
             echo "  $t -> HTTP $C  $(head -c 120 /tmp/b)"
           done
+
+          echo "============================================================"
+          echo "6) HR 201-files: exact page queries"
+          echo "-- profiles role filter (field_officer/installer):"
+          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/profiles" \
+            --data-urlencode "select=id,full_name,role,phone" \
+            --data-urlencode "role=in.(field_officer,installer)" \
+            --data-urlencode "order=full_name" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1500
+          echo
+          echo "-- personal_data_sheets (user_id, photo_url, data):"
+          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/personal_data_sheets" \
+            --data-urlencode "select=user_id,photo_url,data" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 2000
+          echo
+          echo "-- is_hr / is_admin functions present:"
+          curl -s -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/rpc/is_hr" -X POST \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+            -H "Content-Type: application/json" -d '{}' | head -c 300
+          echo
