@@ -25,8 +25,9 @@ jobs:
           SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
           ANON=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="anon")|.api_key) else empty end')
 
-          fetch_as () {  # $1 = role
+          fetch_as () {  # $1 = role  $2 = path
             local ROLE="$1"
+            local PGPATH="$2"
             local TS EMAIL PASS CREATE PUID TOK SESSION NAME B64 VAL LEN
             TS=$(date +%s%N)
             EMAIL="diag-$ROLE-$TS@example.com"
@@ -50,17 +51,15 @@ jobs:
                 off=$((off+3600)); i=$((i+1))
               done
             fi
-            echo "======== role=$ROLE uid=$PUID ========"
-            code=$(curl -s "${COOKIE_ARGS[@]}" -o /tmp/body -w '%{http_code}' "$APP/hr/201-files")
+            echo "======== role=$ROLE path=$PGPATH uid=$PUID ========"
+            code=$(curl -s "${COOKIE_ARGS[@]}" -o /tmp/body -w '%{http_code}' "$APP$PGPATH")
             echo "  HTTP $code  body_bytes=$(wc -c </tmp/body)"
             echo "  digest: $(grep -oE 'Digest[^<\"]*' /tmp/body | head -1)"
-            echo "  contains 'No registered field staff': $(grep -c 'No registered field staff' /tmp/body)"
-            echo "  contains 'Sarin'(employee): $(grep -c 'Sarin' /tmp/body)"
-            echo "  contains 'server-side exception': $(grep -c 'server-side exception' /tmp/body)"
-            echo "  contains '201 Files'(header): $(grep -c '201 Files' /tmp/body)"
+            echo "  server-side exception: $(grep -c 'server-side exception' /tmp/body)"
+            echo "  'Attendance records'(ok marker): $(grep -c 'Attendance records' /tmp/body)"
             curl -s -X DELETE "$URL/auth/v1/admin/users/$PUID" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -o /dev/null
           }
 
-          fetch_as owner
-          fetch_as hr
-          fetch_as admin
+          fetch_as owner /admin/hr
+          fetch_as owner /hr
+          fetch_as hr /hr
