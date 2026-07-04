@@ -5,7 +5,14 @@ import { InOutChart, CategoryBarChart } from "@/components/charts";
 import { DateRangeFilter } from "@/components/accounting/date-range-filter";
 import { php, cn } from "@/lib/utils";
 import { fetchRetailRevenue } from "@/lib/retail";
-import { EXPENSE_TYPE_LABELS, type Expense, type ExpenseType } from "@/lib/types";
+import {
+  EXPENSE_TYPE_LABELS,
+  PAYMENT_METHOD_LABELS,
+  type Expense,
+  type ExpenseType,
+  type PaymentMethod,
+  type PaymentSplit,
+} from "@/lib/types";
 
 export const metadata = { title: "Financial Overview" };
 export const dynamic = "force-dynamic";
@@ -35,7 +42,7 @@ export default async function FinancialOverviewPage({
   const [{ data: payments }, { data: expenses }] = await Promise.all([
     supabase
       .from("payments")
-      .select("amount, paid_at, created_at, status")
+      .select("amount, method, splits, paid_at, created_at, status")
       .eq("status", "confirmed"),
     // Only expenses that have cleared the field→admin review count officially.
     supabase
@@ -67,6 +74,38 @@ export default async function FinancialOverviewPage({
   const totalExpenses = outflow.reduce((s, x) => s + x.amount, 0);
   const net = revenue - totalExpenses;
   const margin = revenue > 0 ? Math.round((net / revenue) * 100) : 0;
+
+  // Breakdown of client payments by mode of payment (split payments are
+  // distributed across their parts). Retail purchases have no mode and are
+  // excluded from this breakdown.
+  const byMode = new Map<PaymentMethod, number>();
+  for (const p of (payments as
+    | {
+        amount: number;
+        method: PaymentMethod;
+        splits: PaymentSplit[] | null;
+        paid_at: string | null;
+        created_at: string;
+      }[]
+    | null) ?? []) {
+    const when = (p.paid_at ?? p.created_at).slice(0, 10);
+    if (!inRange(when, from, to)) continue;
+    if (p.splits && p.splits.length > 0) {
+      for (const s of p.splits)
+        byMode.set(s.method, (byMode.get(s.method) ?? 0) + Number(s.amount));
+    } else {
+      byMode.set(p.method, (byMode.get(p.method) ?? 0) + Number(p.amount));
+    }
+  }
+  const paymentsTotal = [...byMode.values()].reduce((s, v) => s + v, 0);
+  const modeRows = (Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethod[])
+    .map((m) => ({ method: m, amount: byMode.get(m) ?? 0 }))
+    .filter((r) => r.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+  const modeData = modeRows.map((r) => ({
+    label: PAYMENT_METHOD_LABELS[r.method],
+    value: r.amount,
+  }));
 
   // Choose chart granularity from the range span.
   let gran: Gran = "month";
@@ -158,6 +197,52 @@ export default async function FinancialOverviewPage({
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">
               No data for this period.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Payments by mode</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Client payments broken down by cash, credit card, bank transfer and
+            check (split payments counted per part).
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {modeData.length ? (
+            <>
+              <CategoryBarChart data={modeData} />
+              <dl className="divide-y text-sm">
+                {modeRows.map((r) => (
+                  <div
+                    key={r.method}
+                    className="flex items-center justify-between py-1.5"
+                  >
+                    <dt className="text-muted-foreground">
+                      {PAYMENT_METHOD_LABELS[r.method]}
+                    </dt>
+                    <dd className="flex items-center gap-3 tabular-nums">
+                      <span className="text-xs text-muted-foreground">
+                        {paymentsTotal
+                          ? Math.round((r.amount / paymentsTotal) * 100)
+                          : 0}
+                        %
+                      </span>
+                      <span className="font-medium">{php(r.amount)}</span>
+                    </dd>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between py-2 font-semibold">
+                  <dt>Total payments</dt>
+                  <dd className="tabular-nums">{php(paymentsTotal)}</dd>
+                </div>
+              </dl>
+            </>
+          ) : (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              No client payments for this period.
             </p>
           )}
         </CardContent>
