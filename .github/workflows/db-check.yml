@@ -76,3 +76,13 @@ jobs:
             -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
             -H "Content-Type: application/json" -d '{}' | head -c 300
           echo
+
+          echo "============================================================"
+          echo "7) Production page fetch (unauth) — does the route module load?"
+          APP="https://futex-web-app.vercel.app"
+          for p in /hr/201-files /hr /admin /login; do
+            code=$(curl -s -o /tmp/pg -w '%{http_code}' "$APP$p")
+            loc=$(curl -s -o /dev/null -w '%{redirect_url}' "$APP$p")
+            dig=$(grep -oE 'Digest[^<]*' /tmp/pg | head -1)
+            echo "  $p -> HTTP $code  redirect=$loc  $dig"
+          done
