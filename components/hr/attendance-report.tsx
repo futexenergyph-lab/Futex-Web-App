@@ -56,7 +56,6 @@ export async function AttendanceReport({
   /** Management & Owner may edit/delete records (logged to the audit trail). */
   canManage?: boolean;
 }) {
-  try {
   const supabase = createClient();
 
   const { data: staff } = await supabase
@@ -162,18 +161,15 @@ export async function AttendanceReport({
       photo: signedFor.get(r.id) ?? null,
     }));
 
-  const _d = (searchParams as Record<string, string | undefined>).d;
-  const _s = _d === undefined ? 99 : Number(_d);
   return (
     <div className="space-y-6">
       <PageHeader
         title="HR — Attendance"
         description="Time in/out records, hours worked, and late flags vs the 9 AM / 2 PM schedule."
       >
-        {_s >= 1 && <CsvExport rows={csvRows} filename="futex-attendance.csv" />}
+        <CsvExport rows={csvRows} filename="futex-attendance.csv" />
       </PageHeader>
 
-      {_s >= 2 && (
       <Card>
         <CardContent className="pt-6">
           <form className="flex flex-wrap items-end gap-3">
@@ -215,9 +211,7 @@ export async function AttendanceReport({
           </form>
         </CardContent>
       </Card>
-      )}
 
-      {_s >= 3 && (
       <Card>
         <CardHeader>
           <CardTitle>Attendance records</CardTitle>
@@ -289,9 +283,7 @@ export async function AttendanceReport({
           </Table>
         </CardContent>
       </Card>
-      )}
 
-      {_s >= 4 && (
       <Card>
         <CardHeader>
           <CardTitle>Location &amp; time log</CardTitle>
@@ -355,24 +347,6 @@ export async function AttendanceReport({
           </Table>
         </CardContent>
       </Card>
-      )}
     </div>
   );
-  } catch (err) {
-    const e = err as Error;
-    return (
-      <pre
-        style={{
-          whiteSpace: "pre-wrap",
-          fontSize: 12,
-          padding: 16,
-          background: "#fff5f5",
-          color: "#7a1f1f",
-          borderRadius: 8,
-        }}
-      >
-        {`ATTENDANCE DIAG ERROR\n${e?.name}: ${e?.message}\n\n${e?.stack ?? "(no stack)"}`}
-      </pre>
-    );
-  }
 }
