@@ -244,6 +244,7 @@ export default async function AccountingPage({
                             method: p.method,
                             reference_no: p.reference_no,
                             status: p.status,
+                            splits: p.splits,
                           }}
                           clientName={p.bookings?.client_name ?? "—"}
                         />
