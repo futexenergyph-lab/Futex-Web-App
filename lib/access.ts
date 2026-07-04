@@ -14,6 +14,7 @@ const ADMIN_STAFF_PREFIX = [
   "/admin/utilization",
   "/admin/live",
   "/admin/analytics",
+  "/admin/database", // Database (daily exports)
   "/accounting/expenses", // Expenses (input only)
   "/accounting/retail", // Retail Purchases
 ];
