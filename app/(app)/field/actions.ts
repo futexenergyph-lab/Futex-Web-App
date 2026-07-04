@@ -477,17 +477,30 @@ export async function confirmPayment(input: {
   method: PaymentMethod;
   referenceNo: string;
   proofPath: string | null;
+  splits?: { method: PaymentMethod; amount: number }[] | null;
 }) {
   const profile = await me();
   await assertAssigned(input.bookingId, profile.id);
   const supabase = createClient();
+
+  // Split payment: the amount is the sum of the parts and the row's `method`
+  // is the first part (a representative for legacy single-method displays).
+  const splits =
+    input.splits?.filter((s) => s.amount > 0) ?? null;
+  const useSplit = !!(splits && splits.length > 0);
+  const amount = useSplit
+    ? splits!.reduce((t, s) => t + s.amount, 0)
+    : input.amount;
+  const method = useSplit ? splits![0].method : input.method;
+
   // Field officer records the payment; it stays PENDING until management
   // confirms it from Deployment, at which point it reflects in accounting.
   const { error } = await supabase.from("payments").insert({
     booking_id: input.bookingId,
     job_order_id: input.jobOrderId,
-    amount: input.amount,
-    method: input.method,
+    amount,
+    method,
+    splits: useSplit ? splits : null,
     reference_no: input.referenceNo || null,
     proof_url: input.proofPath,
     confirmed_by_field_officer_id: profile.id,

@@ -22,6 +22,7 @@ import {
   PAYMENT_METHOD_LABELS,
   RETAIL_PURCHASE_TYPE_LABELS,
   type PaymentMethod,
+  type PaymentSplit,
 } from "@/lib/types";
 
 export const metadata = { title: "Payments" };
@@ -31,6 +32,7 @@ interface PaymentRow {
   id: string;
   amount: number;
   method: PaymentMethod;
+  splits: PaymentSplit[] | null;
   reference_no: string | null;
   status: string;
   paid_at: string | null;
@@ -59,7 +61,7 @@ export default async function AccountingPage({
   const { data } = await supabase
     .from("payments")
     .select(
-      `id, amount, method, reference_no, status, paid_at, created_at,
+      `id, amount, method, splits, reference_no, status, paid_at, created_at,
        bookings(client_name),
        confirmed_by:profiles!payments_confirmed_by_field_officer_id_fkey(full_name),
        job_orders(final_total, packages(name))`,
@@ -86,10 +88,16 @@ export default async function AccountingPage({
   const confirmedTotal = confirmed.reduce((s, p) => s + Number(p.amount), 0);
   const total = confirmedTotal + retailTotal;
 
-  // By method
+  // By method — split payments are distributed across their parts.
   const byMethod = new Map<string, number>();
-  for (const p of confirmed)
-    byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + Number(p.amount));
+  for (const p of confirmed) {
+    if (p.splits && p.splits.length > 0) {
+      for (const s of p.splits)
+        byMethod.set(s.method, (byMethod.get(s.method) ?? 0) + Number(s.amount));
+    } else {
+      byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + Number(p.amount));
+    }
+  }
   const methodData = [...byMethod.entries()].map(([k, v]) => ({
     label: PAYMENT_METHOD_LABELS[k as PaymentMethod],
     value: v,
@@ -112,7 +120,13 @@ export default async function AccountingPage({
     date: p.paid_at ?? p.created_at,
     client: p.bookings?.client_name ?? "",
     package: p.job_orders?.packages?.name ?? "",
-    method: PAYMENT_METHOD_LABELS[p.method],
+    method:
+      p.splits && p.splits.length > 0
+        ? "Split: " +
+          p.splits
+            .map((s) => `${PAYMENT_METHOD_LABELS[s.method]} ${s.amount}`)
+            .join(" + ")
+        : PAYMENT_METHOD_LABELS[p.method],
     reference: p.reference_no ?? "",
     officer: p.confirmed_by?.full_name ?? "",
     amount: p.amount,
@@ -204,9 +218,15 @@ export default async function AccountingPage({
                     {p.job_orders?.packages?.name ?? "—"}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary">
-                      {PAYMENT_METHOD_LABELS[p.method]}
-                    </Badge>
+                    {p.splits && p.splits.length > 0 ? (
+                      <Badge variant="secondary" title={p.splits.map((s) => `${PAYMENT_METHOD_LABELS[s.method]}: ${php(s.amount)}`).join(", ")}>
+                        Split
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">
+                        {PAYMENT_METHOD_LABELS[p.method]}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">
                     {p.confirmed_by?.full_name ?? "—"}

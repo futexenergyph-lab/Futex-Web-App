@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDate, formatTime12h } from "@/lib/utils";
-import type { BookingWithRelations, JobWork } from "@/lib/types";
+import type { BookingWithRelations, JobWork, PaymentSplit } from "@/lib/types";
 
 export const metadata = { title: "Deployment" };
 export const dynamic = "force-dynamic";
@@ -80,13 +80,14 @@ export default async function DeploymentPage() {
       referenceNo: string | null;
       paidAt: string | null;
       proofUrl: string | null;
+      splits: PaymentSplit[] | null;
     }
   >();
   if (allIds.length > 0) {
     const { data: pays } = await supabase
       .from("payments")
       .select(
-        "booking_id, amount, status, method, reference_no, paid_at, proof_url, created_at",
+        "booking_id, amount, status, method, reference_no, paid_at, proof_url, splits, created_at",
       )
       .in("booking_id", allIds)
       .order("created_at", { ascending: false });
@@ -99,6 +100,7 @@ export default async function DeploymentPage() {
           reference_no: string | null;
           paid_at: string | null;
           proof_url: string | null;
+          splits: PaymentSplit[] | null;
         }[]
       | null) ?? []) {
       if (payByBooking.has(p.booking_id)) continue;
@@ -116,6 +118,7 @@ export default async function DeploymentPage() {
         referenceNo: p.reference_no,
         paidAt: p.paid_at,
         proofUrl,
+        splits: p.splits ?? null,
       });
     }
   }

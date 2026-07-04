@@ -24,6 +24,11 @@ export type BookingSource = "manual" | "web";
 export type AttendanceType = "time_in" | "time_out";
 export type JobOrderStatus = "draft" | "submitted" | "locked";
 export type PaymentMethod = "cash" | "check" | "credit_card" | "bank_transfer";
+
+export interface PaymentSplit {
+  method: PaymentMethod;
+  amount: number;
+}
 export type PaymentStatus = "pending" | "confirmed" | "declined";
 
 export interface Profile {
