@@ -1,7 +1,7 @@
 name: DB Check
 
-# Diagnostic: dump the exact attendance query AttendanceReport runs, to find
-# the row/shape that crashes the render.
+# Diagnostic: fetch /admin/hr as an authenticated owner and print the inline
+# diagnostic error the instrumented AttendanceReport renders.
 
 on:
   workflow_dispatch:
@@ -21,47 +21,40 @@ jobs:
             REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
           fi
           URL="https://$REF.supabase.co"
+          APP="https://futex-web-app.vercel.app"
           SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
+          ANON=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="anon")|.api_key) else empty end')
 
-          echo "=== exact attendance query (embed profiles) — HTTP + first rows ==="
-          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/attendance" \
-            --data-urlencode "select=id,user_id,type,timestamp,photo_url,lat,lng,profiles(full_name,role)" \
-            --data-urlencode "order=timestamp.asc" \
-            --data-urlencode "limit=3" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 2500
-          echo
+          TS=$(date +%s%N)
+          EMAIL="diag-owner-$TS@example.com"
+          PASS="Probe-$TS-Aa1!"
+          CREATE=$(curl -s -X POST "$URL/auth/v1/admin/users" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -H "Content-Type: application/json" -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"email_confirm\":true}")
+          PUID=$(echo "$CREATE" | jq -r '.id // .user.id // empty')
+          curl -s -X POST "$URL/rest/v1/profiles" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -H "Content-Type: application/json" -H "Prefer: resolution=merge-duplicates,return=minimal" -d "{\"id\":\"$PUID\",\"full_name\":\"Diag Owner\",\"role\":\"owner\",\"active\":true}" -o /dev/null
+          TOK=$(curl -s -X POST "$URL/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H "Content-Type: application/json" -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
+          SESSION=$(echo "$TOK" | jq -c '.')
+          NAME="sb-$REF-auth-token"
+          B64=$(printf '%s' "$SESSION" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+          VAL="base64-$B64"; LEN=${#VAL}
+          COOKIE_ARGS=()
+          if [ $LEN -le 3600 ]; then COOKIE_ARGS=(-b "$NAME=$VAL"); else
+            off=0; i=0; while [ $off -lt $LEN ]; do COOKIE_ARGS+=(-b "$NAME.$i=${VAL:$off:3600}"); off=$((off+3600)); i=$((i+1)); done
+          fi
 
-          echo "=== total attendance rows ==="
-          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/attendance" \
-            --data-urlencode "select=id" -H "Prefer: count=exact" \
-            --data-urlencode "limit=1" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -D - -o /dev/null | grep -i "content-range"
-
-          echo "=== distinct lat/lng JSON types (scan up to 500) ==="
-          curl -s -G "$URL/rest/v1/attendance" \
-            --data-urlencode "select=lat,lng" --data-urlencode "limit=500" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
-            | jq -r '[.[].lat|type] | unique | "lat types: \(.)"' 2>/dev/null
-          curl -s -G "$URL/rest/v1/attendance" \
-            --data-urlencode "select=lat,lng" --data-urlencode "limit=500" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
-            | jq -r '[.[].lng|type] | unique | "lng types: \(.)"' 2>/dev/null
-
-          echo "=== rows where profiles embed is null (orphaned user_id) ==="
-          curl -s -G "$URL/rest/v1/attendance" \
-            --data-urlencode "select=id,user_id,type,timestamp,profiles(full_name,role)" \
-            --data-urlencode "limit=500" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
-            | jq -r '[.[]|select(.profiles==null)] | "null-profiles rows: \(length)"' 2>/dev/null
-
-          echo "=== distinct profiles.role values present in attendance embed ==="
-          curl -s -G "$URL/rest/v1/attendance" \
-            --data-urlencode "select=profiles(role)" --data-urlencode "limit=500" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
-            | jq -r '[.[].profiles.role] | unique | "roles: \(.)"' 2>/dev/null
-
-          echo "=== timestamp null check ==="
-          curl -s -G "$URL/rest/v1/attendance" \
-            --data-urlencode "select=id,timestamp" --data-urlencode "timestamp=is.null" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 400
-          echo
+          code=$(curl -s "${COOKIE_ARGS[@]}" -o /tmp/body -w '%{http_code}' "$APP/admin/hr")
+          echo "HTTP $code  bytes=$(wc -c </tmp/body)"
+          echo "======== inline diagnostic (if body threw) ========"
+          # Print the <pre> diag block if present, else the digest ref.
+          python3 - <<'PY'
+          import re,html
+          t=open('/tmp/body',encoding='utf-8',errors='replace').read()
+          m=re.search(r'ATTENDANCE DIAG ERROR.*?</pre>', t, re.S)
+          if m:
+              print(html.unescape(re.sub(r'<[^>]+>','',m.group(0))))
+          else:
+              d=re.search(r'(Digest|Ref)[:\s]*([0-9]+)', t)
+              print("NO inline diag found (render-phase throw, not body).")
+              print("digest/ref:", d.group(0) if d else "none")
+              print("body head:", t[:300].replace(chr(10),' '))
+          PY
+          curl -s -X DELETE "$URL/auth/v1/admin/users/$PUID" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -o /dev/null

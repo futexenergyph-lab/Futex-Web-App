@@ -56,6 +56,7 @@ export async function AttendanceReport({
   /** Management & Owner may edit/delete records (logged to the audit trail). */
   canManage?: boolean;
 }) {
+  try {
   const supabase = createClient();
 
   const { data: staff } = await supabase
@@ -349,4 +350,21 @@ export async function AttendanceReport({
       </Card>
     </div>
   );
+  } catch (err) {
+    const e = err as Error;
+    return (
+      <pre
+        style={{
+          whiteSpace: "pre-wrap",
+          fontSize: 12,
+          padding: 16,
+          background: "#fff5f5",
+          color: "#7a1f1f",
+          borderRadius: 8,
+        }}
+      >
+        {`ATTENDANCE DIAG ERROR\n${e?.name}: ${e?.message}\n\n${e?.stack ?? "(no stack)"}`}
+      </pre>
+    );
+  }
 }
