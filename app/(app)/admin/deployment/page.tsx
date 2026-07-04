@@ -121,11 +121,11 @@ export default async function DeploymentPage() {
   }
 
   // Clients stay in the deployment list through the whole job (including once
-  // paid) and are only removed once the field officer marks the installation
-  // "completed" (or the booking is closed) — at which point they move to the
-  // Client Master List.
+  // paid) and are removed once the field officer marks the installation
+  // "completed", the booking is closed, or it is declined — at which point it
+  // only reflects in the Client Master List.
   const active = bookings.filter(
-    (b) => !["completed", "closed"].includes(b.status),
+    (b) => !["completed", "closed", "declined"].includes(b.status),
   );
 
   // Latest job order per booking (for the Job Order amount + details).
