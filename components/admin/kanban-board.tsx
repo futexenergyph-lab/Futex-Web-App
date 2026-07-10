@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import {
   MapPin,
   User,
+  Wrench,
   Calendar,
   Loader2,
   Unlock,
@@ -149,6 +150,14 @@ function BookingCard({
         <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
           <User className="h-3 w-3" />
           {booking.assigned_field_officer.full_name}
+          <span className="text-muted-foreground/70">· Field officer</span>
+        </p>
+      )}
+      {booking.assigned_installer && (
+        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+          <Wrench className="h-3 w-3" />
+          {booking.assigned_installer.full_name}
+          <span className="text-muted-foreground/70">· Installer</span>
         </p>
       )}
 
