@@ -100,6 +100,47 @@ export async function createQuotation(input: QuoteInput) {
   return { ok: true, id: data.id as string, quoteNo: data.quote_no as string };
 }
 
+/**
+ * Duplicate an existing quotation as a brand-new quote with a new quote number.
+ * Copies every field except the PDF (the copy starts without one so it can be
+ * regenerated under the new number) and re-stamps the preparer.
+ */
+export async function duplicateQuotation(id: string) {
+  const profile = await requireRole(["admin", "admin_staff"]);
+  const supabase = createClient();
+
+  const { data: src, error: fetchErr } = await supabase
+    .from("quotations")
+    .select(
+      "type, client_name, client_address, client_contact, client_email, items, subtotal, vat_enabled, vat, total, validity_days, notes, details",
+    )
+    .eq("id", id)
+    .single();
+  if (fetchErr || !src) return { error: fetchErr?.message ?? "Quotation not found." };
+
+  const year = new Date().getFullYear();
+  const { count } = await supabase
+    .from("quotations")
+    .select("id", { count: "exact", head: true });
+  const quoteNo = `Q-${year}-${String((count ?? 0) + 1).padStart(4, "0")}`;
+
+  const { data, error } = await supabase
+    .from("quotations")
+    .insert({
+      ...src,
+      quote_no: quoteNo,
+      storage_path: null, // fresh copy has no PDF yet — regenerate under new no.
+      prepared_by: profile.id,
+      prepared_by_name: profile.full_name,
+    })
+    .select("id, quote_no")
+    .single();
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/quotations");
+  return { ok: true, id: data.id as string, quoteNo: data.quote_no as string };
+}
+
 /** Update an existing quotation (keeps its quote number). */
 export async function updateQuotation(id: string, input: QuoteInput) {
   await requireRole(["admin", "admin_staff"]);
