@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Phone, Navigation } from "lucide-react";
+import { ArrowLeft, MapPin, Phone, Navigation, Wrench } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { BOOKING_SELECT } from "@/lib/queries";
@@ -244,6 +244,12 @@ export default async function FieldBookingDetail({
                 {b.preferred_time ? ` · ${formatTime12h(b.preferred_time)}` : ""}
               </p>
             )}
+            {b.assigned_installer && (
+              <p className="flex items-center gap-2 text-muted-foreground">
+                <Wrench className="h-4 w-4 shrink-0" />
+                Installer: {b.assigned_installer.full_name}
+              </p>
+            )}
             {b.notes && (
               <div className="rounded-md border bg-secondary/40 p-3">
                 <p className="text-xs font-semibold text-muted-foreground">
@@ -391,6 +397,12 @@ export default async function FieldBookingDetail({
           {b.preferred_package && (
             <p className="text-muted-foreground">
               Preferred package: {b.preferred_package.name}
+            </p>
+          )}
+          {b.assigned_installer && (
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <Wrench className="h-4 w-4 shrink-0" />
+              Installer: {b.assigned_installer.full_name}
             </p>
           )}
           {b.notes && (

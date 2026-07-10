@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, Phone, Calendar, ChevronRight } from "lucide-react";
+import { MapPin, Phone, Calendar, Wrench, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { BOOKING_SELECT } from "@/lib/queries";
@@ -81,6 +81,11 @@ function JobCard({ b }: { b: BookingWithRelations }) {
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" /> {formatDate(b.preferred_date)}
                   {b.preferred_time ? ` · ${formatTime12h(b.preferred_time)}` : ""}
+                </span>
+              )}
+              {b.assigned_installer && (
+                <span className="flex items-center gap-1">
+                  <Wrench className="h-3 w-3" /> {b.assigned_installer.full_name}
                 </span>
               )}
             </div>
