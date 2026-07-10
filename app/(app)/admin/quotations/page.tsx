@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { DeleteQuotationButton } from "@/components/admin/delete-quotation-button";
+import { DuplicateQuotationButton } from "@/components/admin/duplicate-quotation-button";
 import {
   RegenerateQuotationButton,
   type RegenQuote,
@@ -25,6 +26,21 @@ export const metadata = { title: "Quotations" };
 export const dynamic = "force-dynamic";
 
 type QuoteRow = RegenQuote & { storage_path: string | null };
+
+/** Minimal package/line summary shown in the history table. */
+function quoteSummary(r: QuoteRow): string {
+  if (r.type === "solar") {
+    const rows = r.details?.proposedCost ?? [];
+    if (rows.length === 0) return "—";
+    return rows
+      .map((p) => `${p.packageName}${p.noOfPackage > 1 ? ` ×${p.noOfPackage}` : ""}`)
+      .join(", ");
+  }
+  const items = r.items ?? [];
+  if (items.length === 0) return "—";
+  const first = items[0].description?.trim() || "Item";
+  return items.length > 1 ? `${first} +${items.length - 1} more` : first;
+}
 
 export default async function QuotationsPage() {
   await requireRole(["admin", "admin_staff"]);
@@ -94,6 +110,7 @@ export default async function QuotationsPage() {
                 <TableHead>Quote No.</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Client</TableHead>
+                <TableHead>Details</TableHead>
                 <TableHead>Total</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -117,6 +134,9 @@ export default async function QuotationsPage() {
                     )}
                   </TableCell>
                   <TableCell>{r.client_name}</TableCell>
+                  <TableCell className="max-w-[16rem] text-sm text-muted-foreground">
+                    <span className="line-clamp-2">{quoteSummary(r)}</span>
+                  </TableCell>
                   <TableCell className="tabular-nums">{php(r.total)}</TableCell>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                     {formatDate(r.created_at)}
@@ -139,6 +159,7 @@ export default async function QuotationsPage() {
                         </span>
                       )}
                       <RegenerateQuotationButton quote={r} />
+                      <DuplicateQuotationButton id={r.id} />
                       <Button asChild variant="ghost" size="icon" title="Edit">
                         <Link href={`/admin/quotations/${r.id}/edit`}>
                           <Pencil className="h-4 w-4" />
@@ -152,7 +173,7 @@ export default async function QuotationsPage() {
               {rows.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="py-12 text-center text-muted-foreground"
                   >
                     <FileText className="mx-auto mb-2 h-6 w-6 opacity-50" />
