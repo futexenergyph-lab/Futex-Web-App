@@ -284,9 +284,18 @@ function Column({
   );
 }
 
-// New & Scheduled are backlog columns — always visible regardless of the date
-// window. Every later (installation-progress) status is scoped to the window.
-const ALWAYS_SHOW: BookingStatus[] = ["new", "scheduled"];
+// Backlog (New, Scheduled) and active in-progress work (Deployed, On-Site,
+// In Progress) stay visible regardless of the date window — an ongoing job must
+// never drop off the board just because its install date isn't the selected
+// day. Only the finished columns (Completed, Paid, Closed, Declined) are scoped
+// to the window so history doesn't pile up.
+const ALWAYS_SHOW: BookingStatus[] = [
+  "new",
+  "scheduled",
+  "deployed",
+  "on_site",
+  "in_progress",
+];
 
 export function KanbanBoard({
   initial,
