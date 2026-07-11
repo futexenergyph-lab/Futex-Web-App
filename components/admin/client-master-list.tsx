@@ -18,12 +18,23 @@ import {
   type DocPhoto,
 } from "@/components/admin/documentation-viewer";
 import { DeleteRecordButton } from "@/components/admin/delete-record-button";
-import { formatDate } from "@/lib/utils";
+import { EditBookingDialog } from "@/components/admin/edit-booking-dialog";
+import {
+  PaymentJobOrderDialog,
+  type ClientPayment,
+} from "@/components/admin/payment-joborder-dialog";
+import { formatDate, php } from "@/lib/utils";
 import {
   BOOKING_STATUS_LABELS,
   BOOKING_STATUSES,
   type BookingStatus,
+  type BookingWithRelations,
 } from "@/lib/types";
+
+interface Option {
+  id: string;
+  name: string;
+}
 
 export interface ClientRow {
   id: string;
@@ -39,6 +50,14 @@ export interface ClientRow {
   source: string;
   created_at: string;
   preferred_date: string | null;
+  // Booking fields the admin may edit (never payment). Optional so the field
+  // officer's Client List (which reuses this table) still satisfies the type.
+  preferred_time?: string | null;
+  preferred_package_id?: string | null;
+  preferred_enclosure_id?: string | null;
+  enclosure_protection_notes?: string | null;
+  notes?: string | null;
+  payment?: ClientPayment | null;
   documents: { title: string; url: string }[];
   documentation: DocPhoto[];
 }
@@ -53,9 +72,16 @@ type SortKey =
 export function ClientMasterList({
   clients,
   canManage = false,
+  showPayment = false,
+  packages = [],
+  enclosures = [],
 }: {
   clients: ClientRow[];
   canManage?: boolean;
+  /** Show the Total Payment column + job-order view (admin/management only). */
+  showPayment?: boolean;
+  packages?: Option[];
+  enclosures?: Option[];
 }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<BookingStatus | "all">("all");
@@ -105,6 +131,7 @@ export function ClientMasterList({
     field_officer: c.field_officer ?? "",
     installer: c.installer ?? "",
     status: BOOKING_STATUS_LABELS[c.status],
+    total_payment: c.payment ? c.payment.total : "",
     source: c.source,
     submitted: c.created_at.slice(0, 10),
   }));
@@ -164,6 +191,7 @@ export function ClientMasterList({
               <TableHead>Field Officer</TableHead>
               <TableHead>Installer</TableHead>
               <SortHead k="status" label="Status" />
+              {showPayment && <TableHead>Total Payment</TableHead>}
               <SortHead k="created_at" label="Submitted" />
               <TableHead>Commissioning &amp; Warranty</TableHead>
               <TableHead>Documentation</TableHead>
@@ -192,6 +220,18 @@ export function ClientMasterList({
                 <TableCell>
                   <StatusBadge status={c.status} />
                 </TableCell>
+                {showPayment && (
+                  <TableCell className="text-sm">
+                    {c.payment ? (
+                      <PaymentJobOrderDialog
+                        clientName={c.client_name}
+                        payment={c.payment}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground">{php(0)}</span>
+                    )}
+                  </TableCell>
+                )}
                 <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                   {formatDate(c.created_at)}
                 </TableCell>
@@ -220,11 +260,34 @@ export function ClientMasterList({
                 </TableCell>
                 {canManage && (
                   <TableCell>
-                    <DeleteRecordButton
-                      table="bookings"
-                      id={c.id}
-                      label={`Client — ${c.client_name}`}
-                    />
+                    <div className="flex items-center gap-2">
+                      <EditBookingDialog
+                        booking={
+                          {
+                            id: c.id,
+                            client_number: c.client_number,
+                            client_name: c.client_name,
+                            email: c.email,
+                            address: c.address,
+                            contact_number: c.contact_number,
+                            preferred_date: c.preferred_date,
+                            preferred_time: c.preferred_time,
+                            preferred_package_id: c.preferred_package_id,
+                            preferred_enclosure_id: c.preferred_enclosure_id,
+                            enclosure_protection_notes:
+                              c.enclosure_protection_notes,
+                            notes: c.notes,
+                          } as unknown as BookingWithRelations
+                        }
+                        packages={packages}
+                        enclosures={enclosures}
+                      />
+                      <DeleteRecordButton
+                        table="bookings"
+                        id={c.id}
+                        label={`Client — ${c.client_name}`}
+                      />
+                    </div>
                   </TableCell>
                 )}
               </TableRow>
@@ -232,7 +295,7 @@ export function ClientMasterList({
             {filtered.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={canManage ? 13 : 12}
+                  colSpan={12 + (showPayment ? 1 : 0) + (canManage ? 1 : 0)}
                   className="py-10 text-center text-muted-foreground"
                 >
                   No clients match your filter.
