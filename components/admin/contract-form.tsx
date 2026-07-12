@@ -49,15 +49,44 @@ const DEFAULT_WARRANTY = [
 ].join("\n");
 
 const DEFAULT_SCOPE = [
-  "1.) General Requirements",
-  "-Mobilization and Demobilization",
-  "-Supervision and Management",
-  "-Safety Requirements",
-  "2.) Preparatory Works",
-  "Panel Layout and conduit routing and panel location subject to approval by Owner.",
-  "3.) Solar Panel Installation, Wires, and Cabling Installations, Panel Installations",
-  "4.) Restoration of affected Civil and Electrical Installations",
+  "General Requirements",
+  "* Mobilization and Demobilization",
+  "* Supervision and Management",
+  "* Safety Requirement",
+  "1. Preparatory Works",
+  "2. Panel Layout and conduit routing and panel location subject to approval by Owner.",
+  "3. Solar Panel Installation, Wires, and Cabling Installations, Panel Installations",
+  "4. Restoration of affected Civil and Electrical Installations",
+  "5. Monitoring System using iSolarcloud, deye cloud or solarman app for real time monitoring.",
+  "* Daily, monthly and yearly data gathering for the solar plant performance (e.g, Consumption, Battery performance, Alerts, Faults etc...)",
+  "Documentation and Handover with Warranty certificates, Operation Manual and Maintenance guide.",
+  "* Basic training and troubleshooting orientation for the end user upon endorsement.",
+  "* Final commissioning and testing",
 ].join("\n");
+
+/** Compose the "Equipment and Services" line from the quotation details. */
+function defaultEquipmentLine(initial: ContractInitial): string {
+  const base = "Supply and installation, testing, and commissioning of ";
+  const d = initial.quote.details;
+  if (d && Array.isArray(d.products)) {
+    const inc = (k: string) =>
+      (d.products.find((p) => p.key === k)?.inclusion ?? "").trim();
+    const inv = inc("inverter");
+    const panel = inc("panel");
+    const batt = inc("battery");
+    const head = [inv, panel].filter(Boolean).join(", ");
+    if (head || batt) {
+      let s = base + head;
+      if (batt) s += `${head ? " " : ""}with (${batt})`;
+      return s.trim();
+    }
+  }
+  const items = initial.quote.items
+    .map((i) => i.description.trim())
+    .filter(Boolean);
+  if (items.length) return base + items.join(", ");
+  return base + "the equipment and services per the attached quotation.";
+}
 
 /** Build the quotation PDF (page 1) from the stored quote payload. */
 function buildQuotePdf(initial: ContractInitial, logo: string | null): Blob {
@@ -168,6 +197,9 @@ export function ContractForm({ initial }: { initial: ContractInitial }) {
   const [supplierAddress, setSupplierAddress] = useState(initial.supplierAddress);
   const [supplierContact, setSupplierContact] = useState(initial.supplierContact);
 
+  // Equipment & Services line (from the quotation, editable)
+  const [equipment, setEquipment] = useState(defaultEquipmentLine(initial));
+
   // Price & service fees
   const [finalPrice, setFinalPrice] = useState<number>(initial.total);
   const [duration, setDuration] = useState("Installation: 1 day");
@@ -220,6 +252,7 @@ export function ContractForm({ initial }: { initial: ContractInitial }) {
             address: supplierAddress,
             contact: supplierContact,
           },
+          equipmentLine: equipment,
           finalAgreedPrice: Number(finalPrice) || 0,
           duration,
           site,
@@ -312,6 +345,17 @@ export function ContractForm({ initial }: { initial: ContractInitial }) {
         </Field>
         <Field label="Address" full>
           <Textarea rows={2} value={supplierAddress} onChange={(e) => setSupplierAddress(e.target.value)} />
+        </Field>
+      </Section>
+
+      {/* Equipment & services (from the quotation) */}
+      <Section title="Equipment and Services" single>
+        <Field label="Equipment & services line (auto-filled from the quotation)" full>
+          <Textarea
+            rows={2}
+            value={equipment}
+            onChange={(e) => setEquipment(e.target.value)}
+          />
         </Field>
       </Section>
 

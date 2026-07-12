@@ -3,6 +3,7 @@ import { jsPDF } from "jspdf";
 export interface ContractPdfOpts {
   client: { name: string; address: string; contact: string };
   supplier: { name: string; address: string; contact: string };
+  equipmentLine: string;
   finalAgreedPrice: number;
   duration: string;
   site: string;
@@ -176,35 +177,63 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
     y += Math.max(16, lines.length * 12) + 2;
   };
 
-  const bullets = (lines: string[]) => {
+  // Renders a mixed list:
+  //  - "* " / "- " lines  -> indented bullet
+  //  - "1." / "1)" lines  -> numbered item (kept as typed)
+  //  - plain lines        -> bold heading when plainHeading, else a bullet
+  const bullets = (lines: string[], plainHeading = false) => {
     doc.setFontSize(9.5);
     doc.setTextColor(30);
     for (const raw of lines) {
       let t = raw.trim();
       if (!t) continue;
-      // "1)" / "1." headings render bold & flush; "-" lines are indented
-      // sub-bullets; everything else is a normal bullet.
       const numbered = /^\d+[).]/.test(t);
-      if (numbered) {
-        doc.setFont("helvetica", "bold");
-        const wrapped = doc.splitTextToSize(t, contentW - 8) as string[];
-        need(wrapped.length * 12 + 3);
-        doc.text(wrapped, MARGIN + 2, y + 9);
-        doc.setFont("helvetica", "normal");
-        y += wrapped.length * 12 + 3;
-      } else {
-        const sub = t.startsWith("-");
-        if (sub) t = t.replace(/^-\s*/, "");
-        const bx = sub ? MARGIN + 22 : MARGIN + 12;
-        const tx = sub ? MARGIN + 32 : MARGIN + 24;
+      const isBullet = /^[*-]\s*/.test(t);
+      if (isBullet) {
+        t = t.replace(/^[*-]\s*/, "");
+        const tx = MARGIN + 30;
         doc.setFont("helvetica", "normal");
         const wrapped = doc.splitTextToSize(t, contentW - (tx - MARGIN) - 6) as string[];
         need(wrapped.length * 12 + 2);
-        doc.text(sub ? "–" : "•", bx, y + 9);
+        doc.text("•", MARGIN + 20, y + 9);
         doc.text(wrapped, tx, y + 9);
         y += wrapped.length * 12 + 3;
+      } else if (numbered) {
+        doc.setFont("helvetica", "normal");
+        const wrapped = doc.splitTextToSize(t, contentW - 14) as string[];
+        need(wrapped.length * 12 + 2);
+        doc.text(wrapped, MARGIN + 8, y + 9);
+        y += wrapped.length * 12 + 3;
+      } else {
+        doc.setFont("helvetica", plainHeading ? "bold" : "normal");
+        const wrapped = doc.splitTextToSize(t, contentW - (plainHeading ? 8 : 30)) as string[];
+        need(wrapped.length * 12 + 3);
+        if (plainHeading) {
+          doc.text(wrapped, MARGIN + 2, y + 9);
+        } else {
+          doc.text("•", MARGIN + 12, y + 9);
+          doc.text(wrapped, MARGIN + 24, y + 9);
+        }
+        doc.setFont("helvetica", "normal");
+        y += wrapped.length * 12 + (plainHeading ? 4 : 3);
       }
     }
+    doc.setTextColor(0);
+  };
+
+  // A single centered signature line (name + role), placed at the given y.
+  const oneSignature = (name: string, role: string, atY: number) => {
+    const colW = 250;
+    const x = MARGIN + (contentW - colW) / 2;
+    doc.setDrawColor(120);
+    doc.line(x, atY, x + colW, atY);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(name, x + colW / 2, atY + 15, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(90);
+    doc.text(role, x + colW / 2, atY + 28, { align: "center" });
     doc.setTextColor(0);
   };
 
@@ -268,6 +297,23 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
     ["Contact Number", o.supplier.contact],
   ]);
 
+  if (o.equipmentLine.trim()) {
+    banner("Equipment and Services:");
+    paragraph(
+      "Supplier will provide the following equipment, and/or related services, to Customer as set forth below",
+    );
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    const eq = doc.splitTextToSize(
+      `“${o.equipmentLine.trim()}”`,
+      contentW - 40,
+    ) as string[];
+    need(eq.length * 14 + 8);
+    doc.text(eq, W / 2, y + 12, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    y += eq.length * 14 + 10;
+  }
+
   banner("Purchase Price and Service Fees");
   paragraph(
     "Customer agrees to pay Supplier for the equipment, and/or related services, the amounts set forth and in accordance with the payment terms outlined in the contract.",
@@ -310,7 +356,7 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
   y += 20;
 
   banner("Scope of Works and BOQ");
-  bullets(o.scope);
+  bullets(o.scope, true);
 
   paragraph(
     "IN WITNESS WHEREOF, the undersigned have caused this order to be duly executed by their duly authorized representatives.",
@@ -329,49 +375,46 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
     doc.addPage();
     pageHeader(false);
     banner("Acknowledgement Receipt");
-    paragraph(`Dear ${o.client.name},`, 10.5, 8);
+    y += 10;
+    paragraph(`Dear ${o.client.name},`, 11, 20);
     paragraph(
       "We hereby acknowledge receipt of payment and/or confirmation of delivery related to the solar installation at the following location:",
-      10,
-      10,
+      10.5,
+      22,
     );
     const kv = (label: string, value: string, bold = false) => {
-      need(16);
+      need(22);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
+      doc.setFontSize(10.5);
       doc.text(`${label}:`, MARGIN, y + 10);
       const lw = doc.getTextWidth(`${label}:  `);
       doc.setFont("helvetica", bold ? "bold" : "normal");
       doc.text(value || "—", MARGIN + lw + 4, y + 10);
-      y += 17;
+      y += 24;
     };
-    kv("Installation Address", o.receipt ? o.site || o.client.address : "", true);
+    kv("Installation Address", o.site || o.client.address, true);
     kv("Project Reference / Invoice No.", o.receipt.invoiceNo);
     kv("Date of Receipt", o.receipt.dateOfReceipt);
     kv("Amount Received", peso(o.receipt.amountReceived));
     kv("Mode of Payment", o.receipt.modeOfPayment);
-    y += 8;
+    y += 16;
     paragraph(
       "This acknowledgement confirms that the above-mentioned receipt has been recorded and the solar installation process has proceeded / will proceed as per the agreed terms and schedule.",
-      10,
-      10,
+      10.5,
+      22,
     );
     paragraph(
       "Should you require any further clarification or documentation, please feel free to contact us.",
-      10,
-      10,
+      10.5,
+      22,
     );
-    paragraph("Thank you for choosing us.", 10, 12);
+    paragraph("Thank you for choosing us.", 10.5, 24);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.text("Sincerely,", MARGIN, y + 10);
-    y += 6;
-    twoSignatures(
-      o.customerRep,
-      "Customer / Owner",
-      o.supplierRep,
-      "Authorized Representative, FUTEX",
-    );
+    // Only the owner / authorized representative signs; placed near the bottom
+    // so the letter fills the page.
+    oneSignature(o.supplierRep, "Authorized Representative, FUTEX", H - MARGIN - 48);
   }
 
   // ============================ Completion & Settlement ============================
@@ -379,67 +422,70 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
     doc.addPage();
     pageHeader(false);
     banner("ACKNOWLEDGEMENT OF COMPLETION AND SETTLEMENT");
+    y += 8;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    need(16);
+    doc.setFontSize(10.5);
+    need(20);
     doc.text(`Date:  ${o.completion.date}`, MARGIN, y + 10);
-    y += 20;
-    paragraph(`Dear ${o.client.name},`, 10.5, 8);
+    y += 26;
+    paragraph(`Dear ${o.client.name},`, 11, 20);
     paragraph(
       "We hereby acknowledge the successful completion of the solar installation project at the following location:",
-      10,
-      10,
+      10.5,
+      22,
     );
     const kv2 = (label: string, value: string) => {
-      need(16);
+      need(22);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
+      doc.setFontSize(10.5);
       doc.text(`${label}:`, MARGIN, y + 10);
       const lw = doc.getTextWidth(`${label}:  `);
       doc.text(value || "—", MARGIN + lw + 4, y + 10);
-      y += 17;
+      y += 24;
     };
     kv2("Installation Address", o.site || o.client.address);
     kv2("Project Reference / Invoice No.", o.completion.invoiceNo);
-    y += 6;
+    y += 14;
     paragraph(
       "We also acknowledge with thanks the full and final settlement of the outstanding balance in the amount of:",
-      10,
-      10,
+      10.5,
+      18,
     );
     // Boxed amount + words, centered.
-    need(60);
-    const boxH = 50;
-    const boxW = contentW * 0.7;
+    need(66);
+    const boxH = 56;
+    const boxW = contentW * 0.72;
     const boxX = MARGIN + (contentW - boxW) / 2;
     doc.setDrawColor(40);
     doc.setLineWidth(1.2);
     doc.rect(boxX, y, boxW, boxH);
     doc.setLineWidth(1);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text(peso(o.completion.settlementAmount), boxX + boxW / 2, y + 24, {
+    doc.setFontSize(19);
+    doc.text(peso(o.completion.settlementAmount), boxX + boxW / 2, y + 26, {
       align: "center",
     });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9.5);
     doc.setTextColor(70);
-    doc.text(`(${o.completion.settlementInWords})`, boxX + boxW / 2, y + 40, {
+    doc.text(`(${o.completion.settlementInWords})`, boxX + boxW / 2, y + 44, {
       align: "center",
     });
     doc.setTextColor(0);
-    y += boxH + 16;
+    y += boxH + 26;
     paragraph(
       "This payment completes the financial obligations under the terms of the contract. With this, the project is now considered fully closed.",
-      10,
-      10,
+      10.5,
+      22,
     );
     paragraph(
       "We sincerely appreciate your trust and partnership and look forward to serving you for future projects.",
-      10,
-      10,
+      10.5,
+      22,
     );
-    paragraph("Thank you very much.", 10, 12);
+    paragraph("Thank you very much.", 10.5, 12);
+    // Anchor the signatures near the bottom so the page is fully occupied.
+    y = H - MARGIN - 78;
     twoSignatures(
       o.customerRep,
       "Customer / Owner",
