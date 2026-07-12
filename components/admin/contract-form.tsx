@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Loader2, FileSignature } from "lucide-react";
 import { toast } from "sonner";
-import { buildContractPdf } from "@/lib/contract-pdf";
+import { buildContractPdf, pesosInWords } from "@/lib/contract-pdf";
+import { COMPANY } from "@/lib/company";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,6 +105,21 @@ export function ContractForm({ initial }: { initial: ContractInitial }) {
   const [bankAccountNumber, setBankAccountNumber] = useState("200067762688");
   const [scope, setScope] = useState(DEFAULT_SCOPE);
 
+  // Acknowledgement Receipt page (optional)
+  const [includeReceipt, setIncludeReceipt] = useState(true);
+  const [receiptDate, setReceiptDate] = useState(todayPlus(0));
+  const [receiptInvoice, setReceiptInvoice] = useState(initial.quoteNo ?? "");
+  const [receiptAmount, setReceiptAmount] = useState<number>(initial.total);
+  const [receiptWords, setReceiptWords] = useState(pesosInWords(initial.total));
+  const [receiptMode, setReceiptMode] = useState("");
+
+  // Acknowledgement of Completion & Settlement page (optional)
+  const [includeCompletion, setIncludeCompletion] = useState(true);
+  const [completionDate, setCompletionDate] = useState(todayPlus(14));
+  const [completionInvoice, setCompletionInvoice] = useState(initial.quoteNo ?? "");
+  const [settlementAmount, setSettlementAmount] = useState<number>(initial.total);
+  const [settlementWords, setSettlementWords] = useState(pesosInWords(initial.total));
+
   function onGenerate() {
     setBusy(true);
     (async () => {
@@ -135,6 +151,24 @@ export function ContractForm({ initial }: { initial: ContractInitial }) {
             accountNumber: bankAccountNumber,
           },
           scope: scope.split("\n"),
+          company: { legalName: COMPANY.legalName, phones: COMPANY.phones },
+          receipt: includeReceipt
+            ? {
+                dateOfReceipt: displayDate(receiptDate),
+                invoiceNo: receiptInvoice,
+                amountReceived: Number(receiptAmount) || 0,
+                amountInWords: receiptWords,
+                modeOfPayment: receiptMode,
+              }
+            : null,
+          completion: includeCompletion
+            ? {
+                date: displayDate(completionDate),
+                invoiceNo: completionInvoice,
+                settlementAmount: Number(settlementAmount) || 0,
+                settlementInWords: settlementWords,
+              }
+            : null,
           logo,
         });
         const safeName = (clientName || "client").replace(/[^\w-]+/g, "_");
@@ -253,6 +287,89 @@ export function ContractForm({ initial }: { initial: ContractInitial }) {
           <Textarea rows={8} value={scope} onChange={(e) => setScope(e.target.value)} />
         </Field>
       </Section>
+
+      {/* Acknowledgement Receipt page */}
+      <div className="space-y-3 rounded-md border p-4">
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input
+            type="checkbox"
+            checked={includeReceipt}
+            onChange={(e) => setIncludeReceipt(e.target.checked)}
+            className="h-4 w-4"
+          />
+          Include Acknowledgement Receipt page
+        </label>
+        {includeReceipt && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Date of receipt">
+              <Input type="date" value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} />
+            </Field>
+            <Field label="Project reference / Invoice no.">
+              <Input value={receiptInvoice} onChange={(e) => setReceiptInvoice(e.target.value)} />
+            </Field>
+            <Field label="Amount received (PHP)">
+              <Input
+                type="number"
+                min={0}
+                value={receiptAmount || ""}
+                onChange={(e) => {
+                  const n = Number(e.target.value) || 0;
+                  setReceiptAmount(n);
+                  setReceiptWords(pesosInWords(n));
+                }}
+              />
+            </Field>
+            <Field label="Mode of payment">
+              <Input
+                value={receiptMode}
+                placeholder="e.g. Cash / Bank Transfer / Check"
+                onChange={(e) => setReceiptMode(e.target.value)}
+              />
+            </Field>
+            <Field label="Amount in words" full>
+              <Input value={receiptWords} onChange={(e) => setReceiptWords(e.target.value)} />
+            </Field>
+          </div>
+        )}
+      </div>
+
+      {/* Completion & Settlement page */}
+      <div className="space-y-3 rounded-md border p-4">
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input
+            type="checkbox"
+            checked={includeCompletion}
+            onChange={(e) => setIncludeCompletion(e.target.checked)}
+            className="h-4 w-4"
+          />
+          Include Acknowledgement of Completion &amp; Settlement page
+        </label>
+        {includeCompletion && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Date">
+              <Input type="date" value={completionDate} onChange={(e) => setCompletionDate(e.target.value)} />
+            </Field>
+            <Field label="Project reference / Invoice no.">
+              <Input value={completionInvoice} onChange={(e) => setCompletionInvoice(e.target.value)} />
+            </Field>
+            <Field label="Settlement amount (PHP)">
+              <Input
+                type="number"
+                min={0}
+                value={settlementAmount || ""}
+                onChange={(e) => {
+                  const n = Number(e.target.value) || 0;
+                  setSettlementAmount(n);
+                  setSettlementWords(pesosInWords(n));
+                }}
+              />
+            </Field>
+            <Field label="Amount in words" full>
+              <Input value={settlementWords} onChange={(e) => setSettlementWords(e.target.value)} />
+            </Field>
+          </div>
+        )}
+      </div>
 
       <Button onClick={onGenerate} disabled={busy} className="w-full sm:w-auto">
         {busy ? (
