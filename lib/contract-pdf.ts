@@ -177,25 +177,33 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
   };
 
   const bullets = (lines: string[]) => {
-    doc.setFont("helvetica", "normal");
     doc.setFontSize(9.5);
     doc.setTextColor(30);
     for (const raw of lines) {
-      const t = raw.trim();
+      let t = raw.trim();
       if (!t) continue;
-      // Numbered headings (e.g. "1) ...") render flush; others get a bullet.
+      // "1)" / "1." headings render bold & flush; "-" lines are indented
+      // sub-bullets; everything else is a normal bullet.
       const numbered = /^\d+[).]/.test(t);
-      const wrapped = doc.splitTextToSize(t, contentW - 20) as string[];
-      need(wrapped.length * 12 + 2);
       if (numbered) {
         doc.setFont("helvetica", "bold");
-        doc.text(wrapped, MARGIN + 4, y + 9);
+        const wrapped = doc.splitTextToSize(t, contentW - 8) as string[];
+        need(wrapped.length * 12 + 3);
+        doc.text(wrapped, MARGIN + 2, y + 9);
         doc.setFont("helvetica", "normal");
+        y += wrapped.length * 12 + 3;
       } else {
-        doc.text("•", MARGIN + 12, y + 9);
-        doc.text(wrapped, MARGIN + 24, y + 9);
+        const sub = t.startsWith("-");
+        if (sub) t = t.replace(/^-\s*/, "");
+        const bx = sub ? MARGIN + 22 : MARGIN + 12;
+        const tx = sub ? MARGIN + 32 : MARGIN + 24;
+        doc.setFont("helvetica", "normal");
+        const wrapped = doc.splitTextToSize(t, contentW - (tx - MARGIN) - 6) as string[];
+        need(wrapped.length * 12 + 2);
+        doc.text(sub ? "–" : "•", bx, y + 9);
+        doc.text(wrapped, tx, y + 9);
+        y += wrapped.length * 12 + 3;
       }
-      y += wrapped.length * 12 + 3;
     }
     doc.setTextColor(0);
   };

@@ -3,8 +3,14 @@
 import { useState } from "react";
 import { Loader2, FileSignature } from "lucide-react";
 import { toast } from "sonner";
+import { PDFDocument } from "pdf-lib";
 import { buildContractPdf, pesosInWords } from "@/lib/contract-pdf";
-import { COMPANY } from "@/lib/company";
+import {
+  buildQuotationPdf,
+  buildSolarQuotationPdf,
+} from "@/lib/quotation-pdf";
+import { COMPANY, ACCREDITATION } from "@/lib/company";
+import type { SolarQuoteData } from "@/lib/solar-quote";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,26 +25,104 @@ export interface ContractInitial {
   supplierName: string;
   supplierAddress: string;
   supplierContact: string;
+  // Full quotation payload — rendered as page 1 of the contract.
+  quote: {
+    type: "ev" | "solar";
+    clientEmail: string;
+    items: { description: string; qty: number; unit_price: number }[];
+    subtotal: number;
+    vatEnabled: boolean;
+    vat: number;
+    validityDays: number;
+    notes: string;
+    details: SolarQuoteData | null;
+    preparedByName: string;
+    createdAt: string;
+  };
 }
 
 const DEFAULT_WARRANTY = [
-  "12 years warranty for Solar Panel with 25 years Life Span",
+  "15 years warranty for Solar Panel with 30 years Life Span",
   "10 years warranty for Solar Inverter",
   "10 years warranty for Solar Battery",
   "1 year warranty for Workmanship",
 ].join("\n");
 
 const DEFAULT_SCOPE = [
-  "1) General Requirements",
-  "Mobilization and Demobilization",
-  "Supervision and Management",
-  "Safety Requirements",
-  "2) Preparatory Works",
+  "1.) General Requirements",
+  "-Mobilization and Demobilization",
+  "-Supervision and Management",
+  "-Safety Requirements",
+  "2.) Preparatory Works",
   "Panel Layout and conduit routing and panel location subject to approval by Owner.",
-  "3) Solar Panel Installation, Wires, and Cabling Installations, Panel Installations",
-  "4) 7KW EV Charger Installation (Wall Mounted)",
-  "5) Restoration of affected Civil and Electrical Installations",
+  "3.) Solar Panel Installation, Wires, and Cabling Installations, Panel Installations",
+  "4.) Restoration of affected Civil and Electrical Installations",
 ].join("\n");
+
+/** Build the quotation PDF (page 1) from the stored quote payload. */
+function buildQuotePdf(initial: ContractInitial, logo: string | null): Blob {
+  const q = initial.quote;
+  const date = new Date(q.createdAt)
+    .toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "Asia/Manila",
+    })
+    .toUpperCase();
+  const quoteNo = initial.quoteNo ?? "";
+  if (q.type === "solar" && q.details) {
+    return buildSolarQuotationPdf({
+      quoteNo,
+      date,
+      client: {
+        name: initial.clientName,
+        address: initial.clientAddress,
+        contact: initial.clientContact,
+      },
+      data: q.details,
+      logo,
+    });
+  }
+  return buildQuotationPdf({
+    quoteNo,
+    date,
+    type: q.type,
+    validityDays: q.validityDays,
+    client: {
+      name: initial.clientName,
+      address: initial.clientAddress,
+      contact: initial.clientContact,
+      email: q.clientEmail,
+    },
+    items: q.items,
+    subtotal: q.subtotal,
+    vatEnabled: q.vatEnabled,
+    vat: q.vat,
+    total: initial.total,
+    notes: q.notes,
+    preparedByName: q.preparedByName,
+    company: {
+      legalName: COMPANY.legalName,
+      address: COMPANY.address,
+      phones: COMPANY.phones,
+      doeNumber: ACCREDITATION.number,
+    },
+    logo,
+  });
+}
+
+/** Merge quotation PDF + contract PDF into one document (quotation first). */
+async function mergePdfs(first: Blob, second: Blob): Promise<Blob> {
+  const out = await PDFDocument.create();
+  for (const b of [first, second]) {
+    const src = await PDFDocument.load(await b.arrayBuffer());
+    const pages = await out.copyPages(src, src.getPageIndices());
+    pages.forEach((p) => out.addPage(p));
+  }
+  const bytes = await out.save();
+  return new Blob([bytes as unknown as BlobPart], { type: "application/pdf" });
+}
 
 async function fetchDataUrl(url: string): Promise<string | null> {
   try {
@@ -125,7 +209,7 @@ export function ContractForm({ initial }: { initial: ContractInitial }) {
     (async () => {
       try {
         const logo = await fetchDataUrl("/images/logo-stacked.png");
-        const blob = buildContractPdf({
+        const contractBlob = buildContractPdf({
           client: {
             name: clientName,
             address: clientAddress,
@@ -171,6 +255,17 @@ export function ContractForm({ initial }: { initial: ContractInitial }) {
             : null,
           logo,
         });
+
+        // Page 1 = the project quotation, then the contract pages. If the
+        // quotation can't be rendered, fall back to contract-only.
+        let blob = contractBlob;
+        try {
+          const quoteBlob = buildQuotePdf(initial, logo);
+          blob = await mergePdfs(quoteBlob, contractBlob);
+        } catch {
+          toast.warning("Quotation page couldn't be added — contract only.");
+        }
+
         const safeName = (clientName || "client").replace(/[^\w-]+/g, "_");
         const fname = `Contract-${initial.quoteNo ?? "FUTEX"}-${safeName}.pdf`;
         const url = URL.createObjectURL(blob);
