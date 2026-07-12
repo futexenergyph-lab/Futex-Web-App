@@ -238,21 +238,28 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
   };
 
   const infoBox = (rows: [string, string][]) => {
-    const rowH = 18;
-    const h = rows.length * rowH + 8;
+    doc.setFontSize(9.5);
+    const valX = MARGIN + 120;
+    const valW = W - MARGIN - valX - 8;
+    doc.setFont("helvetica", "normal");
+    const wrapped = rows.map(([label, value]) => ({
+      label,
+      lines: doc.splitTextToSize(value || "—", valW) as string[],
+    }));
+    const rowHs = wrapped.map((r) => Math.max(18, r.lines.length * 12 + 6));
+    const h = rowHs.reduce((a, b) => a + b, 0) + 6;
     need(h);
     doc.setDrawColor(150);
     doc.rect(MARGIN, y, contentW, h);
     let ry = y + 6;
-    for (const [label, value] of rows) {
+    wrapped.forEach((r, i) => {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9.5);
-      doc.text(`${label}:`, MARGIN + 8, ry + 9);
+      doc.text(`${r.label}:`, MARGIN + 8, ry + 9);
       doc.setFont("helvetica", "normal");
-      const val = doc.splitTextToSize(value || "—", contentW - 130) as string[];
-      doc.text(val[0] ?? "", MARGIN + 120, ry + 9);
-      ry += rowH;
-    }
+      doc.text(r.lines, valX, ry + 9);
+      ry += rowHs[i];
+    });
     y += h + 8;
   };
 
@@ -383,14 +390,22 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
       22,
     );
     const kv = (label: string, value: string, bold = false) => {
-      need(22);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10.5);
-      doc.text(`${label}:`, MARGIN, y + 10);
       const lw = doc.getTextWidth(`${label}:  `);
+      const valX = MARGIN + lw + 4;
       doc.setFont("helvetica", bold ? "bold" : "normal");
-      doc.text(value || "—", MARGIN + lw + 4, y + 10);
-      y += 24;
+      const lines = doc.splitTextToSize(
+        value || "—",
+        Math.max(120, W - MARGIN - valX),
+      ) as string[];
+      const rowH = Math.max(24, lines.length * 13 + 8);
+      need(rowH);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${label}:`, MARGIN, y + 10);
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.text(lines, valX, y + 10);
+      y += rowH;
     };
     kv("Installation Address", o.site || o.client.address, true);
     kv("Project Reference / Invoice No.", o.receipt.invoiceNo);
@@ -436,13 +451,20 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
       22,
     );
     const kv2 = (label: string, value: string) => {
-      need(22);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10.5);
-      doc.text(`${label}:`, MARGIN, y + 10);
       const lw = doc.getTextWidth(`${label}:  `);
-      doc.text(value || "—", MARGIN + lw + 4, y + 10);
-      y += 24;
+      const valX = MARGIN + lw + 4;
+      const lines = doc.splitTextToSize(
+        value || "—",
+        Math.max(120, W - MARGIN - valX),
+      ) as string[];
+      const rowH = Math.max(24, lines.length * 13 + 8);
+      need(rowH);
+      doc.text(`${label}:`, MARGIN, y + 10);
+      doc.setFont("helvetica", "normal");
+      doc.text(lines, valX, y + 10);
+      y += rowH;
     };
     kv2("Installation Address", o.site || o.client.address);
     kv2("Project Reference / Invoice No.", o.completion.invoiceNo);
