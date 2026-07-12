@@ -77,7 +77,7 @@ function defaultEquipmentLine(initial: ContractInitial): string {
     const head = [inv, panel].filter(Boolean).join(", ");
     if (head || batt) {
       let s = base + head;
-      if (batt) s += `${head ? " " : ""}with (${batt})`;
+      if (batt) s += `${head ? " " : ""}with ${batt}`;
       return s.trim();
     }
   }
@@ -204,7 +204,9 @@ export function ContractForm({ initial }: { initial: ContractInitial }) {
   const [finalPrice, setFinalPrice] = useState<number>(initial.total);
   const [duration, setDuration] = useState("Installation: 1 day");
   const [site, setSite] = useState(initial.clientAddress);
-  const [paymentTerm, setPaymentTerm] = useState("50% Downpayment");
+  const [paymentTerm, setPaymentTerm] = useState(
+    "50% Downpayment + 50% Full Payment upon successful installation",
+  );
 
   // Representatives
   const [supplierRep, setSupplierRep] = useState(initial.supplierName);
@@ -221,20 +223,23 @@ export function ContractForm({ initial }: { initial: ContractInitial }) {
   const [bankAccountNumber, setBankAccountNumber] = useState("200067762688");
   const [scope, setScope] = useState(DEFAULT_SCOPE);
 
+  // Default amounts = 50% of the package cost (down / balance payment).
+  const halfTotal = Math.round(initial.total * 0.5);
+
   // Acknowledgement Receipt page (optional)
   const [includeReceipt, setIncludeReceipt] = useState(true);
   const [receiptDate, setReceiptDate] = useState(todayPlus(0));
   const [receiptInvoice, setReceiptInvoice] = useState(initial.quoteNo ?? "");
-  const [receiptAmount, setReceiptAmount] = useState<number>(initial.total);
-  const [receiptWords, setReceiptWords] = useState(pesosInWords(initial.total));
+  const [receiptAmount, setReceiptAmount] = useState<number>(halfTotal);
+  const [receiptWords, setReceiptWords] = useState(pesosInWords(halfTotal));
   const [receiptMode, setReceiptMode] = useState("");
 
   // Acknowledgement of Completion & Settlement page (optional)
   const [includeCompletion, setIncludeCompletion] = useState(true);
   const [completionDate, setCompletionDate] = useState(todayPlus(14));
   const [completionInvoice, setCompletionInvoice] = useState(initial.quoteNo ?? "");
-  const [settlementAmount, setSettlementAmount] = useState<number>(initial.total);
-  const [settlementWords, setSettlementWords] = useState(pesosInWords(initial.total));
+  const [settlementAmount, setSettlementAmount] = useState<number>(halfTotal);
+  const [settlementWords, setSettlementWords] = useState(pesosInWords(halfTotal));
 
   function onGenerate() {
     setBusy(true);
@@ -375,7 +380,7 @@ export function ContractForm({ initial }: { initial: ContractInitial }) {
         <Field label="Site">
           <Input value={site} onChange={(e) => setSite(e.target.value)} />
         </Field>
-        <Field label="Payment term">
+        <Field label="Payment terms" full>
           <Input value={paymentTerm} onChange={(e) => setPaymentTerm(e.target.value)} />
         </Field>
       </Section>

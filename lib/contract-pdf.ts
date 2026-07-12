@@ -321,7 +321,7 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
   bulletField("Final Agreed Price", peso(o.finalAgreedPrice));
   bulletField("Duration", o.duration);
   bulletField("Site", o.site);
-  bulletField("Payment Term", o.paymentTerm);
+  bulletField("Payment Terms", o.paymentTerm);
 
   banner("Authorized Representatives");
   paragraph(
@@ -412,9 +412,10 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
     doc.text("Sincerely,", MARGIN, y + 10);
-    // Only the owner / authorized representative signs; placed near the bottom
-    // so the letter fills the page.
-    oneSignature(o.supplierRep, "Authorized Representative, FUTEX", H - MARGIN - 48);
+    // Signatory sits directly below "Sincerely," (room left for the signature).
+    y += 56;
+    oneSignature(o.supplierRep, "Authorized Representative, FUTEX", y);
+    y += 32;
   }
 
   // ============================ Completion & Settlement ============================
@@ -483,9 +484,9 @@ export function buildContractPdf(o: ContractPdfOpts): Blob {
       10.5,
       22,
     );
-    paragraph("Thank you very much.", 10.5, 12);
-    // Anchor the signatures near the bottom so the page is fully occupied.
-    y = H - MARGIN - 78;
+    paragraph("Thank you very much.", 10.5, 18);
+    // Signatures follow the letter so the whole page stays as one page.
+    y += 16;
     twoSignatures(
       o.customerRep,
       "Customer / Owner",
