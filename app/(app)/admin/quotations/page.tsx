@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Zap, Sun, Download, FileText, Pencil } from "lucide-react";
+import { Zap, Sun, Download, FileText, Pencil, FileSignature } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
@@ -160,6 +160,16 @@ export default async function QuotationsPage() {
                       )}
                       <RegenerateQuotationButton quote={r} />
                       <DuplicateQuotationButton id={r.id} />
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="icon"
+                        title="Create a Contract"
+                      >
+                        <Link href={`/admin/quotations/${r.id}/contract`}>
+                          <FileSignature className="h-4 w-4" />
+                        </Link>
+                      </Button>
                       <Button asChild variant="ghost" size="icon" title="Edit">
                         <Link href={`/admin/quotations/${r.id}/edit`}>
                           <Pencil className="h-4 w-4" />
