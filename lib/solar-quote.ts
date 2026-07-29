@@ -61,6 +61,8 @@ interface PackageSpec {
   battery: string;
   /** Battery total capacity line, e.g. "316ah". */
   batteryCapacity: string;
+  /** Panel warranty line. Defaults to "Warranty: 25 years". */
+  panelWarranty?: string;
   accessories: {
     railings: number;
     lfoot: number;
@@ -103,7 +105,9 @@ function buildPackage(s: PackageSpec): SolarQuoteData {
         ],
         details: `Bi-Facial Solar Panels\nTotal wattage: ${(
           s.panelQty * 620
-        ).toLocaleString("en-US")} watts\nDimensions: 2383 mm × 1302 mm × 30-35 mm\nWarranty: 25 years`,
+        ).toLocaleString("en-US")} watts\nDimensions: 2383 mm × 1302 mm × 30-35 mm\n${
+          s.panelWarranty ?? "Warranty: 25 years"
+        }`,
       },
       {
         key: "inverter",
@@ -174,6 +178,32 @@ export interface SolarPackagePreset {
  * default. Everything a preset fills in stays editable in the form.
  */
 export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
+  {
+    id: "6kw-214ah",
+    label: "6kw + 214ah Battery Hybrid",
+    build: () =>
+      buildPackage({
+        packageName: "6kw + 214ah Battery Hybrid",
+        netPrice: 400000,
+        discountedPrice: 340000,
+        panelQty: 10,
+        inverterKw: 6,
+        battery: "214AH 10kWh battery",
+        batteryCapacity: "214ah",
+        panelWarranty: "30 years guarantee, 15 years warranty",
+        accessories: {
+          railings: 10,
+          lfoot: 30,
+          midclamp: 20,
+          endclamp: 10,
+          dcMcb: 1,
+          dcSpd: 1,
+          acMcb: 2,
+          acSpd: 2,
+          mc4: 10,
+        },
+      }),
+  },
   {
     id: "6kw-314ah",
     label: "6kw + 314ah Battery Hybrid",
@@ -260,11 +290,15 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
   },
 ];
 
-export const DEFAULT_SOLAR_PACKAGE_ID = SOLAR_PACKAGE_PRESETS[0].id;
+/** Package pre-selected when creating a new solar quotation. */
+export const DEFAULT_SOLAR_PACKAGE_ID = "6kw-314ah";
 
 /** Fresh template pre-filled with the default package. */
 export function defaultSolarQuote(): SolarQuoteData {
-  return SOLAR_PACKAGE_PRESETS[0].build();
+  const preset =
+    SOLAR_PACKAGE_PRESETS.find((p) => p.id === DEFAULT_SOLAR_PACKAGE_ID) ??
+    SOLAR_PACKAGE_PRESETS[0];
+  return preset.build();
 }
 
 /** Format one material as a bullet, e.g. "16pcs railings" / "125A ATS". */
