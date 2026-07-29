@@ -233,6 +233,31 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
       }),
   },
   {
+    id: "8kw-214ah",
+    label: "8kw + 214ah Battery Hybrid",
+    build: () =>
+      buildPackage({
+        packageName: "8kw + 214ah Battery Hybrid",
+        netPrice: 465000,
+        discountedPrice: 420000,
+        panelQty: 16,
+        inverterKw: 8,
+        battery: "214AH 10kWh battery",
+        batteryCapacity: "214ah",
+        accessories: {
+          railings: 16,
+          lfoot: 48,
+          midclamp: 32,
+          endclamp: 16,
+          dcMcb: 2,
+          dcSpd: 2,
+          acMcb: 3,
+          acSpd: 1,
+          mc4: 30,
+        },
+      }),
+  },
+  {
     id: "8kwh-hybrid",
     label: "8kw + 314ah Battery Hybrid",
     build: () =>
