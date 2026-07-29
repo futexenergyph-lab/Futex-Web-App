@@ -201,10 +201,10 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
   },
   {
     id: "8kwh-hybrid",
-    label: "8kwh Hybrid",
+    label: "8kw + 314ah Battery Hybrid",
     build: () =>
       buildPackage({
-        packageName: "8kwh hybrid",
+        packageName: "8kw + 314ah Battery Hybrid",
         netPrice: 480000,
         discountedPrice: 450000,
         panelQty: 16,
