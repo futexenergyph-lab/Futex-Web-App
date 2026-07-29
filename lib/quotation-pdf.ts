@@ -484,13 +484,46 @@ export function buildSolarQuotationPdf(o: SolarQuotationPdfOpts): Blob {
   }
   y += 12;
 
-  // ---- Red warranty disclaimer (kept on the same page) ----
+  // ---- Quotation Terms (left-aligned, bulleted, within margins) ----
   if (o.data.disclaimer) {
+    const bodySize = 8.5;
+    const lineH = 12;
+    const indent = 16;
+    doc.setFontSize(bodySize);
+    const rendered = o.data.disclaimer
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((t) => {
+        const bullet = t.startsWith("-") || t.startsWith("*");
+        const clean = bullet ? t.replace(/^[-*]\s*/, "") : t;
+        const w = bullet ? contentW - indent - 6 : contentW;
+        return { lines: doc.splitTextToSize(clean, w) as string[], bullet };
+      });
+    const totalH =
+      22 + rendered.reduce((a, r) => a + r.lines.length * lineH + 3, 0);
+    if (y + totalH > H - MARGIN - 16) {
+      doc.addPage();
+      y = MARGIN;
+    }
+
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
+    doc.setFontSize(10);
     doc.setTextColor(RED[0], RED[1], RED[2]);
-    const dl = doc.splitTextToSize(o.data.disclaimer, contentW - 40) as string[];
-    doc.text(dl, W / 2, y + 10, { align: "center" });
+    doc.text("Quotation Terms", MARGIN, y + 12);
+    y += 22;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(bodySize);
+    for (const r of rendered) {
+      if (r.bullet) {
+        doc.text("•", MARGIN + 6, y + 9);
+        doc.text(r.lines, MARGIN + indent, y + 9);
+      } else {
+        doc.text(r.lines, MARGIN, y + 9);
+      }
+      y += r.lines.length * lineH + 3;
+    }
     doc.setTextColor(0);
   }
 
