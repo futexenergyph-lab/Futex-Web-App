@@ -45,6 +45,10 @@ export const DEFAULT_DISCLAIMER = [
   "We provide (1) one year warranty on workmanship.",
 ].join("\n");
 
+/** Standard solar-panel guarantee/warranty line used by every package. */
+export const DEFAULT_PANEL_WARRANTY =
+  "30 years product guarantee, 15 years warranty";
+
 const PANEL_BRANDS = ["Jinko", "Trina", "Ronma", "Seraphim", "TCL"];
 const INVERTER_BRANDS = ["Huawei", "TCL", "Deye", "Solis", "Solax"];
 const BATTERY_BRANDS = ["TCL", "SUNGROW", "CST", "PUSTUN", "LVTOPSUN"];
@@ -61,7 +65,7 @@ interface PackageSpec {
   battery: string;
   /** Battery total capacity line, e.g. "316ah". */
   batteryCapacity: string;
-  /** Panel warranty line. Defaults to "Warranty: 25 years". */
+  /** Panel warranty line. Defaults to DEFAULT_PANEL_WARRANTY. */
   panelWarranty?: string;
   accessories: {
     railings: number;
@@ -106,7 +110,7 @@ function buildPackage(s: PackageSpec): SolarQuoteData {
         details: `Bi-Facial Solar Panels\nTotal wattage: ${(
           s.panelQty * 620
         ).toLocaleString("en-US")} watts\nDimensions: 2383 mm × 1302 mm × 30-35 mm\n${
-          s.panelWarranty ?? "Warranty: 25 years"
+          s.panelWarranty ?? DEFAULT_PANEL_WARRANTY
         }`,
       },
       {
@@ -190,7 +194,6 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
         inverterKw: 6,
         battery: "214AH 10kWh battery",
         batteryCapacity: "214ah",
-        panelWarranty: "30 years guarantee, 15 years warranty",
         accessories: {
           railings: 10,
           lfoot: 30,
