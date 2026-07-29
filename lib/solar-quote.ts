@@ -52,7 +52,7 @@ export function defaultSolarQuote(): SolarQuoteData {
       {
         packageName: "6kwh Smart Hybrid",
         noOfPackage: 1,
-        netPrice: 320000,
+        netPrice: 430000,
         discountedPrice: 380000,
       },
     ],
