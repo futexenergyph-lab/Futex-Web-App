@@ -456,12 +456,15 @@ export function SolarQuotationForm({
         ))}
       </div>
 
-      {/* Disclaimer */}
+      {/* Quotation Terms */}
       <div className="space-y-2">
-        <Label htmlFor="disc">Warranty note (red disclaimer)</Label>
+        <Label htmlFor="disc">
+          Quotation Terms (one line each; start a line with &quot;-&quot; for a
+          bullet)
+        </Label>
         <Textarea
           id="disc"
-          rows={3}
+          rows={8}
           value={data.disclaimer}
           onChange={(e) => setData((d) => ({ ...d, disclaimer: e.target.value }))}
         />
