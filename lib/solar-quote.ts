@@ -45,52 +45,92 @@ export const DEFAULT_DISCLAIMER = [
   "We provide (1) one year warranty on workmanship.",
 ].join("\n");
 
-/** Fresh template pre-filled to mirror the sample quotation. */
-export function defaultSolarQuote(): SolarQuoteData {
+const PANEL_BRANDS = ["Jinko", "Trina", "Ronma", "Seraphim", "TCL"];
+const INVERTER_BRANDS = ["Huawei", "TCL", "Deye", "Solis", "Solax"];
+const BATTERY_BRANDS = ["TCL", "SUNGROW", "CST", "PUSTUN", "LVTOPSUN"];
+
+interface PackageSpec {
+  packageName: string;
+  netPrice: number;
+  discountedPrice: number;
+  /** Number of 620W bi-facial panels. */
+  panelQty: number;
+  /** Inverter size in kW. */
+  inverterKw: number;
+  /** Battery inclusion text, e.g. "314AH 16kWh battery". */
+  battery: string;
+  /** Battery total capacity line, e.g. "316ah". */
+  batteryCapacity: string;
+  accessories: {
+    railings: number;
+    lfoot: number;
+    midclamp: number;
+    endclamp: number;
+    dcMcb: number;
+    dcSpd: number;
+    acMcb: number;
+    acSpd: number;
+    mc4: number;
+  };
+}
+
+/** Build a full solar quote template from a package spec. */
+function buildPackage(s: PackageSpec): SolarQuoteData {
+  const a = s.accessories;
   return {
     proposedCost: [
       {
-        packageName: "6kw + 314ah Battery Hybrid",
+        packageName: s.packageName,
         noOfPackage: 1,
-        netPrice: 430000,
-        discountedPrice: 380000,
+        netPrice: s.netPrice,
+        discountedPrice: s.discountedPrice,
       },
     ],
     products: [
       {
         key: "panel",
         title: "SOLAR PANEL",
-        brandOptions: ["Jinko", "Trina", "Ronma", "Seraphim", "TCL"],
-        brand: "Jinko, Trina, Ronma, Seraphim, TCL",
-        inclusion: "10 pcs 620 watt",
+        brandOptions: PANEL_BRANDS,
+        brand: PANEL_BRANDS.join(", "),
+        inclusion: `${s.panelQty} pcs 620 watt`,
         materials: [
-          { name: "620 Watt Bi-Facial Solar Panel", unit: "pcs", qty: 10, checked: true },
+          {
+            name: "620 Watt Bi-Facial Solar Panel",
+            unit: "pcs",
+            qty: s.panelQty,
+            checked: true,
+          },
         ],
-        details:
-          "Bi-Facial Solar Panels\nTotal wattage: 6,200 watts\nDimensions: 2383 mm × 1302 mm × 30-35 mm\nWarranty: 25 years",
+        details: `Bi-Facial Solar Panels\nTotal wattage: ${(
+          s.panelQty * 620
+        ).toLocaleString("en-US")} watts\nDimensions: 2383 mm × 1302 mm × 30-35 mm\nWarranty: 25 years`,
       },
       {
         key: "inverter",
         title: "SMART INVERTER",
-        brandOptions: ["Huawei", "TCL", "Deye", "Solis", "Solax"],
-        brand: "Huawei, TCL, Deye, Solis, Solax",
-        inclusion: "1 pc 6 kW Hybrid Smart Inverter",
+        brandOptions: INVERTER_BRANDS,
+        brand: INVERTER_BRANDS.join(", "),
+        inclusion: `1 pc ${s.inverterKw} kW Hybrid Smart Inverter`,
         materials: [
-          { name: "6kW Hybrid Smart Inverter", unit: "pc", qty: 1, checked: true },
+          {
+            name: `${s.inverterKw}kW Hybrid Smart Inverter`,
+            unit: "pc",
+            qty: 1,
+            checked: true,
+          },
         ],
         details: "Warranty: 5/10/15 Years (Depends on Brand)",
       },
       {
         key: "battery",
         title: "BATTERY",
-        brandOptions: ["TCL", "SUNGROW", "CST", "PUSTUN", "LVTOPSUN"],
-        brand: "TCL, SUNGROW, CST, PUSTUN, LVTOPSUN",
-        inclusion: "314AH 16kWh battery",
+        brandOptions: BATTERY_BRANDS,
+        brand: BATTERY_BRANDS.join(", "),
+        inclusion: s.battery,
         materials: [
-          { name: "314AH 16kWh Battery", unit: "pc", qty: 1, checked: true },
+          { name: s.battery.replace(/\bbattery\b/i, "Battery"), unit: "pc", qty: 1, checked: true },
         ],
-        details:
-          "Total Capacity: 316ah\nDimensions: 753 mm × 600 mm × 300 mm\nWarranty: 5/7/10 years (Depends on Brand)",
+        details: `Total Capacity: ${s.batteryCapacity}\nDimensions: 753 mm × 600 mm × 300 mm\nWarranty: 5/7/10 years (Depends on Brand)`,
       },
       {
         key: "accessories",
@@ -99,21 +139,21 @@ export function defaultSolarQuote(): SolarQuoteData {
         brand: "",
         inclusion: "",
         materials: [
-          { name: "railings", unit: "pcs", qty: 10, checked: true },
-          { name: "LFoot", unit: "pcs", qty: 30, checked: true },
-          { name: "Midclamp", unit: "pcs", qty: 20, checked: true },
-          { name: "End clamp", unit: "pcs", qty: 10, checked: true },
-          { name: "20A DC MCB", unit: "pc", qty: 1, checked: true },
-          { name: "DC SPD", unit: "pc", qty: 1, checked: true },
-          { name: "AC 100A MCB", unit: "pcs", qty: 2, checked: true },
-          { name: "AC SPD", unit: "pc", qty: 2, checked: true },
+          { name: "railings", unit: "pcs", qty: a.railings, checked: true },
+          { name: "LFoot", unit: "pcs", qty: a.lfoot, checked: true },
+          { name: "Midclamp", unit: "pcs", qty: a.midclamp, checked: true },
+          { name: "End clamp", unit: "pcs", qty: a.endclamp, checked: true },
+          { name: "20A DC MCB", unit: "pcs", qty: a.dcMcb, checked: true },
+          { name: "DC SPD", unit: "pcs", qty: a.dcSpd, checked: true },
+          { name: "AC 100A MCB", unit: "pcs", qty: a.acMcb, checked: true },
+          { name: "AC SPD", unit: "pcs", qty: a.acSpd, checked: true },
           { name: "Combiner Box", unit: "", qty: 1, checked: true },
           { name: "4mm PV Wire", unit: "roll", qty: 1, checked: true },
           { name: "25mm HDPE", unit: "roll", qty: 1, checked: true },
           { name: "ATS", unit: "A", qty: 125, checked: true },
           { name: "DC MCCB", unit: "A", qty: 200, checked: true },
           { name: "Cable Tray 4x2", unit: "", qty: 1, checked: true },
-          { name: "MC4", unit: "pcs", qty: 10, checked: true },
+          { name: "MC4", unit: "pcs", qty: a.mc4, checked: true },
           { name: "Battery Cable", unit: "", qty: 1, checked: true },
         ],
         details: "",
@@ -121,6 +161,110 @@ export function defaultSolarQuote(): SolarQuoteData {
     ],
     disclaimer: DEFAULT_DISCLAIMER,
   };
+}
+
+export interface SolarPackagePreset {
+  id: string;
+  label: string;
+  build: () => SolarQuoteData;
+}
+
+/**
+ * Selectable packages for the Solar Solution quotation. The first entry is the
+ * default. Everything a preset fills in stays editable in the form.
+ */
+export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
+  {
+    id: "6kw-314ah",
+    label: "6kw + 314ah Battery Hybrid",
+    build: () =>
+      buildPackage({
+        packageName: "6kw + 314ah Battery Hybrid",
+        netPrice: 430000,
+        discountedPrice: 380000,
+        panelQty: 10,
+        inverterKw: 6,
+        battery: "314AH 16kWh battery",
+        batteryCapacity: "316ah",
+        accessories: {
+          railings: 10,
+          lfoot: 30,
+          midclamp: 20,
+          endclamp: 10,
+          dcMcb: 1,
+          dcSpd: 1,
+          acMcb: 2,
+          acSpd: 2,
+          mc4: 10,
+        },
+      }),
+  },
+  {
+    id: "8kwh-hybrid",
+    label: "8kwh Hybrid",
+    build: () =>
+      buildPackage({
+        packageName: "8kwh hybrid",
+        netPrice: 480000,
+        discountedPrice: 450000,
+        panelQty: 16,
+        inverterKw: 8,
+        battery: "314AH 16kWh battery",
+        batteryCapacity: "316ah",
+        accessories: {
+          railings: 16,
+          lfoot: 48,
+          midclamp: 32,
+          endclamp: 16,
+          dcMcb: 2,
+          dcSpd: 2,
+          acMcb: 3,
+          acSpd: 1,
+          mc4: 30,
+        },
+      }),
+  },
+  {
+    id: "blank",
+    label: "Blank / custom package",
+    build: () => {
+      const d = buildPackage({
+        packageName: "",
+        netPrice: 0,
+        discountedPrice: 0,
+        panelQty: 0,
+        inverterKw: 0,
+        battery: "",
+        batteryCapacity: "",
+        accessories: {
+          railings: 0,
+          lfoot: 0,
+          midclamp: 0,
+          endclamp: 0,
+          dcMcb: 0,
+          dcSpd: 0,
+          acMcb: 0,
+          acSpd: 0,
+          mc4: 0,
+        },
+      });
+      // Start with empty inclusions/details so nothing misleading is pre-filled.
+      d.products = d.products.map((p) => ({
+        ...p,
+        inclusion: "",
+        details: "",
+        materials: p.materials.map((m) => ({ ...m, checked: false })),
+      }));
+      return d;
+    },
+  },
+];
+
+export const DEFAULT_SOLAR_PACKAGE_ID = SOLAR_PACKAGE_PRESETS[0].id;
+
+/** Fresh template pre-filled with the default package. */
+export function defaultSolarQuote(): SolarQuoteData {
+  return SOLAR_PACKAGE_PRESETS[0].build();
 }
 
 /** Format one material as a bullet, e.g. "16pcs railings" / "125A ATS". */

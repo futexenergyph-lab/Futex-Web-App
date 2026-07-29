@@ -14,6 +14,8 @@ import { buildSolarQuotationPdf } from "@/lib/quotation-pdf";
 import {
   defaultSolarQuote,
   solarTotal,
+  SOLAR_PACKAGE_PRESETS,
+  DEFAULT_SOLAR_PACKAGE_ID,
   type SolarQuoteData,
   type SolarProduct,
   type ProposedCostRow,
@@ -67,6 +69,18 @@ export function SolarQuotationForm({
   const [data, setData] = useState<SolarQuoteData>(
     initial?.details ?? defaultSolarQuote(),
   );
+  // Package preset picker. Existing quotes start on "keep saved details".
+  const [packageId, setPackageId] = useState(
+    initial?.details ? "" : DEFAULT_SOLAR_PACKAGE_ID,
+  );
+
+  function applyPackage(id: string) {
+    setPackageId(id);
+    const preset = SOLAR_PACKAGE_PRESETS.find((p) => p.id === id);
+    if (!preset) return;
+    // Keep any Quotation Terms the user already customised.
+    setData((prev) => ({ ...preset.build(), disclaimer: prev.disclaimer }));
+  }
 
   const total = useMemo(() => solarTotal(data), [data]);
 
@@ -221,6 +235,28 @@ export function SolarQuotationForm({
     <form onSubmit={onSubmit} className="space-y-6">
       <div className="flex items-center gap-2 rounded-md border bg-secondary/30 p-3 text-sm font-medium">
         <Sun className="h-4 w-4 text-amber-500" /> Solar Solution Quotation
+      </div>
+
+      {/* Package preset */}
+      <div className="space-y-2 rounded-md border p-3">
+        <Label htmlFor="pkgpreset">Package</Label>
+        <select
+          id="pkgpreset"
+          value={packageId}
+          onChange={(e) => applyPackage(e.target.value)}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        >
+          {initial?.details && <option value="">Keep saved details</option>}
+          {SOLAR_PACKAGE_PRESETS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          Picking a package fills in the proposed cost and product details
+          below. Everything stays editable.
+        </p>
       </div>
 
       {/* Client */}
