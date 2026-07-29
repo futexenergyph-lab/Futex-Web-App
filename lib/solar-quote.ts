@@ -50,7 +50,7 @@ export function defaultSolarQuote(): SolarQuoteData {
   return {
     proposedCost: [
       {
-        packageName: "6kwh Smart Hybrid",
+        packageName: "6kw + 314ah Battery Hybrid",
         noOfPackage: 1,
         netPrice: 430000,
         discountedPrice: 380000,
