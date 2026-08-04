@@ -220,6 +220,32 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
           ))}
         </select>
         <select
+          value={
+            numSort ? `num-${numSort}` : dateSort ? `date-${dateSort}` : "default"
+          }
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "date-asc" || v === "date-desc") {
+              setNumSort(null);
+              setDateSort(v === "date-asc" ? "asc" : "desc");
+            } else if (v === "num-asc" || v === "num-desc") {
+              setDateSort(null);
+              setNumSort(v === "num-asc" ? "asc" : "desc");
+            } else {
+              setNumSort(null);
+              setDateSort(null);
+            }
+          }}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          aria-label="Sort"
+        >
+          <option value="default">Sort: Newest first</option>
+          <option value="date-desc">Date — newest first</option>
+          <option value="date-asc">Date — oldest first</option>
+          <option value="num-asc">Client # — ascending</option>
+          <option value="num-desc">Client # — descending</option>
+        </select>
+        <select
           value={tracked}
           onChange={(e) => setTracked(e.target.value as "all" | "yes" | "no")}
           className="h-10 rounded-md border border-input bg-background px-3 text-sm"
