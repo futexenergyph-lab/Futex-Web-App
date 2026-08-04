@@ -4,17 +4,48 @@ import { ArrowLeft, MapPin, Phone } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
 import {
   ClientFinancialsTracker,
   type FinancialLine,
 } from "@/components/admin/client-financials-tracker";
-import { formatDate } from "@/lib/utils";
-import type { BookingStatus } from "@/lib/types";
+import { php, formatDate } from "@/lib/utils";
+import {
+  PAYMENT_METHOD_LABELS,
+  type BookingStatus,
+  type JobWork,
+  type PaymentMethod,
+  type PaymentStatus,
+} from "@/lib/types";
 
 export const metadata = { title: "Client Financials" };
 export const dynamic = "force-dynamic";
+
+interface PayRow {
+  amount: number;
+  method: PaymentMethod;
+  splits: { method: PaymentMethod; amount: number }[] | null;
+  reference_no: string | null;
+  status: PaymentStatus;
+  paid_at: string | null;
+}
+
+interface JoRow {
+  package_id: string | null;
+  enclosure_id: string | null;
+  add_separate_enclosure: boolean;
+  additional_wire_meters: number;
+  additional_job_works: JobWork[] | null;
+  final_total: number | string;
+}
+
+const PAY_STATUS: Record<PaymentStatus, string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  declined: "Declined",
+};
 
 export default async function ClientFinancialsPage({
   params,
@@ -24,34 +55,53 @@ export default async function ClientFinancialsPage({
   await requireRole(["owner"]);
   const supabase = createClient();
 
-  const [{ data: booking }, { data: pays }, { data: lines }, { data: status }] =
-    await Promise.all([
-      supabase
-        .from("bookings")
-        .select(
-          "id, client_number, client_name, address, contact_number, status, preferred_date",
-        )
-        .eq("id", params.id)
-        .single(),
-      supabase
-        .from("payments")
-        .select("amount, status")
-        .eq("booking_id", params.id),
-      supabase
-        .from("client_financials")
-        .select(
-          "id, entry_date, project_name, expense_type, description, amount, charge_to, remarks",
-        )
-        .eq("booking_id", params.id)
-        // Entry order: package template lines first (as loaded), additional
-        // expenses added later appear below them — like the sheet.
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("client_financial_status")
-        .select("finalized_at, finalized_by_name")
-        .eq("booking_id", params.id)
-        .maybeSingle(),
-    ]);
+  const [
+    { data: booking },
+    { data: pays },
+    { data: lines },
+    { data: status },
+    { data: jo },
+    { data: pkgs },
+    { data: encs },
+  ] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select(
+        "id, client_number, client_name, address, contact_number, status, preferred_date",
+      )
+      .eq("id", params.id)
+      .single(),
+    supabase
+      .from("payments")
+      .select("amount, method, splits, reference_no, status, paid_at, created_at")
+      .eq("booking_id", params.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("client_financials")
+      .select(
+        "id, entry_date, project_name, expense_type, description, amount, charge_to, remarks",
+      )
+      .eq("booking_id", params.id)
+      // Entry order: package template lines first (as loaded), additional
+      // expenses added later appear below them — like the sheet.
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("client_financial_status")
+      .select("finalized_at, finalized_by_name")
+      .eq("booking_id", params.id)
+      .maybeSingle(),
+    supabase
+      .from("job_orders")
+      .select(
+        "package_id, enclosure_id, add_separate_enclosure, additional_wire_meters, additional_job_works, final_total",
+      )
+      .eq("booking_id", params.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("packages").select("id, name"),
+    supabase.from("enclosures").select("id, name"),
+  ]);
 
   if (!booking) notFound();
   const b = booking as {
@@ -65,7 +115,7 @@ export default async function ClientFinancialsPage({
   };
 
   // Payment: confirmed payments when present, otherwise whatever is recorded.
-  const payRows = (pays as { amount: number; status: string }[] | null) ?? [];
+  const payRows = (pays as unknown as PayRow[] | null) ?? [];
   const confirmed = payRows.filter((p) => p.status === "confirmed");
   const payment = (confirmed.length ? confirmed : payRows).reduce(
     (t, p) => t + Number(p.amount || 0),
@@ -75,6 +125,45 @@ export default async function ClientFinancialsPage({
   const financialLines: FinancialLine[] = (
     (lines as FinancialLine[] | null) ?? []
   ).map((l) => ({ ...l, amount: Number(l.amount ?? 0) }));
+
+  // Job order lookups.
+  const joRow = (jo as JoRow | null) ?? null;
+  const pkgName = new Map(
+    ((pkgs as { id: string; name: string }[] | null) ?? []).map((p) => [
+      p.id,
+      p.name,
+    ]),
+  );
+  const encName = new Map(
+    ((encs as { id: string; name: string }[] | null) ?? []).map((e) => [
+      e.id,
+      e.name,
+    ]),
+  );
+
+  // Packages availed — grouped from the loaded cost lines.
+  const pkgGroups: { name: string; items: number; total: number }[] = [];
+  {
+    const map = new Map<string, { items: number; total: number }>();
+    for (const l of financialLines) {
+      const name = l.project_name?.trim();
+      if (!name) continue;
+      const g = map.get(name) ?? { items: 0, total: 0 };
+      g.items += 1;
+      g.total += Number(l.amount || 0);
+      map.set(name, g);
+    }
+    for (const [name, g] of map) pkgGroups.push({ name, ...g });
+  }
+
+  const payMethods = (p: PayRow): string => {
+    const splits = Array.isArray(p.splits) ? p.splits : null;
+    if (splits && splits.length)
+      return splits
+        .map((s) => `${PAYMENT_METHOD_LABELS[s.method]} ${php(s.amount)}`)
+        .join(" + ");
+    return PAYMENT_METHOD_LABELS[p.method];
+  };
 
   return (
     <div>
@@ -101,6 +190,157 @@ export default async function ClientFinancialsPage({
           </span>
           {b.preferred_date && (
             <span>Install: {formatDate(b.preferred_date)}</span>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Job order + payment method details */}
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Job Order details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5 text-sm">
+            {!joRow ? (
+              <p className="text-muted-foreground">
+                No job order submitted for this client yet.
+              </p>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-muted-foreground">Package</span>
+                  <span className="text-right font-medium">
+                    {joRow.package_id
+                      ? (pkgName.get(joRow.package_id) ?? "—")
+                      : "—"}
+                  </span>
+                </div>
+                {joRow.add_separate_enclosure && joRow.enclosure_id && (
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-muted-foreground">
+                      Separate enclosure
+                    </span>
+                    <span className="text-right">
+                      {encName.get(joRow.enclosure_id) ?? "—"}
+                    </span>
+                  </div>
+                )}
+                {Number(joRow.additional_wire_meters || 0) > 0 && (
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-muted-foreground">
+                      Additional wire
+                    </span>
+                    <span className="text-right">
+                      {joRow.additional_wire_meters} m
+                    </span>
+                  </div>
+                )}
+                {(joRow.additional_job_works ?? []).map((w, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start justify-between gap-3"
+                  >
+                    <span className="text-muted-foreground">
+                      {w.description || "Additional job work"}
+                    </span>
+                    <span className="text-right tabular-nums">
+                      {php(w.amount)}
+                    </span>
+                  </div>
+                ))}
+                <div className="mt-2 flex items-center justify-between border-t pt-2 font-semibold">
+                  <span>Job order total</span>
+                  <span className="tabular-nums">
+                    {php(Number(joRow.final_total || 0))}
+                  </span>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Payment details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {payRows.length === 0 ? (
+              <p className="text-muted-foreground">
+                No payment recorded for this client yet.
+              </p>
+            ) : (
+              payRows.map((p, i) => (
+                <div
+                  key={i}
+                  className="rounded-md border bg-secondary/20 p-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold tabular-nums">
+                      {php(Number(p.amount || 0))}
+                    </span>
+                    <Badge
+                      variant={
+                        p.status === "confirmed"
+                          ? "accent"
+                          : p.status === "declined"
+                            ? "destructive"
+                            : "secondary"
+                      }
+                    >
+                      {PAY_STATUS[p.status]}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Mode of payment: {payMethods(p)}
+                  </p>
+                  {p.reference_no && (
+                    <p className="text-xs text-muted-foreground">
+                      Ref: {p.reference_no}
+                    </p>
+                  )}
+                  {p.paid_at && (
+                    <p className="text-xs text-muted-foreground">
+                      Paid: {formatDate(p.paid_at)}
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Packages availed (from the loaded cost lines) */}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-base">Packages availed</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {pkgGroups.length === 0 ? (
+            <p className="px-6 pb-6 text-sm text-muted-foreground">
+              No package loaded yet — pick one below to add its cost lines.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-secondary/60">
+                <tr>
+                  <th className="p-3 text-left font-medium">Package</th>
+                  <th className="p-3 text-right font-medium">Items</th>
+                  <th className="p-3 text-right font-medium">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pkgGroups.map((g) => (
+                  <tr key={g.name} className="border-t">
+                    <td className="p-3 font-medium">{g.name}</td>
+                    <td className="p-3 text-right tabular-nums">{g.items}</td>
+                    <td className="p-3 text-right tabular-nums">
+                      {php(g.total)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </CardContent>
       </Card>
