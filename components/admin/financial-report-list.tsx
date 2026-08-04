@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, ChevronRight } from "lucide-react";
+import { Search, ChevronRight, ArrowUpDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
@@ -35,23 +35,88 @@ export interface ClientFinancialRow {
   profit: number;
 }
 
+type Period = "today" | "week" | "month" | "year" | "all";
+
+const PERIOD_LABELS: Record<Period, string> = {
+  today: "Today",
+  week: "Per Week",
+  month: "Per Month",
+  year: "Per Year",
+  all: "All the time",
+};
+
+/** Today's calendar date in Manila, as YYYY-MM-DD. */
+function manilaToday(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+}
+
+/** A row's reference date (install date, else the date it was booked). */
+function refDate(r: ClientFinancialRow): string {
+  if (r.preferred_date) return r.preferred_date;
+  return new Date(r.created_at).toLocaleDateString("en-CA", {
+    timeZone: "Asia/Manila",
+  });
+}
+
+/** Inclusive start date for a period, or null for "all the time". */
+function periodStart(period: Period, today: string): string | null {
+  if (period === "all") return null;
+  if (period === "today") return today;
+  if (period === "month") return `${today.slice(0, 7)}-01`;
+  if (period === "year") return `${today.slice(0, 4)}-01-01`;
+  // Week: Monday of the current week (pure calendar arithmetic).
+  const d = new Date(`${today}T00:00:00Z`);
+  const daysSinceMonday = (d.getUTCDay() + 6) % 7;
+  return new Date(d.getTime() - daysSinceMonday * 86400000)
+    .toISOString()
+    .slice(0, 10);
+}
+
 export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<BookingStatus | "all">("all");
   const [tracked, setTracked] = useState<"all" | "yes" | "no">("all");
+  const [period, setPeriod] = useState<Period>("all");
+  // null = default order (newest first); otherwise sort by client number.
+  const [numSort, setNumSort] = useState<"asc" | "desc" | null>(null);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return rows.filter((r) => {
+    const today = manilaToday();
+    const start = periodStart(period, today);
+
+    const out = rows.filter((r) => {
       if (status !== "all" && r.status !== status) return false;
       if (tracked === "yes" && r.expenses <= 0) return false;
       if (tracked === "no" && r.expenses > 0) return false;
+      if (start) {
+        const d = refDate(r);
+        if (d < start || d > today) return false;
+      }
       if (!needle) return true;
       return [r.client_name, r.client_number, r.address]
         .filter(Boolean)
         .some((v) => (v as string).toLowerCase().includes(needle));
     });
-  }, [rows, q, status, tracked]);
+
+    if (numSort) {
+      // Numeric-aware compare so FX-2026-0009 sorts before FX-2026-0010.
+      // Rows without a client number always sit at the bottom.
+      out.sort((a, b) => {
+        const an = a.client_number?.trim();
+        const bn = b.client_number?.trim();
+        if (!an && !bn) return 0;
+        if (!an) return 1;
+        if (!bn) return -1;
+        const cmp = an.localeCompare(bn, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+        return numSort === "asc" ? cmp : -cmp;
+      });
+    }
+    return out;
+  }, [rows, q, status, tracked, period, numSort]);
 
   const totals = useMemo(
     () =>
@@ -122,6 +187,18 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
           />
         </div>
         <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as Period)}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          aria-label="Period"
+        >
+          {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
+            <option key={p} value={p}>
+              {PERIOD_LABELS[p]}
+            </option>
+          ))}
+        </select>
+        <select
           value={status}
           onChange={(e) => setStatus(e.target.value as BookingStatus | "all")}
           className="h-10 rounded-md border border-input bg-background px-3 text-sm"
@@ -150,7 +227,27 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Client #</TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setNumSort((s) =>
+                      s === "asc" ? "desc" : s === "desc" ? null : "asc",
+                    )
+                  }
+                  className="inline-flex items-center gap-1 hover:text-foreground"
+                  title="Sort by client number"
+                >
+                  Client #
+                  <ArrowUpDown
+                    className={`h-3 w-3 ${numSort ? "text-foreground" : "text-muted-foreground/50"}`}
+                  />
+                  {numSort === "asc" && <span className="text-[10px]">A–Z</span>}
+                  {numSort === "desc" && (
+                    <span className="text-[10px]">Z–A</span>
+                  )}
+                </button>
+              </TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Install date</TableHead>
@@ -215,6 +312,7 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
       <p className="text-xs text-muted-foreground">
         {filtered.length} of {rows.length} client
         {rows.length === 1 ? "" : "s"}
+        {period !== "all" && ` · ${PERIOD_LABELS[period]}`}
       </p>
     </div>
   );
