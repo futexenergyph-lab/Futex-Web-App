@@ -67,9 +67,14 @@ jobs:
           if [ -z "$USER_ID" ]; then
             # Already exists -> look the user up and reset the password.
             echo "User exists or create failed: $(echo "$RESP" | jq -rc '.msg // .error_description // .error // .message // empty')"
-            USER_ID=$(curl -s -G "$URL/auth/v1/admin/users" --data-urlencode "filter=$EMAIL" \
-              -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
-              | jq -r --arg e "$EMAIL" '(.users // [])[] | select((.email|ascii_downcase)==($e|ascii_downcase)) | .id' | head -1)
+            # Page through the admin user list and match on the email.
+            for PAGE in 1 2 3 4 5; do
+              USER_ID=$(curl -s -G "$URL/auth/v1/admin/users" \
+                --data-urlencode "page=$PAGE" --data-urlencode "per_page=200" \
+                -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+                | jq -r --arg e "$EMAIL" '(.users // [])[] | select((.email // ""|ascii_downcase)==($e|ascii_downcase)) | .id' | head -1)
+              [ -n "$USER_ID" ] && break
+            done
             if [ -z "$USER_ID" ]; then echo "Could not create or find the user."; exit 1; fi
             curl -s -X PUT "$URL/auth/v1/admin/users/$USER_ID" \
               -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
