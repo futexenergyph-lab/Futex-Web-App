@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RedoLogButton } from "@/components/admin/redo-log-button";
+import { LogHistoryDialog } from "@/components/admin/log-history-dialog";
 import { formatDateTime } from "@/lib/utils";
 
 export const metadata = { title: "Logs" };
@@ -61,6 +62,7 @@ export default async function LogsPage() {
                 <TableHead>Action</TableHead>
                 <TableHead>Record</TableHead>
                 <TableHead>By</TableHead>
+                <TableHead>History</TableHead>
                 <TableHead className="text-right">Redo</TableHead>
               </TableRow>
             </TableHeader>
@@ -84,6 +86,9 @@ export default async function LogsPage() {
                     {l.label ?? "—"}
                   </TableCell>
                   <TableCell className="text-sm">{l.actor_name ?? "—"}</TableCell>
+                  <TableCell>
+                    <LogHistoryDialog logId={l.id} />
+                  </TableCell>
                   <TableCell className="text-right">
                     <RedoLogButton logId={l.id} done={!!l.undone_at} />
                   </TableCell>
@@ -92,7 +97,7 @@ export default async function LogsPage() {
               {logs.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     className="py-10 text-center text-muted-foreground"
                   >
                     No edits or deletions logged yet.

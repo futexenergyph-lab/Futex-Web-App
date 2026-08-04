@@ -141,3 +141,42 @@ export async function restoreAudit(logId: string) {
   revalidateAll("");
   return { ok: true };
 }
+
+/** Result of loading one audit entry for the "See history" dialog. */
+export type AuditDetail =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      action: string;
+      tableName: string;
+      label: string | null;
+      actorName: string | null;
+      createdAt: string;
+      before: Record<string, unknown> | null;
+      after: Record<string, unknown> | null;
+    };
+
+/**
+ * Load one audit entry's before/after snapshots for the "See history" dialog.
+ * Fetched on demand so the Logs page itself stays light.
+ */
+export async function fetchAuditDetail(logId: string): Promise<AuditDetail> {
+  await requireRole(["owner"]);
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("audit_logs")
+    .select("action, table_name, label, actor_name, created_at, before_data, after_data")
+    .eq("id", logId)
+    .single();
+  if (error || !data) return { ok: false, error: error?.message ?? "Not found." };
+  return {
+    ok: true,
+    action: data.action as string,
+    tableName: data.table_name as string,
+    label: (data.label as string | null) ?? null,
+    actorName: (data.actor_name as string | null) ?? null,
+    createdAt: data.created_at as string,
+    before: (data.before_data ?? null) as Record<string, unknown> | null,
+    after: (data.after_data ?? null) as Record<string, unknown> | null,
+  };
+}
