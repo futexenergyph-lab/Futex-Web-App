@@ -1,0 +1,90 @@
+name: Create User
+
+# Creates (or updates) an internal Supabase auth user and its profile role.
+# Credentials are passed as run inputs — never stored in the repository.
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Login email"
+        required: true
+      password:
+        description: "Initial password"
+        required: true
+      full_name:
+        description: "Full name shown in the app"
+        required: true
+      role:
+        description: "Role"
+        required: true
+        default: owner
+        type: choice
+        options:
+          - owner
+          - admin
+          - admin_staff
+          - field_officer
+          - installer
+          - accounting
+          - hr
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    env:
+      SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
+      EMAIL: ${{ inputs.email }}
+      PASSWORD: ${{ inputs.password }}
+      FULL_NAME: ${{ inputs.full_name }}
+      ROLE: ${{ inputs.role }}
+    steps:
+      - name: Create user
+        run: |
+          set -e
+          echo "::add-mask::$PASSWORD"
+
+          REF="$REF_IN"
+          if [ -z "$REF" ]; then
+            REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
+          fi
+          URL="https://$REF.supabase.co"
+          SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
+          echo "::add-mask::$SERVICE"
+
+          # Create the auth user (email pre-confirmed so they can log in at once).
+          RESP=$(curl -s -X POST "$URL/auth/v1/admin/users" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -nc --arg e "$EMAIL" --arg p "$PASSWORD" '{email:$e,password:$p,email_confirm:true}')")
+          UID=$(echo "$RESP" | jq -r '.id // .user.id // empty')
+
+          if [ -z "$UID" ]; then
+            # Already exists -> look the user up and reset the password.
+            echo "User exists or create failed: $(echo "$RESP" | jq -rc '.msg // .error_description // .error // .message // empty')"
+            UID=$(curl -s -G "$URL/auth/v1/admin/users" --data-urlencode "filter=$EMAIL" \
+              -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+              | jq -r --arg e "$EMAIL" '(.users // [])[] | select((.email|ascii_downcase)==($e|ascii_downcase)) | .id' | head -1)
+            if [ -z "$UID" ]; then echo "Could not create or find the user."; exit 1; fi
+            curl -s -X PUT "$URL/auth/v1/admin/users/$UID" \
+              -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -nc --arg p "$PASSWORD" '{password:$p,email_confirm:true}')" -o /dev/null
+            echo "Existing user updated."
+          else
+            echo "Auth user created."
+          fi
+
+          # Upsert the profile with the requested role (a trigger may have made one).
+          curl -s -X POST "$URL/rest/v1/profiles" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: resolution=merge-duplicates,return=minimal" \
+            -d "$(jq -nc --arg i "$UID" --arg n "$FULL_NAME" --arg r "$ROLE" '{id:$i,full_name:$n,role:$r,active:true}')" -o /dev/null
+
+          echo "----- result -----"
+          curl -s -G "$URL/rest/v1/profiles" --data-urlencode "id=eq.$UID" \
+            --data-urlencode "select=id,full_name,role,active" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | jq -c '.[0]'
+          echo "email: $EMAIL"
