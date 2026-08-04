@@ -24,7 +24,7 @@ export default async function ClientFinancialsPage({
   await requireRole(["owner"]);
   const supabase = createClient();
 
-  const [{ data: booking }, { data: pays }, { data: lines }] =
+  const [{ data: booking }, { data: pays }, { data: lines }, { data: status }] =
     await Promise.all([
       supabase
         .from("bookings")
@@ -46,6 +46,11 @@ export default async function ClientFinancialsPage({
         // Entry order: package template lines first (as loaded), additional
         // expenses added later appear below them — like the sheet.
         .order("created_at", { ascending: true }),
+      supabase
+        .from("client_financial_status")
+        .select("finalized_at, finalized_by_name")
+        .eq("booking_id", params.id)
+        .maybeSingle(),
     ]);
 
   if (!booking) notFound();
@@ -104,6 +109,14 @@ export default async function ClientFinancialsPage({
         bookingId={b.id}
         lines={financialLines}
         payment={payment}
+        finalizedAt={
+          (status as { finalized_at: string | null } | null)?.finalized_at ??
+          null
+        }
+        finalizedByName={
+          (status as { finalized_by_name: string | null } | null)
+            ?.finalized_by_name ?? null
+        }
       />
     </div>
   );

@@ -198,4 +198,12 @@ jobs:
           run_sql 'drop policy if exists client_financials_update on public.client_financials; create policy client_financials_update on public.client_financials for update using (public.is_owner()) with check (public.is_owner());'
           run_sql 'drop policy if exists client_financials_delete on public.client_financials; create policy client_financials_delete on public.client_financials for delete using (public.is_owner());'
 
+          # Client financial report final-submission marker (Owner-only)
+          run_sql "create table if not exists public.client_financial_status (booking_id uuid primary key references public.bookings(id) on delete cascade, finalized_at timestamptz, finalized_by uuid references public.profiles(id) on delete set null, finalized_by_name text, updated_at timestamptz not null default now());"
+          run_sql 'alter table public.client_financial_status enable row level security;'
+          run_sql 'drop policy if exists client_financial_status_select on public.client_financial_status; create policy client_financial_status_select on public.client_financial_status for select using (public.is_owner());'
+          run_sql 'drop policy if exists client_financial_status_insert on public.client_financial_status; create policy client_financial_status_insert on public.client_financial_status for insert with check (public.is_owner());'
+          run_sql 'drop policy if exists client_financial_status_update on public.client_financial_status; create policy client_financial_status_update on public.client_financial_status for update using (public.is_owner()) with check (public.is_owner());'
+          run_sql 'drop policy if exists client_financial_status_delete on public.client_financial_status; create policy client_financial_status_delete on public.client_financial_status for delete using (public.is_owner());'
+
           echo "Done."

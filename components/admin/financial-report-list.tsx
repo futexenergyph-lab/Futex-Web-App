@@ -33,6 +33,7 @@ export interface ClientFinancialRow {
   payment: number;
   expenses: number;
   profit: number;
+  finalized: boolean;
 }
 
 type Period = "today" | "week" | "month" | "year" | "all";
@@ -146,6 +147,7 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
     payment: r.payment,
     expenses: r.expenses,
     profit: r.profit,
+    final: r.finalized ? "Yes" : "",
   }));
 
   return (
@@ -302,6 +304,11 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
                     {r.client_name}
                     <ChevronRight className="h-3.5 w-3.5" />
                   </Link>
+                  {r.finalized && (
+                    <span className="ml-1.5 inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      FINAL
+                    </span>
+                  )}
                   <span className="mt-0.5 block max-w-[240px] truncate text-xs text-muted-foreground">
                     {r.address}
                   </span>
