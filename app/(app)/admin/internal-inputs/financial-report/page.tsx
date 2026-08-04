@@ -16,16 +16,29 @@ export default async function FinancialReportPage() {
   await requireRole(["owner"]);
   const supabase = createClient();
 
-  const [{ data: bookings }, { data: pays }, { data: fins }] = await Promise.all([
-    supabase
-      .from("bookings")
-      .select(
-        "id, client_number, client_name, address, status, preferred_date, created_at",
-      )
-      .order("created_at", { ascending: false }),
-    supabase.from("payments").select("booking_id, amount, status"),
-    supabase.from("client_financials").select("booking_id, amount"),
-  ]);
+  const [{ data: bookings }, { data: pays }, { data: fins }, { data: stats }] =
+    await Promise.all([
+      supabase
+        .from("bookings")
+        .select(
+          "id, client_number, client_name, address, status, preferred_date, created_at",
+        )
+        .order("created_at", { ascending: false }),
+      supabase.from("payments").select("booking_id, amount, status"),
+      supabase.from("client_financials").select("booking_id, amount"),
+      supabase
+        .from("client_financial_status")
+        .select("booking_id, finalized_at"),
+    ]);
+
+  const finalized = new Set(
+    (
+      (stats as { booking_id: string; finalized_at: string | null }[] | null) ??
+      []
+    )
+      .filter((s) => s.finalized_at)
+      .map((s) => s.booking_id),
+  );
 
   // Payment per booking: confirmed payments if any, else whatever is recorded.
   const payAll = new Map<string, number>();
@@ -75,6 +88,7 @@ export default async function FinancialReportPage() {
       payment,
       expenses,
       profit: payment - expenses,
+      finalized: finalized.has(b.id),
     };
   });
 

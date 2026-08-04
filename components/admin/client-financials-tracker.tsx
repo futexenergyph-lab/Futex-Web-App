@@ -2,13 +2,27 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Pencil, Trash2, X, Check, PackagePlus } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Check,
+  PackagePlus,
+  Lock,
+  Unlock,
+  CheckCircle2,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   createClientFinancial,
   updateClientFinancial,
   deleteClientFinancial,
+  deleteClientFinancials,
   applyInstallationPackage,
+  finalizeClientFinancials,
+  reopenClientFinancials,
   type ClientFinancialValues,
 } from "@/app/(app)/admin/internal-inputs/financial-report/actions";
 import {
@@ -20,6 +34,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { CsvExport } from "@/components/csv-export";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -27,7 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { php, formatDate } from "@/lib/utils";
+import { php, formatDate, formatDateTime } from "@/lib/utils";
 
 export const EXPENSE_TYPES = [
   "Labor",
@@ -64,10 +85,14 @@ export function ClientFinancialsTracker({
   bookingId,
   lines,
   payment,
+  finalizedAt = null,
+  finalizedByName = null,
 }: {
   bookingId: string;
   lines: FinancialLine[];
   payment: number;
+  finalizedAt?: string | null;
+  finalizedByName?: string | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -75,34 +100,126 @@ export function ClientFinancialsTracker({
   const [draft, setDraft] = useState<ClientFinancialValues>(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<ClientFinancialValues>(EMPTY);
-  const [packageId, setPackageId] = useState(INSTALLATION_PACKAGES[0].id);
 
-  function loadPackage() {
-    const pkg = INSTALLATION_PACKAGES.find((p) => p.id === packageId);
-    if (!pkg) return;
-    if (
-      lines.length > 0 &&
-      !confirm(
-        `This client already has ${lines.length} expense line(s). Load "${pkg.label}" and add its ${pkg.lines.length} lines below them?`,
-      )
-    )
-      return;
-    start(async () => {
-      const res = await applyInstallationPackage(bookingId, packageId);
-      if (res?.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success(`${pkg.label} loaded — amounts are editable`);
-      router.refresh();
-    });
-  }
+  // Package popup: which package is being previewed + per-line ticks.
+  const [packageId, setPackageId] = useState(INSTALLATION_PACKAGES[0].id);
+  const [pkgOpen, setPkgOpen] = useState(false);
+  const [pkgChecks, setPkgChecks] = useState<boolean[]>([]);
+
+  // Checkbox selection for deleting lines.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const locked = !!finalizedAt;
 
   const expenses = useMemo(
     () => lines.reduce((t, l) => t + Number(l.amount || 0), 0),
     [lines],
   );
   const profit = payment - expenses;
+
+  const pkg = INSTALLATION_PACKAGES.find((p) => p.id === packageId);
+  const pkgSelectedTotal = pkg
+    ? pkg.lines.reduce((t, l, i) => t + (pkgChecks[i] ? l.amount : 0), 0)
+    : 0;
+  const pkgSelectedCount = pkgChecks.filter(Boolean).length;
+
+  function openPackage(id: string) {
+    const target = INSTALLATION_PACKAGES.find((p) => p.id === id);
+    if (!target) return;
+    setPackageId(id);
+    setPkgChecks(target.lines.map(() => true));
+    setPkgOpen(true);
+  }
+
+  function addPackageLines() {
+    if (!pkg) return;
+    const indexes = pkg.lines
+      .map((_, i) => i)
+      .filter((i) => pkgChecks[i]);
+    if (indexes.length === 0) {
+      toast.error("Tick at least one item to add.");
+      return;
+    }
+    start(async () => {
+      const res = await applyInstallationPackage(bookingId, pkg.id, indexes);
+      if (res?.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(
+        `${indexes.length} item${indexes.length === 1 ? "" : "s"} from ${pkg.label} added`,
+      );
+      setPkgOpen(false);
+      router.refresh();
+    });
+  }
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelected((prev) =>
+      prev.size === lines.length
+        ? new Set()
+        : new Set(lines.map((l) => l.id)),
+    );
+  }
+
+  function deleteSelected() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    if (
+      !confirm(
+        `Delete ${ids.length} selected line${ids.length === 1 ? "" : "s"}? This cannot be undone.`,
+      )
+    )
+      return;
+    start(async () => {
+      const res = await deleteClientFinancials(ids, bookingId);
+      if (res?.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(`${ids.length} line${ids.length === 1 ? "" : "s"} deleted`);
+      setSelected(new Set());
+      router.refresh();
+    });
+  }
+
+  function submitFinal() {
+    if (
+      !confirm(
+        `Submit this financial report as FINAL?\n\nExpenses: ${php(expenses)} · Profit: ${php(profit)}\n\nInputs will be locked (you can reopen it later).`,
+      )
+    )
+      return;
+    start(async () => {
+      const res = await finalizeClientFinancials(bookingId);
+      if (res?.error) toast.error(res.error);
+      else {
+        toast.success("Report submitted as final");
+        router.refresh();
+      }
+    });
+  }
+
+  function reopen() {
+    if (!confirm("Reopen this report for editing?")) return;
+    start(async () => {
+      const res = await reopenClientFinancials(bookingId);
+      if (res?.error) toast.error(res.error);
+      else {
+        toast.success("Report reopened");
+        router.refresh();
+      }
+    });
+  }
 
   function submitNew() {
     start(async () => {
@@ -166,6 +283,9 @@ export function ClientFinancialsTracker({
     charge_to: l.charge_to ?? "",
     remarks: l.remarks ?? "",
   }));
+
+  const allSelected = lines.length > 0 && selected.size === lines.length;
+  const colCount = locked ? 8 : 9;
 
   // Shared cell inputs for the add / edit rows.
   const RowInputs = ({
@@ -247,6 +367,37 @@ export function ClientFinancialsTracker({
 
   return (
     <div className="space-y-4">
+      {/* Final-submission banner */}
+      {locked && (
+        <Card className="border-emerald-500/60 bg-emerald-500/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6">
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <div>
+                <p className="font-semibold text-emerald-700">
+                  Submitted as final
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {finalizedAt ? formatDateTime(finalizedAt) : ""}
+                  {finalizedByName ? ` · by ${finalizedByName}` : ""} — inputs
+                  are locked.
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={reopen}
+              disabled={pending}
+              className="gap-1"
+            >
+              <Unlock className="h-4 w-4" /> Reopen for editing
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Payment / Expenses / Profit */}
       <div className="grid gap-3 sm:grid-cols-3">
         <Card>
@@ -279,72 +430,82 @@ export function ClientFinancialsTracker({
         </Card>
       </div>
 
-      {/* Package availed — loads the default capital cost lines */}
-      <Card>
-        <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <label
-              htmlFor="pkg-avail"
-              className="text-sm font-medium leading-none"
+      {/* Package availed — opens the contents popup */}
+      {!locked && (
+        <Card>
+          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <label
+                htmlFor="pkg-avail"
+                className="text-sm font-medium leading-none"
+              >
+                Package availed by the client
+              </label>
+              <select
+                id="pkg-avail"
+                value={packageId}
+                onChange={(e) => openPackage(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {INSTALLATION_PACKAGES.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label} — {php(packageTotal(p))}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Picking a package opens its contents so you can review the
+                default amounts and choose what to add to the list.
+              </p>
+            </div>
+            <Button
+              type="button"
+              onClick={() => openPackage(packageId)}
+              disabled={pending}
+              className="gap-1"
             >
-              Package availed by the client
-            </label>
-            <select
-              id="pkg-avail"
-              value={packageId}
-              onChange={(e) => setPackageId(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-            >
-              {INSTALLATION_PACKAGES.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label} — {php(packageTotal(p))}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground">
-              Loads that package&apos;s cost lines below with their default
-              amounts. Every line stays editable, and you can add extra
-              expenses after it — the total recomputes automatically.
-            </p>
-          </div>
-          <Button
-            type="button"
-            onClick={loadPackage}
-            disabled={pending}
-            className="gap-1"
-          >
-            {pending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <PackagePlus className="h-4 w-4" />
-            )}
-            Load package costs
-          </Button>
-        </CardContent>
-      </Card>
+              <PackagePlus className="h-4 w-4" /> View package contents
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">
           Project-based expense tracking
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <CsvExport rows={csvRows} filename="client-expenses.csv" />
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => {
-              setAdding(true);
-              setDraft({
-                ...EMPTY,
-                entry_date: new Date().toLocaleDateString("en-CA", {
-                  timeZone: "Asia/Manila",
-                }),
-              });
-            }}
-            className="gap-1"
-          >
-            <Plus className="h-4 w-4" /> Add line
-          </Button>
+          {!locked && selected.size > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              onClick={deleteSelected}
+              disabled={pending}
+              className="gap-1"
+            >
+              <Trash2 className="h-4 w-4" /> Delete selected ({selected.size})
+            </Button>
+          )}
+          {!locked && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setAdding(true);
+                setDraft({
+                  ...EMPTY,
+                  entry_date: new Date().toLocaleDateString("en-CA", {
+                    timeZone: "Asia/Manila",
+                  }),
+                });
+              }}
+              className="gap-1"
+            >
+              <Plus className="h-4 w-4" /> Add line
+            </Button>
+          )}
         </div>
       </div>
 
@@ -352,6 +513,17 @@ export function ClientFinancialsTracker({
         <Table>
           <TableHeader>
             <TableRow>
+              {!locked && (
+                <TableHead className="w-8">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 align-middle"
+                    aria-label="Select all lines"
+                  />
+                </TableHead>
+              )}
               <TableHead>Date</TableHead>
               <TableHead>Project Name</TableHead>
               <TableHead>Expense Type</TableHead>
@@ -359,13 +531,14 @@ export function ClientFinancialsTracker({
               <TableHead className="text-right">Amount</TableHead>
               <TableHead>Charge To</TableHead>
               <TableHead>Remarks</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              {!locked && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {lines.map((l) =>
-              editingId === l.id ? (
+              !locked && editingId === l.id ? (
                 <TableRow key={l.id} className="bg-secondary/30">
+                  <TableCell />
                   <RowInputs value={editDraft} onChange={setEditDraft} />
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -396,7 +569,21 @@ export function ClientFinancialsTracker({
                   </TableCell>
                 </TableRow>
               ) : (
-                <TableRow key={l.id}>
+                <TableRow
+                  key={l.id}
+                  className={selected.has(l.id) ? "bg-secondary/40" : ""}
+                >
+                  {!locked && (
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(l.id)}
+                        onChange={() => toggleSelected(l.id)}
+                        className="h-4 w-4 align-middle"
+                        aria-label={`Select ${l.description || l.expense_type}`}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                     {l.entry_date ? formatDate(l.entry_date) : "—"}
                   </TableCell>
@@ -416,35 +603,38 @@ export function ClientFinancialsTracker({
                   <TableCell className="text-sm text-muted-foreground">
                     {l.remarks ?? "—"}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => startEdit(l)}
-                        title="Edit"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => onDelete(l)}
-                        className="text-destructive hover:bg-destructive/10"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {!locked && (
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => startEdit(l)}
+                          title="Edit"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => onDelete(l)}
+                          className="text-destructive hover:bg-destructive/10"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ),
             )}
 
-            {adding && (
+            {!locked && adding && (
               <TableRow className="bg-secondary/30">
+                <TableCell />
                 <RowInputs value={draft} onChange={setDraft} />
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
@@ -479,28 +669,150 @@ export function ClientFinancialsTracker({
             {lines.length === 0 && !adding && (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={colCount}
                   className="py-10 text-center text-muted-foreground"
                 >
-                  No expenses logged for this client yet. Press “Add line”.
+                  No expenses logged for this client yet. Pick a package or
+                  press “Add line”.
                 </TableCell>
               </TableRow>
             )}
 
             {lines.length > 0 && (
               <TableRow className="bg-secondary/50 font-semibold">
-                <TableCell colSpan={4} className="text-right">
+                <TableCell colSpan={locked ? 4 : 5} className="text-right">
                   TOTAL EXPENSES
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {php(expenses)}
                 </TableCell>
-                <TableCell colSpan={3} />
+                <TableCell colSpan={locked ? 2 : 3} />
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+
+      {/* Final submission */}
+      {!locked && (
+        <div className="flex flex-col items-end gap-1">
+          <Button
+            type="button"
+            onClick={submitFinal}
+            disabled={pending || lines.length === 0}
+            className="gap-1"
+          >
+            {pending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Lock className="h-4 w-4" />
+            )}
+            Submit as final
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Locks these inputs once the figures are final. You can reopen later
+            if something changes.
+          </p>
+        </div>
+      )}
+
+      {/* Package contents popup */}
+      <Dialog open={pkgOpen} onOpenChange={setPkgOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{pkg?.label}</DialogTitle>
+          </DialogHeader>
+          {pkg && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Default cost lines for this package. Untick anything you
+                don&apos;t need, then add the rest to the list — amounts stay
+                editable afterwards.
+              </p>
+              <div className="max-h-[50vh] overflow-y-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-secondary/60">
+                    <tr>
+                      <th className="w-8 p-2 text-left">
+                        <input
+                          type="checkbox"
+                          checked={pkgSelectedCount === pkg.lines.length}
+                          onChange={() =>
+                            setPkgChecks(
+                              pkg.lines.map(
+                                () => pkgSelectedCount !== pkg.lines.length,
+                              ),
+                            )
+                          }
+                          className="h-4 w-4 align-middle"
+                          aria-label="Select all contents"
+                        />
+                      </th>
+                      <th className="p-2 text-left font-medium">
+                        Expense Type
+                      </th>
+                      <th className="p-2 text-left font-medium">Description</th>
+                      <th className="p-2 text-right font-medium">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pkg.lines.map((l, i) => (
+                      <tr
+                        key={i}
+                        className={`border-t ${pkgChecks[i] ? "" : "opacity-50"}`}
+                      >
+                        <td className="p-2">
+                          <input
+                            type="checkbox"
+                            checked={!!pkgChecks[i]}
+                            onChange={() =>
+                              setPkgChecks((prev) =>
+                                prev.map((c, j) => (j === i ? !c : c)),
+                              )
+                            }
+                            className="h-4 w-4 align-middle"
+                            aria-label={`Include ${l.description}`}
+                          />
+                        </td>
+                        <td className="p-2 font-medium">{l.expense_type}</td>
+                        <td className="p-2">{l.description}</td>
+                        <td className="p-2 text-right tabular-nums">
+                          {php(l.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-t bg-secondary/50 font-semibold">
+                      <td colSpan={3} className="p-2 text-right">
+                        Selected total
+                      </td>
+                      <td className="p-2 text-right tabular-nums">
+                        {php(pkgSelectedTotal)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  onClick={addPackageLines}
+                  disabled={pending || pkgSelectedCount === 0}
+                  className="gap-1"
+                >
+                  {pending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  Add {pkgSelectedCount} item
+                  {pkgSelectedCount === 1 ? "" : "s"} —{" "}
+                  {php(pkgSelectedTotal)}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

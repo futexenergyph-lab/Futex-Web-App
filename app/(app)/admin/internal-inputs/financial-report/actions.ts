@@ -40,6 +40,19 @@ function refresh(bookingId: string) {
   revalidatePath(`/admin/internal-inputs/financial-report/${bookingId}`);
 }
 
+/** Returns an error message when the report is locked by a final submission. */
+async function finalizedError(bookingId: string): Promise<string | null> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("client_financial_status")
+    .select("finalized_at")
+    .eq("booking_id", bookingId)
+    .maybeSingle();
+  return data?.finalized_at
+    ? "This report has been submitted as final. Reopen it to make changes."
+    : null;
+}
+
 /** Add an expense line to a client's project financials. */
 export async function createClientFinancial(
   bookingId: string,
@@ -48,6 +61,8 @@ export async function createClientFinancial(
   const profile = await requireRole(["owner"]);
   const err = validate(v);
   if (err) return { error: err };
+  const locked = await finalizedError(bookingId);
+  if (locked) return { error: locked };
 
   const supabase = createClient();
   const { error } = await supabase.from("client_financials").insert({
@@ -71,6 +86,8 @@ export async function updateClientFinancial(
   await requireRole(["owner"]);
   const err = validate(v);
   if (err) return { error: err };
+  const locked = await finalizedError(bookingId);
+  if (locked) return { error: locked };
 
   const supabase = createClient();
   const { error } = await supabase
@@ -86,6 +103,8 @@ export async function updateClientFinancial(
 /** Delete one expense line. */
 export async function deleteClientFinancial(id: string, bookingId: string) {
   await requireRole(["owner"]);
+  const locked = await finalizedError(bookingId);
+  if (locked) return { error: locked };
   const supabase = createClient();
   const { error } = await supabase
     .from("client_financials")
@@ -105,14 +124,24 @@ export async function deleteClientFinancial(id: string, bookingId: string) {
 export async function applyInstallationPackage(
   bookingId: string,
   packageId: string,
+  lineIndexes?: number[],
 ) {
   const profile = await requireRole(["owner"]);
   const { INSTALLATION_PACKAGES } = await import("@/lib/installation-packages");
   const pkg = INSTALLATION_PACKAGES.find((p) => p.id === packageId);
   if (!pkg) return { error: "Unknown package." };
+  const locked = await finalizedError(bookingId);
+  if (locked) return { error: locked };
+
+  // Only the contents the owner ticked in the package popup (default: all).
+  const chosen =
+    lineIndexes && lineIndexes.length
+      ? pkg.lines.filter((_, i) => lineIndexes.includes(i))
+      : pkg.lines;
+  if (chosen.length === 0) return { error: "Select at least one item to add." };
 
   const base = Date.now();
-  const rows = pkg.lines.map((l, i) => ({
+  const rows = chosen.map((l, i) => ({
     booking_id: bookingId,
     entry_date: null,
     project_name: pkg.label,
@@ -132,4 +161,56 @@ export async function applyInstallationPackage(
 
   refresh(bookingId);
   return { ok: true, count: rows.length };
+}
+
+/** Delete several expense lines at once (checkbox selection). */
+export async function deleteClientFinancials(ids: string[], bookingId: string) {
+  await requireRole(["owner"]);
+  if (ids.length === 0) return { error: "No lines selected." };
+  const locked = await finalizedError(bookingId);
+  if (locked) return { error: locked };
+
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("client_financials")
+    .delete()
+    .in("id", ids)
+    .eq("booking_id", bookingId);
+  if (error) return { error: error.message };
+
+  refresh(bookingId);
+  return { ok: true, count: ids.length };
+}
+
+/** Submit the client's financial report as final — locks all inputs. */
+export async function finalizeClientFinancials(bookingId: string) {
+  const profile = await requireRole(["owner"]);
+  const supabase = createClient();
+  const { error } = await supabase.from("client_financial_status").upsert(
+    {
+      booking_id: bookingId,
+      finalized_at: new Date().toISOString(),
+      finalized_by: profile.id,
+      finalized_by_name: profile.full_name,
+    },
+    { onConflict: "booking_id" },
+  );
+  if (error) return { error: error.message };
+
+  refresh(bookingId);
+  return { ok: true };
+}
+
+/** Reopen a finalized report so it can be edited again. */
+export async function reopenClientFinancials(bookingId: string) {
+  await requireRole(["owner"]);
+  const supabase = createClient();
+  const { error } = await supabase.from("client_financial_status").upsert(
+    { booking_id: bookingId, finalized_at: null },
+    { onConflict: "booking_id" },
+  );
+  if (error) return { error: error.message };
+
+  refresh(bookingId);
+  return { ok: true };
 }
