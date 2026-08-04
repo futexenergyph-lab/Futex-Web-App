@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, ChevronRight, ArrowUpDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
 import { CsvExport } from "@/components/csv-export";
@@ -15,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { php, formatDate } from "@/lib/utils";
+import { php, formatDate, cn } from "@/lib/utils";
 import {
   BOOKING_STATUS_LABELS,
   BOOKING_STATUSES,
@@ -36,16 +37,6 @@ export interface ClientFinancialRow {
   finalized: boolean;
 }
 
-type Period = "today" | "week" | "month" | "year" | "all";
-
-const PERIOD_LABELS: Record<Period, string> = {
-  today: "Today",
-  week: "Week",
-  month: "Month",
-  year: "Year",
-  all: "All the time",
-};
-
 /** Today's calendar date in Manila, as YYYY-MM-DD. */
 function manilaToday(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
@@ -59,13 +50,8 @@ function refDate(r: ClientFinancialRow): string {
   });
 }
 
-/** Inclusive start date for a period, or null for "all the time". */
-function periodStart(period: Period, today: string): string | null {
-  if (period === "all") return null;
-  if (period === "today") return today;
-  if (period === "month") return `${today.slice(0, 7)}-01`;
-  if (period === "year") return `${today.slice(0, 4)}-01-01`;
-  // Week: Monday of the current week (pure calendar arithmetic).
+/** Monday of the week containing `today` (pure calendar arithmetic). */
+function weekStart(today: string): string {
   const d = new Date(`${today}T00:00:00Z`);
   const daysSinceMonday = (d.getUTCDay() + 6) % 7;
   return new Date(d.getTime() - daysSinceMonday * 86400000)
@@ -77,23 +63,24 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<BookingStatus | "all">("all");
   const [tracked, setTracked] = useState<"all" | "yes" | "no">("all");
-  const [period, setPeriod] = useState<Period>("all");
+  // Calendar date range (inclusive). Empty = no bound on that side.
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   // At most one active sort; null = default order (newest first).
   const [numSort, setNumSort] = useState<"asc" | "desc" | null>(null);
   const [dateSort, setDateSort] = useState<"asc" | "desc" | null>(null);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const today = manilaToday();
-    const start = periodStart(period, today);
 
     const out = rows.filter((r) => {
       if (status !== "all" && r.status !== status) return false;
       if (tracked === "yes" && r.expenses <= 0) return false;
       if (tracked === "no" && r.expenses > 0) return false;
-      if (start) {
+      if (from || to) {
         const d = refDate(r);
-        if (d < start || d > today) return false;
+        if (from && d < from) return false;
+        if (to && d > to) return false;
       }
       if (!needle) return true;
       return [r.client_name, r.client_number, r.address]
@@ -124,7 +111,7 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
       });
     }
     return out;
-  }, [rows, q, status, tracked, period, numSort, dateSort]);
+  }, [rows, q, status, tracked, from, to, numSort, dateSort]);
 
   const totals = useMemo(
     () =>
@@ -184,6 +171,64 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
         </Card>
       </div>
 
+      {/* Calendar date range */}
+      {(() => {
+        const today = manilaToday();
+        const presets: { label: string; f: string; t: string }[] = [
+          { label: "Today", f: today, t: today },
+          { label: "This Week", f: weekStart(today), t: today },
+          { label: "This Month", f: `${today.slice(0, 7)}-01`, t: today },
+          { label: "This Year", f: `${today.slice(0, 4)}-01-01`, t: today },
+          { label: "All time", f: "", t: "" },
+        ];
+        return (
+          <div className="flex flex-col gap-3 rounded-lg border bg-background p-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-wrap gap-1">
+              {presets.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => {
+                    setFrom(p.f);
+                    setTo(p.t);
+                  }}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-sm font-medium",
+                    from === p.f && to === p.t
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-secondary",
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <form
+              key={`${from}-${to}`}
+              className="flex items-end gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                setFrom((fd.get("from") as string) || "");
+                setTo((fd.get("to") as string) || "");
+              }}
+            >
+              <div>
+                <label className="text-xs text-muted-foreground">From</label>
+                <Input name="from" type="date" defaultValue={from} className="h-9" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">To</label>
+                <Input name="to" type="date" defaultValue={to} className="h-9" />
+              </div>
+              <Button type="submit" size="sm" className="h-9">
+                Apply
+              </Button>
+            </form>
+          </div>
+        );
+      })()}
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1">
@@ -195,18 +240,6 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
             className="pl-9"
           />
         </div>
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value as Period)}
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          aria-label="Period"
-        >
-          {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
-            <option key={p} value={p}>
-              {PERIOD_LABELS[p]}
-            </option>
-          ))}
-        </select>
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value as BookingStatus | "all")}
@@ -376,7 +409,8 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
       <p className="text-xs text-muted-foreground">
         {filtered.length} of {rows.length} client
         {rows.length === 1 ? "" : "s"}
-        {period !== "all" && ` · ${PERIOD_LABELS[period]}`}
+        {(from || to) &&
+          ` · ${from ? formatDate(from) : "…"} – ${to ? formatDate(to) : "…"}`}
       </p>
     </div>
   );
