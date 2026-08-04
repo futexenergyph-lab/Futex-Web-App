@@ -56,7 +56,7 @@ export async function createInternalInput(v: InternalInputValues) {
     .single();
   if (error) return { error: error.message };
 
-  revalidatePath("/admin/internal-inputs");
+  revalidatePath("/admin/internal-inputs/ledger");
   return { ok: true, id: data.id as string };
 }
 
@@ -73,7 +73,7 @@ export async function updateInternalInput(id: string, v: InternalInputValues) {
     .eq("id", id);
   if (error) return { error: error.message };
 
-  revalidatePath("/admin/internal-inputs");
+  revalidatePath("/admin/internal-inputs/ledger");
   return { ok: true };
 }
 
@@ -94,7 +94,7 @@ export async function deleteInternalInput(id: string) {
   const { error } = await supabase.from("internal_inputs").delete().eq("id", id);
   if (error) return { error: error.message };
 
-  revalidatePath("/admin/internal-inputs");
+  revalidatePath("/admin/internal-inputs/ledger");
   return { ok: true };
 }
 
@@ -107,6 +107,6 @@ export async function attachInternalInputFile(id: string, storagePath: string) {
     .update({ attachment_path: storagePath })
     .eq("id", id);
   if (error) return { error: error.message };
-  revalidatePath("/admin/internal-inputs");
+  revalidatePath("/admin/internal-inputs/ledger");
   return { ok: true };
 }
