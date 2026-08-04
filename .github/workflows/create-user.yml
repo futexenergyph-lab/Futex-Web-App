@@ -40,11 +40,15 @@ jobs:
       FULL_NAME: ${{ inputs.full_name }}
       ROLE: ${{ inputs.role }}
     steps:
+      # Register the mask before any step prints its env block.
+      - name: Mask credentials
+        env:
+          P: ${{ inputs.password }}
+        run: printf '::add-mask::%s\n' "$P"
+
       - name: Create user
         run: |
           set -e
-          echo "::add-mask::$PASSWORD"
-
           REF="$REF_IN"
           if [ -z "$REF" ]; then
             REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
@@ -58,16 +62,16 @@ jobs:
             -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
             -H "Content-Type: application/json" \
             -d "$(jq -nc --arg e "$EMAIL" --arg p "$PASSWORD" '{email:$e,password:$p,email_confirm:true}')")
-          UID=$(echo "$RESP" | jq -r '.id // .user.id // empty')
+          USER_ID=$(echo "$RESP" | jq -r '.id // .user.id // empty')
 
-          if [ -z "$UID" ]; then
+          if [ -z "$USER_ID" ]; then
             # Already exists -> look the user up and reset the password.
             echo "User exists or create failed: $(echo "$RESP" | jq -rc '.msg // .error_description // .error // .message // empty')"
-            UID=$(curl -s -G "$URL/auth/v1/admin/users" --data-urlencode "filter=$EMAIL" \
+            USER_ID=$(curl -s -G "$URL/auth/v1/admin/users" --data-urlencode "filter=$EMAIL" \
               -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
               | jq -r --arg e "$EMAIL" '(.users // [])[] | select((.email|ascii_downcase)==($e|ascii_downcase)) | .id' | head -1)
-            if [ -z "$UID" ]; then echo "Could not create or find the user."; exit 1; fi
-            curl -s -X PUT "$URL/auth/v1/admin/users/$UID" \
+            if [ -z "$USER_ID" ]; then echo "Could not create or find the user."; exit 1; fi
+            curl -s -X PUT "$URL/auth/v1/admin/users/$USER_ID" \
               -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
               -H "Content-Type: application/json" \
               -d "$(jq -nc --arg p "$PASSWORD" '{password:$p,email_confirm:true}')" -o /dev/null
@@ -81,10 +85,10 @@ jobs:
             -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
             -H "Content-Type: application/json" \
             -H "Prefer: resolution=merge-duplicates,return=minimal" \
-            -d "$(jq -nc --arg i "$UID" --arg n "$FULL_NAME" --arg r "$ROLE" '{id:$i,full_name:$n,role:$r,active:true}')" -o /dev/null
+            -d "$(jq -nc --arg i "$USER_ID" --arg n "$FULL_NAME" --arg r "$ROLE" '{id:$i,full_name:$n,role:$r,active:true}')" -o /dev/null
 
           echo "----- result -----"
-          curl -s -G "$URL/rest/v1/profiles" --data-urlencode "id=eq.$UID" \
+          curl -s -G "$URL/rest/v1/profiles" --data-urlencode "id=eq.$USER_ID" \
             --data-urlencode "select=id,full_name,role,active" \
             -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | jq -c '.[0]'
           echo "email: $EMAIL"
