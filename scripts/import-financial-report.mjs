@@ -11,7 +11,8 @@ import { readFileSync } from "node:fs";
 const URL = process.env.SUPABASE_URL;
 const KEY = process.env.SERVICE_KEY;
 const TAG = "FR-IMPORT-2026";
-const SOURCE = "import-fr-2026";
+const SOURCE = "manual"; // booking_source enum only allows manual|web
+const NOTE_MARK = "FINANCIAL_REPORT_MAY_2026.xlsx";
 
 const HEADERS = {
   apikey: KEY,
@@ -35,7 +36,7 @@ const data = JSON.parse(readFileSync(process.env.DATA_FILE, "utf8"));
 // ---------- Clients ----------
 const existing = await api(
   "GET",
-  `bookings?source=eq.${SOURCE}&select=notes`,
+  `bookings?notes=ilike.*${encodeURIComponent(NOTE_MARK)}*&select=notes`,
 );
 const done = new Set(
   (existing ?? [])
@@ -60,7 +61,7 @@ for (const c of data.clients) {
       status: "completed",
       source: SOURCE,
       preferred_date: c.date,
-      notes: `Imported from FINANCIAL_REPORT_MAY_2026.xlsx [tab: ${c.tab}]`,
+      notes: `Imported from ${NOTE_MARK} [tab: ${c.tab}]`,
       created_at: stamp,
     },
     "return=representation",
@@ -135,6 +136,6 @@ const cnt = async (p) => {
   });
   return res.headers.get("content-range")?.split("/")[1];
 };
-console.log("VERIFY bookings:", await cnt(`bookings?source=eq.${SOURCE}`));
+console.log("VERIFY bookings:", await cnt(`bookings?notes=ilike.*${encodeURIComponent(NOTE_MARK)}*`));
 console.log("VERIFY ledger:", await cnt(`internal_inputs?notes=ilike.*${TAG}*`));
 console.log("DONE");
