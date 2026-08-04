@@ -1,0 +1,29 @@
+name: Import Financial Report
+
+# One-off: imports FINANCIAL_REPORT_MAY_2026.xlsx data into Internal Inputs.
+# Idempotent — safe to re-run; already-imported records are skipped.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    env:
+      SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import
+        run: |
+          set -e
+          REF="$REF_IN"
+          if [ -z "$REF" ]; then
+            REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
+          fi
+          SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
+          echo "::add-mask::$SERVICE"
+          export SUPABASE_URL="https://$REF.supabase.co"
+          export SERVICE_KEY="$SERVICE"
+          export DATA_FILE="scripts/fr-import-data.json"
+          node scripts/import-financial-report.mjs
