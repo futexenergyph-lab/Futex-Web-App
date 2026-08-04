@@ -92,6 +92,19 @@ jobs:
             -H "Prefer: resolution=merge-duplicates,return=minimal" \
             -d "$(jq -nc --arg i "$USER_ID" --arg n "$FULL_NAME" --arg r "$ROLE" '{id:$i,full_name:$n,role:$r,active:true}')" -o /dev/null
 
+          # Confirm the credentials actually work.
+          ANON=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="anon")|.api_key) else empty end')
+          echo "::add-mask::$ANON"
+          LOGIN=$(curl -s -X POST "$URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $ANON" -H "Content-Type: application/json" \
+            -d "$(jq -nc --arg e "$EMAIL" --arg p "$PASSWORD" '{email:$e,password:$p}')")
+          if [ -n "$(echo "$LOGIN" | jq -r '.access_token // empty')" ]; then
+            echo "login check: OK"
+          else
+            echo "login check: FAILED -> $(echo "$LOGIN" | jq -rc '.error_description // .msg // .error // empty')"
+            exit 1
+          fi
+
           echo "----- result -----"
           curl -s -G "$URL/rest/v1/profiles" --data-urlencode "id=eq.$USER_ID" \
             --data-urlencode "select=id,full_name,role,active" \
