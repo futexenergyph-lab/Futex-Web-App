@@ -2,14 +2,19 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Pencil, Trash2, X, Check } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, X, Check, PackagePlus } from "lucide-react";
 import { toast } from "sonner";
 import {
   createClientFinancial,
   updateClientFinancial,
   deleteClientFinancial,
+  applyInstallationPackage,
   type ClientFinancialValues,
 } from "@/app/(app)/admin/internal-inputs/financial-report/actions";
+import {
+  INSTALLATION_PACKAGES,
+  packageTotal,
+} from "@/lib/installation-packages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -70,6 +75,28 @@ export function ClientFinancialsTracker({
   const [draft, setDraft] = useState<ClientFinancialValues>(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<ClientFinancialValues>(EMPTY);
+  const [packageId, setPackageId] = useState(INSTALLATION_PACKAGES[0].id);
+
+  function loadPackage() {
+    const pkg = INSTALLATION_PACKAGES.find((p) => p.id === packageId);
+    if (!pkg) return;
+    if (
+      lines.length > 0 &&
+      !confirm(
+        `This client already has ${lines.length} expense line(s). Load "${pkg.label}" and add its ${pkg.lines.length} lines below them?`,
+      )
+    )
+      return;
+    start(async () => {
+      const res = await applyInstallationPackage(bookingId, packageId);
+      if (res?.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(`${pkg.label} loaded — amounts are editable`);
+      router.refresh();
+    });
+  }
 
   const expenses = useMemo(
     () => lines.reduce((t, l) => t + Number(l.amount || 0), 0),
@@ -251,6 +278,50 @@ export function ClientFinancialsTracker({
           </CardContent>
         </Card>
       </div>
+
+      {/* Package availed — loads the default capital cost lines */}
+      <Card>
+        <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <label
+              htmlFor="pkg-avail"
+              className="text-sm font-medium leading-none"
+            >
+              Package availed by the client
+            </label>
+            <select
+              id="pkg-avail"
+              value={packageId}
+              onChange={(e) => setPackageId(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {INSTALLATION_PACKAGES.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label} — {php(packageTotal(p))}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Loads that package&apos;s cost lines below with their default
+              amounts. Every line stays editable, and you can add extra
+              expenses after it — the total recomputes automatically.
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={loadPackage}
+            disabled={pending}
+            className="gap-1"
+          >
+            {pending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <PackagePlus className="h-4 w-4" />
+            )}
+            Load package costs
+          </Button>
+        </CardContent>
+      </Card>
 
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">
