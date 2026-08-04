@@ -39,9 +39,9 @@ type Period = "today" | "week" | "month" | "year" | "all";
 
 const PERIOD_LABELS: Record<Period, string> = {
   today: "Today",
-  week: "Per Week",
-  month: "Per Month",
-  year: "Per Year",
+  week: "Week",
+  month: "Month",
+  year: "Year",
   all: "All the time",
 };
 
@@ -77,8 +77,9 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
   const [status, setStatus] = useState<BookingStatus | "all">("all");
   const [tracked, setTracked] = useState<"all" | "yes" | "no">("all");
   const [period, setPeriod] = useState<Period>("all");
-  // null = default order (newest first); otherwise sort by client number.
+  // At most one active sort; null = default order (newest first).
   const [numSort, setNumSort] = useState<"asc" | "desc" | null>(null);
+  const [dateSort, setDateSort] = useState<"asc" | "desc" | null>(null);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -114,9 +115,15 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
         });
         return numSort === "asc" ? cmp : -cmp;
       });
+    } else if (dateSort) {
+      // Calendar-date sort (install date, else booking date).
+      out.sort((a, b) => {
+        const cmp = refDate(a).localeCompare(refDate(b));
+        return dateSort === "asc" ? cmp : -cmp;
+      });
     }
     return out;
-  }, [rows, q, status, tracked, period, numSort]);
+  }, [rows, q, status, tracked, period, numSort, dateSort]);
 
   const totals = useMemo(
     () =>
@@ -230,11 +237,12 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
               <TableHead>
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    setDateSort(null);
                     setNumSort((s) =>
                       s === "asc" ? "desc" : s === "desc" ? null : "asc",
-                    )
-                  }
+                    );
+                  }}
                   className="inline-flex items-center gap-1 hover:text-foreground"
                   title="Sort by client number"
                 >
@@ -250,7 +258,30 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
               </TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Install date</TableHead>
+              <TableHead>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNumSort(null);
+                    setDateSort((s) =>
+                      s === "asc" ? "desc" : s === "desc" ? null : "asc",
+                    );
+                  }}
+                  className="inline-flex items-center gap-1 whitespace-nowrap hover:text-foreground"
+                  title="Sort by date"
+                >
+                  Install date
+                  <ArrowUpDown
+                    className={`h-3 w-3 ${dateSort ? "text-foreground" : "text-muted-foreground/50"}`}
+                  />
+                  {dateSort === "asc" && (
+                    <span className="text-[10px]">Oldest</span>
+                  )}
+                  {dateSort === "desc" && (
+                    <span className="text-[10px]">Newest</span>
+                  )}
+                </button>
+              </TableHead>
               <TableHead className="text-right">Payment</TableHead>
               <TableHead className="text-right">Expenses</TableHead>
               <TableHead className="text-right">Profit</TableHead>

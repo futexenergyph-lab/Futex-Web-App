@@ -43,7 +43,8 @@ export default async function ClientFinancialsPage({
           "id, entry_date, project_name, expense_type, description, amount, charge_to, remarks",
         )
         .eq("booking_id", params.id)
-        .order("entry_date", { ascending: true })
+        // Entry order: package template lines first (as loaded), additional
+        // expenses added later appear below them — like the sheet.
         .order("created_at", { ascending: true }),
     ]);
 

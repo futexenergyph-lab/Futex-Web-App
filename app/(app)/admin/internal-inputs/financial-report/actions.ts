@@ -96,3 +96,40 @@ export async function deleteClientFinancial(id: string, bookingId: string) {
   refresh(bookingId);
   return { ok: true };
 }
+
+/**
+ * Load an installation package's default cost lines into a client's
+ * financials. Lines are inserted in sheet order (staggered created_at keeps
+ * the display order stable) and remain individually editable afterwards.
+ */
+export async function applyInstallationPackage(
+  bookingId: string,
+  packageId: string,
+) {
+  const profile = await requireRole(["owner"]);
+  const { INSTALLATION_PACKAGES } = await import("@/lib/installation-packages");
+  const pkg = INSTALLATION_PACKAGES.find((p) => p.id === packageId);
+  if (!pkg) return { error: "Unknown package." };
+
+  const base = Date.now();
+  const rows = pkg.lines.map((l, i) => ({
+    booking_id: bookingId,
+    entry_date: null,
+    project_name: pkg.label,
+    expense_type: l.expense_type,
+    description: l.description,
+    amount: l.amount,
+    charge_to: null,
+    remarks: null,
+    created_by: profile.id,
+    created_by_name: profile.full_name,
+    created_at: new Date(base + i * 10).toISOString(),
+  }));
+
+  const supabase = createClient();
+  const { error } = await supabase.from("client_financials").insert(rows);
+  if (error) return { error: error.message };
+
+  refresh(bookingId);
+  return { ok: true, count: rows.length };
+}
