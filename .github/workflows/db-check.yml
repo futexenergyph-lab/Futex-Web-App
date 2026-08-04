@@ -1,6 +1,7 @@
 name: DB Check
 
-# Diagnostic: verify the Financial Report client page renders its new sections.
+# Diagnostic: inspects the Supabase schema and runs the exact queries the
+# dashboard uses, printing results so we can see what's failing.
 
 on:
   workflow_dispatch:
@@ -19,31 +20,39 @@ jobs:
           if [ -z "$REF" ]; then
             REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
           fi
+          echo "project ref: $REF"
           URL="https://$REF.supabase.co"
-          APP="https://futex-web-app.vercel.app"
           SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
-          ANON=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="anon")|.api_key) else empty end')
 
-          BID=$(curl -s -G "$URL/rest/v1/payments" --data-urlencode "select=booking_id" --data-urlencode "limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | jq -r '.[0].booking_id // empty')
-          [ -z "$BID" ] && BID=$(curl -s -G "$URL/rest/v1/bookings" --data-urlencode "select=id" --data-urlencode "limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | jq -r '.[0].id // empty')
-          echo "sample booking (with payment if any): $BID"
+          echo "============================================================"
+          echo "1) Tables exposed by PostgREST:"
+          curl -s "$URL/rest/v1/" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+            | jq -r '(.definitions // {}) | keys[]' 2>/dev/null | sort | tr '\n' ' '
+          echo
 
-          TS=$(date +%s%N)
-          EMAIL="diag-owner-$TS@example.com"; PASS="Probe-$TS-Aa1!"
-          CREATE=$(curl -s -X POST "$URL/auth/v1/admin/users" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -H "Content-Type: application/json" -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"email_confirm\":true}")
-          PUID=$(echo "$CREATE" | jq -r '.id // .user.id // empty')
-          curl -s -X POST "$URL/rest/v1/profiles" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -H "Content-Type: application/json" -H "Prefer: resolution=merge-duplicates,return=minimal" -d "{\"id\":\"$PUID\",\"full_name\":\"Diag Owner\",\"role\":\"owner\",\"active\":true}" -o /dev/null
-          TOK=$(curl -s -X POST "$URL/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H "Content-Type: application/json" -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
-          SESSION=$(echo "$TOK" | jq -c '.'); NAME="sb-$REF-auth-token"
-          B64=$(printf '%s' "$SESSION" | base64 -w0 | tr '+/' '-_' | tr -d '='); VAL="base64-$B64"; LEN=${#VAL}
-          CA=()
-          if [ $LEN -le 3600 ]; then CA=(-b "$NAME=$VAL"); else
-            off=0; i=0; while [ $off -lt $LEN ]; do CA+=(-b "$NAME.$i=${VAL:$off:3600}"); off=$((off+3600)); i=$((i+1)); done
-          fi
+          echo "============================================================"
+          echo "2) profiles row count + sample:"
+          curl -s "$URL/rest/v1/profiles?select=id,full_name,role,active&limit=5" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
+          echo
 
-          code=$(curl -s "${CA[@]}" -o /tmp/b -w '%{http_code}' -L "$APP/admin/internal-inputs/financial-report/$BID")
-          echo "client page -> HTTP $code"
-          for t in "Job Order details" "Payment details" "Packages availed" "Project-based expense tracking"; do
-            echo "  '$t' = $(grep -c "$t" /tmp/b)"
+          echo "============================================================"
+          echo "3) bookings simple select (HTTP + body):"
+          curl -s -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings?select=*&limit=1" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
+          echo
+
+          echo "============================================================"
+          echo "4) bookings EMBED select (the dashboard query):"
+          SEL='*,preferred_package:packages!bookings_preferred_package_id_fkey(id,name,base_price),preferred_enclosure:enclosures!bookings_preferred_enclosure_id_fkey(id,name,price),assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(id,full_name),assigned_installer:profiles!bookings_assigned_installer_id_fkey(id,full_name)'
+          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings" \
+            --data-urlencode "select=$SEL" --data-urlencode "limit=1" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1200
+          echo
+
+          echo "============================================================"
+          echo "5) packages / enclosures counts:"
+          for t in packages enclosures addons settings job_orders payments; do
+            C=$(curl -s -w '%{http_code}' -o /tmp/b "$URL/rest/v1/$t?select=*&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE")
+            echo "  $t -> HTTP $C  $(head -c 120 /tmp/b)"
           done
-          curl -s -X DELETE "$URL/auth/v1/admin/users/$PUID" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -o /dev/null
