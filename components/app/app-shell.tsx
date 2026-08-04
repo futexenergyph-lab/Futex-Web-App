@@ -29,6 +29,7 @@ import {
   FileText,
   ShoppingCart,
   Database,
+  PiggyBank,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -155,9 +156,17 @@ export function AppShell({
           ];
   } else {
     ({ label: areaLabel, nav } = AREAS[area]);
-    // The Owner gets an extra audit "Logs" module.
+    // The Owner gets extra private modules: internal cash ledger + audit Logs.
     if (profile.role === "owner") {
-      nav = [...nav, { href: "/admin/logs", label: "Logs", icon: History }];
+      nav = [
+        ...nav,
+        {
+          href: "/admin/internal-inputs",
+          label: "Internal Inputs",
+          icon: PiggyBank,
+        },
+        { href: "/admin/logs", label: "Logs", icon: History },
+      ];
     }
   }
 
