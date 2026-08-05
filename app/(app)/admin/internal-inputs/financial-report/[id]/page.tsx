@@ -57,6 +57,7 @@ export default async function ClientFinancialsPage({
 
   const [
     { data: booking },
+    { data: internal },
     { data: pays },
     { data: lines },
     { data: status },
@@ -70,7 +71,14 @@ export default async function ClientFinancialsPage({
         "id, client_number, client_name, address, contact_number, status, preferred_date",
       )
       .eq("id", params.id)
-      .single(),
+      .maybeSingle(),
+    supabase
+      .from("internal_clients")
+      .select(
+        "id, client_name, address, install_date, payment_amount, payment_method, payment_ref",
+      )
+      .eq("id", params.id)
+      .maybeSingle(),
     supabase
       .from("payments")
       .select("amount, method, splits, reference_no, status, paid_at, created_at")
@@ -103,24 +111,46 @@ export default async function ClientFinancialsPage({
     supabase.from("enclosures").select("id, name"),
   ]);
 
-  if (!booking) notFound();
-  const b = booking as {
+  const ic = internal as {
     id: string;
-    client_number: string | null;
     client_name: string;
-    address: string;
-    contact_number: string;
-    status: BookingStatus;
-    preferred_date: string | null;
-  };
+    address: string | null;
+    install_date: string | null;
+    payment_amount: number;
+    payment_method: string | null;
+    payment_ref: string | null;
+  } | null;
+  const isInternal = !booking && !!ic;
+  if (!booking && !ic) notFound();
+  const b = booking
+    ? (booking as {
+        id: string;
+        client_number: string | null;
+        client_name: string;
+        address: string;
+        contact_number: string;
+        status: BookingStatus;
+        preferred_date: string | null;
+      })
+    : {
+        id: ic!.id,
+        client_number: null,
+        client_name: ic!.client_name,
+        address: ic!.address ?? "",
+        contact_number: "",
+        status: "completed" as BookingStatus,
+        preferred_date: ic!.install_date,
+      };
 
   // Payment: confirmed payments when present, otherwise whatever is recorded.
   const payRows = (pays as unknown as PayRow[] | null) ?? [];
   const confirmed = payRows.filter((p) => p.status === "confirmed");
-  const payment = (confirmed.length ? confirmed : payRows).reduce(
-    (t, p) => t + Number(p.amount || 0),
-    0,
-  );
+  const payment = isInternal
+    ? Number(ic!.payment_amount ?? 0)
+    : (confirmed.length ? confirmed : payRows).reduce(
+        (t, p) => t + Number(p.amount || 0),
+        0,
+      );
 
   const financialLines: FinancialLine[] = (
     (lines as FinancialLine[] | null) ?? []
@@ -185,9 +215,16 @@ export default async function ClientFinancialsPage({
           <span className="flex items-center gap-1">
             <MapPin className="h-3.5 w-3.5" /> {b.address}
           </span>
-          <span className="flex items-center gap-1">
-            <Phone className="h-3.5 w-3.5" /> {b.contact_number}
-          </span>
+          {b.contact_number && (
+            <span className="flex items-center gap-1">
+              <Phone className="h-3.5 w-3.5" /> {b.contact_number}
+            </span>
+          )}
+          {isInternal && (
+            <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+              Internal record
+            </span>
+          )}
           {b.preferred_date && (
             <span>Install: {formatDate(b.preferred_date)}</span>
           )}
@@ -264,7 +301,29 @@ export default async function ClientFinancialsPage({
             <CardTitle className="text-base">Payment details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            {payRows.length === 0 ? (
+            {isInternal ? (
+              <div className="rounded-md border bg-secondary/20 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold tabular-nums">
+                    {php(payment)}
+                  </span>
+                  <Badge variant="accent">Confirmed</Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Mode of payment:{" "}
+                  {ic!.payment_method
+                    ? (PAYMENT_METHOD_LABELS[
+                        ic!.payment_method as PaymentMethod
+                      ] ?? ic!.payment_method)
+                    : "—"}
+                </p>
+                {ic!.payment_ref && (
+                  <p className="text-xs text-muted-foreground">
+                    Ref: {ic!.payment_ref}
+                  </p>
+                )}
+              </div>
+            ) : payRows.length === 0 ? (
               <p className="text-muted-foreground">
                 No payment recorded for this client yet.
               </p>

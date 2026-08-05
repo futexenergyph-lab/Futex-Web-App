@@ -206,4 +206,17 @@ jobs:
           run_sql 'drop policy if exists client_financial_status_update on public.client_financial_status; create policy client_financial_status_update on public.client_financial_status for update using (public.is_owner()) with check (public.is_owner());'
           run_sql 'drop policy if exists client_financial_status_delete on public.client_financial_status; create policy client_financial_status_delete on public.client_financial_status for delete using (public.is_owner());'
 
+          # Internal clients (owner-only home for imported/historical clients)
+          run_sql "create table if not exists public.internal_clients (id uuid primary key default gen_random_uuid(), client_name text not null, address text, install_date date, payment_amount numeric(14,2) not null default 0, payment_method text, payment_ref text, notes text, created_at timestamptz not null default now());"
+          run_sql 'alter table public.internal_clients enable row level security;'
+          run_sql 'drop policy if exists internal_clients_select on public.internal_clients; create policy internal_clients_select on public.internal_clients for select using (public.is_owner());'
+          run_sql 'drop policy if exists internal_clients_insert on public.internal_clients; create policy internal_clients_insert on public.internal_clients for insert with check (public.is_owner());'
+          run_sql 'drop policy if exists internal_clients_update on public.internal_clients; create policy internal_clients_update on public.internal_clients for update using (public.is_owner()) with check (public.is_owner());'
+          run_sql 'drop policy if exists internal_clients_delete on public.internal_clients; create policy internal_clients_delete on public.internal_clients for delete using (public.is_owner());'
+          run_sql 'alter table public.client_financials drop constraint if exists client_financials_booking_id_fkey;'
+          run_sql 'alter table public.client_financial_status drop constraint if exists client_financial_status_booking_id_fkey;'
+          run_sql "insert into public.internal_clients (id, client_name, address, install_date, payment_amount, payment_method, payment_ref, notes, created_at) select b.id, b.client_name, b.address, b.preferred_date, coalesce((select sum(p.amount) from public.payments p where p.booking_id = b.id and p.status = 'confirmed'), 0), (select p.method::text from public.payments p where p.booking_id = b.id order by p.created_at desc limit 1), (select p.reference_no from public.payments p where p.booking_id = b.id order by p.created_at desc limit 1), b.notes, b.created_at from public.bookings b where b.notes like '%FINANCIAL_REPORT_MAY_2026.xlsx%' on conflict (id) do nothing;"
+          run_sql 'delete from public.payments where booking_id in (select id from public.internal_clients);'
+          run_sql 'delete from public.bookings where id in (select id from public.internal_clients);'
+
           echo "Done."
