@@ -16,20 +16,28 @@ export default async function FinancialReportPage() {
   await requireRole(["owner"]);
   const supabase = createClient();
 
-  const [{ data: bookings }, { data: pays }, { data: fins }, { data: stats }] =
-    await Promise.all([
-      supabase
-        .from("bookings")
-        .select(
-          "id, client_number, client_name, address, status, preferred_date, created_at",
-        )
-        .order("created_at", { ascending: false }),
-      supabase.from("payments").select("booking_id, amount, status"),
-      supabase.from("client_financials").select("booking_id, amount"),
-      supabase
-        .from("client_financial_status")
-        .select("booking_id, finalized_at"),
-    ]);
+  const [
+    { data: bookings },
+    { data: internals },
+    { data: pays },
+    { data: fins },
+    { data: stats },
+  ] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select(
+        "id, client_number, client_name, address, status, preferred_date, created_at",
+      )
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("internal_clients")
+      .select("id, client_name, address, install_date, payment_amount, created_at"),
+    supabase.from("payments").select("booking_id, amount, status"),
+    supabase.from("client_financials").select("booking_id, amount"),
+    supabase
+      .from("client_financial_status")
+      .select("booking_id, finalized_at"),
+  ]);
 
   const finalized = new Set(
     (
@@ -91,6 +99,35 @@ export default async function FinancialReportPage() {
       finalized: finalized.has(b.id),
     };
   });
+
+  // Historical clients that live only inside Internal Inputs (owner-only).
+  for (const ic of (internals as
+    | {
+        id: string;
+        client_name: string;
+        address: string | null;
+        install_date: string | null;
+        payment_amount: number;
+        created_at: string;
+      }[]
+    | null) ?? []) {
+    const payment = Number(ic.payment_amount ?? 0);
+    const expenses = expByBooking.get(ic.id) ?? 0;
+    rows.push({
+      id: ic.id,
+      client_number: null,
+      client_name: ic.client_name,
+      address: ic.address ?? "",
+      status: "completed",
+      preferred_date: ic.install_date,
+      created_at: ic.created_at,
+      payment,
+      expenses,
+      profit: payment - expenses,
+      finalized: finalized.has(ic.id),
+    });
+  }
+  rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
   return (
     <div>
