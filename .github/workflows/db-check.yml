@@ -1,7 +1,6 @@
 name: DB Check
 
-# Diagnostic: inspects the Supabase schema and runs the exact queries the
-# dashboard uses, printing results so we can see what's failing.
+# Diagnostic: why can't anyone log in? Test every link in the login chain.
 
 on:
   workflow_dispatch:
@@ -20,39 +19,46 @@ jobs:
           if [ -z "$REF" ]; then
             REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
           fi
-          echo "project ref: $REF"
           URL="https://$REF.supabase.co"
+          APP="https://futex-web-app.vercel.app"
+
+          echo "=== 1) Supabase project status ==="
+          curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r '.[] | {id, name, status}'
+
           SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
+          ANON=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="anon")|.api_key) else empty end')
+          echo "service key present: $([ -n "$SERVICE" ] && echo yes || echo NO)"
+          echo "anon key present: $([ -n "$ANON" ] && echo yes || echo NO)"
 
-          echo "============================================================"
-          echo "1) Tables exposed by PostgREST:"
-          curl -s "$URL/rest/v1/" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
-            | jq -r '(.definitions // {}) | keys[]' 2>/dev/null | sort | tr '\n' ' '
-          echo
+          echo "=== 2) Auth service health ==="
+          curl -s -w $'\nHTTP %{http_code}\n' "$URL/auth/v1/health" -H "apikey: $ANON" | head -c 300
 
-          echo "============================================================"
-          echo "2) profiles row count + sample:"
-          curl -s "$URL/rest/v1/profiles?select=id,full_name,role,active&limit=5" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
-          echo
+          echo "=== 3) REST reachability (profiles head) ==="
+          curl -s -o /dev/null -w 'HTTP %{http_code}\n' "$URL/rest/v1/profiles?select=id&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE"
 
-          echo "============================================================"
-          echo "3) bookings simple select (HTTP + body):"
-          curl -s -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings?select=*&limit=1" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
-          echo
+          echo "=== 4) Real-user password sign-in (owner account) ==="
+          T=$(curl -s -X POST "$URL/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H "Content-Type: application/json" \
+            -d '{"email":"Lynettelesin@futexenergy.ph","password":"TallaLesin@11"}')
+          echo "$T" | jq -r 'if .access_token then "sign-in: OK" else . end'
+          ACCESS=$(echo "$T" | jq -r '.access_token // empty')
 
-          echo "============================================================"
-          echo "4) bookings EMBED select (the dashboard query):"
-          SEL='*,preferred_package:packages!bookings_preferred_package_id_fkey(id,name,base_price),preferred_enclosure:enclosures!bookings_preferred_enclosure_id_fkey(id,name,price),assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(id,full_name),assigned_installer:profiles!bookings_assigned_installer_id_fkey(id,full_name)'
-          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings" \
-            --data-urlencode "select=$SEL" --data-urlencode "limit=1" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1200
-          echo
+          if [ -n "$ACCESS" ]; then
+            echo "=== 5) Profile fetch as that user (middleware does this) ==="
+            curl -s -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/profiles?select=id,full_name,role,active&id=eq.$(echo "$T" | jq -r .user.id)" \
+              -H "apikey: $ANON" -H "Authorization: Bearer $ACCESS" | head -c 400
+          fi
 
-          echo "============================================================"
-          echo "5) packages / enclosures counts:"
-          for t in packages enclosures addons settings job_orders payments; do
-            C=$(curl -s -w '%{http_code}' -o /tmp/b "$URL/rest/v1/$t?select=*&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE")
-            echo "  $t -> HTTP $C  $(head -c 120 /tmp/b)"
+          echo "=== 6) App pages ==="
+          for p in /login / /admin; do
+            code=$(curl -s -o /tmp/b -w '%{http_code}' -L "$APP$p")
+            echo "$p -> HTTP $code  $(head -c 120 /tmp/b | tr '\n' ' ' | head -c 100)"
           done
+
+          echo "=== 7) Diag user full flow ==="
+          TS=$(date +%s%N); EMAIL="diag-login-$TS@example.com"; PASS="Probe-$TS-Aa1!"
+          CREATE=$(curl -s -X POST "$URL/auth/v1/admin/users" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -H "Content-Type: application/json" -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"email_confirm\":true}")
+          PUID=$(echo "$CREATE" | jq -r '.id // .user.id // empty')
+          echo "admin create user: $([ -n "$PUID" ] && echo OK || echo "$CREATE" | head -c 200)"
+          T2=$(curl -s -X POST "$URL/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H "Content-Type: application/json" -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
+          echo "$T2" | jq -r 'if .access_token then "diag sign-in: OK" else . end'
+          [ -n "$PUID" ] && curl -s -X DELETE "$URL/auth/v1/admin/users/$PUID" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -o /dev/null
