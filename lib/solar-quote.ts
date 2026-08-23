@@ -85,6 +85,8 @@ interface PackageSpec {
     pvWireRolls?: number;
     /** HDPE conduit spec (default "25mm HDPE"). */
     hdpeName?: string;
+    /** Cable Tray 4x2 quantity (default 1). */
+    cableTray?: number;
   };
 }
 
@@ -174,7 +176,7 @@ function buildPackage(s: PackageSpec): SolarQuoteData {
           { name: a.hdpeName ?? "25mm HDPE", unit: "roll", qty: 1, checked: true },
           { name: "ATS", unit: "A", qty: 125, checked: true },
           { name: "DC MCCB", unit: "A", qty: 200, checked: true },
-          { name: "Cable Tray 4x2", unit: "", qty: 1, checked: true },
+          { name: "Cable Tray 4x2", unit: "", qty: a.cableTray ?? 1, checked: true },
           { name: "MC4", unit: "pcs", qty: a.mc4, checked: true },
           { name: "Battery Cable", unit: "", qty: 1, checked: true },
         ],
@@ -293,6 +295,34 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
           acMcb: 3,
           acSpd: 1,
           mc4: 30,
+        },
+      }),
+  },
+  {
+    id: "12kw-314ah",
+    label: "12kwh + 314ah Battery Hybrid",
+    build: () =>
+      buildPackage({
+        packageName: "12kwh + 314ah Battery Hybrid",
+        netPrice: 585000,
+        discountedPrice: 545000,
+        panelQty: 24,
+        inverterKw: 12,
+        battery: "314AH 16kWh battery",
+        batteryCapacity: "316ah",
+        accessories: {
+          railings: 24,
+          lfoot: 72,
+          midclamp: 48,
+          endclamp: 24,
+          dcMcb: 3,
+          dcSpd: 2,
+          acMcb: 3,
+          acSpd: 1,
+          mc4: 30,
+          pvWireRolls: 2,
+          hdpeName: "32mm HDPE",
+          cableTray: 0,
         },
       }),
   },
