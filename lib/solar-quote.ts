@@ -81,8 +81,10 @@ interface PackageSpec {
     acMcb: number;
     acSpd: number;
     mc4: number;
-    /** Rolls of 4mm PV wire (default 1). */
+    /** Rolls of PV wire (default 1). */
     pvWireRolls?: number;
+    /** PV wire spec (default "4mm PV Wire"). */
+    pvWireName?: string;
     /** HDPE conduit spec (default "25mm HDPE"). */
     hdpeName?: string;
     /** Cable Tray 4x2 quantity (default 1). */
@@ -172,7 +174,7 @@ function buildPackage(s: PackageSpec): SolarQuoteData {
           { name: "AC 100A MCB", unit: "pcs", qty: a.acMcb, checked: true },
           { name: "AC SPD", unit: "pcs", qty: a.acSpd, checked: true },
           { name: "Combiner Box", unit: "", qty: 1, checked: true },
-          { name: "4mm PV Wire", unit: "roll", qty: a.pvWireRolls ?? 1, checked: true },
+          { name: a.pvWireName ?? "4mm PV Wire", unit: "roll", qty: a.pvWireRolls ?? 1, checked: true },
           { name: a.hdpeName ?? "25mm HDPE", unit: "roll", qty: 1, checked: true },
           { name: "ATS", unit: "A", qty: 125, checked: true },
           { name: "DC MCCB", unit: "A", qty: 200, checked: true },
@@ -299,6 +301,34 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
       }),
   },
   {
+    id: "10kw-314ah",
+    label: "10kw + 314ah Battery Hybrid",
+    build: () =>
+      buildPackage({
+        packageName: "10kw + 314ah Battery Hybrid",
+        netPrice: 560000,
+        discountedPrice: 490000,
+        panelQty: 20,
+        inverterKw: 10,
+        battery: "314AH 16kWh battery",
+        batteryCapacity: "316ah",
+        accessories: {
+          railings: 20,
+          lfoot: 60,
+          midclamp: 40,
+          endclamp: 20,
+          dcMcb: 2,
+          dcSpd: 2,
+          acMcb: 3,
+          acSpd: 1,
+          mc4: 30,
+          pvWireRolls: 2,
+          pvWireName: "6mm PV Wire",
+          hdpeName: "30mm HDPE",
+        },
+      }),
+  },
+  {
     id: "12kw-314ah",
     label: "12kwh + 314ah Battery Hybrid",
     build: () =>
@@ -306,7 +336,7 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
         packageName: "12kwh + 314ah Battery Hybrid",
         netPrice: 585000,
         discountedPrice: 545000,
-        panelQty: 24,
+        panelQty: 20,
         inverterKw: 12,
         battery: "314AH 16kWh battery",
         batteryCapacity: "316ah",
