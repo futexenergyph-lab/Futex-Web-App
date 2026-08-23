@@ -89,6 +89,8 @@ interface PackageSpec {
     hdpeName?: string;
     /** Cable Tray 4x2 quantity (default 1). */
     cableTray?: number;
+    /** DC MCB spec (default "20A DC MCB"). */
+    dcMcbName?: string;
   };
 }
 
@@ -169,7 +171,7 @@ function buildPackage(s: PackageSpec): SolarQuoteData {
           { name: "LFoot", unit: "pcs", qty: a.lfoot, checked: true },
           { name: "Midclamp", unit: "pcs", qty: a.midclamp, checked: true },
           { name: "End clamp", unit: "pcs", qty: a.endclamp, checked: true },
-          { name: "20A DC MCB", unit: "pcs", qty: a.dcMcb, checked: true },
+          { name: a.dcMcbName ?? "20A DC MCB", unit: "pcs", qty: a.dcMcb, checked: true },
           { name: "DC SPD", unit: "pcs", qty: a.dcSpd, checked: true },
           { name: "AC 100A MCB", unit: "pcs", qty: a.acMcb, checked: true },
           { name: "AC SPD", unit: "pcs", qty: a.acSpd, checked: true },
@@ -323,7 +325,6 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
           acSpd: 1,
           mc4: 30,
           pvWireRolls: 2,
-          pvWireName: "6mm PV Wire",
           hdpeName: "30mm HDPE",
         },
       }),
@@ -382,6 +383,35 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
           mc4: 30,
           pvWireRolls: 2,
           hdpeName: "30mm HDPE",
+        },
+      }),
+  },
+  {
+    id: "16kw-628ah",
+    label: "16kw + 628ah Battery Hybrid",
+    build: () =>
+      buildPackage({
+        packageName: "16kw + 628ah Battery Hybrid",
+        netPrice: 840000,
+        discountedPrice: 735000,
+        panelQty: 28,
+        inverterKw: 16,
+        battery: "2 pcs 314AH 16kWh battery",
+        batteryQty: 2,
+        batteryMaterial: "314AH 16kWh Battery",
+        batteryCapacity: "628ah",
+        accessories: {
+          railings: 28,
+          lfoot: 84,
+          midclamp: 56,
+          endclamp: 28,
+          dcMcb: 2,
+          dcMcbName: "40A DC MCB",
+          dcSpd: 2,
+          acMcb: 3,
+          acSpd: 2,
+          mc4: 30,
+          hdpeName: "32mm HDPE",
         },
       }),
   },
