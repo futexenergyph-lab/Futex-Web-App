@@ -65,6 +65,10 @@ interface PackageSpec {
   battery: string;
   /** Battery total capacity line, e.g. "316ah". */
   batteryCapacity: string;
+  /** Number of battery units (default 1). */
+  batteryQty?: number;
+  /** Battery material line name; defaults to the inclusion text. */
+  batteryMaterial?: string;
   /** Panel warranty line. Defaults to DEFAULT_PANEL_WARRANTY. */
   panelWarranty?: string;
   accessories: {
@@ -77,6 +81,10 @@ interface PackageSpec {
     acMcb: number;
     acSpd: number;
     mc4: number;
+    /** Rolls of 4mm PV wire (default 1). */
+    pvWireRolls?: number;
+    /** HDPE conduit spec (default "25mm HDPE"). */
+    hdpeName?: string;
   };
 }
 
@@ -136,7 +144,13 @@ function buildPackage(s: PackageSpec): SolarQuoteData {
         brand: BATTERY_BRANDS.join(", "),
         inclusion: s.battery,
         materials: [
-          { name: s.battery.replace(/\bbattery\b/i, "Battery"), unit: "pc", qty: 1, checked: true },
+          {
+            name:
+              s.batteryMaterial ?? s.battery.replace(/\bbattery\b/i, "Battery"),
+            unit: "pc",
+            qty: s.batteryQty ?? 1,
+            checked: true,
+          },
         ],
         details: `Total Capacity: ${s.batteryCapacity}\nDimensions: 753 mm × 600 mm × 300 mm\nWarranty: 5/7/10 years (Depends on Brand)`,
       },
@@ -156,8 +170,8 @@ function buildPackage(s: PackageSpec): SolarQuoteData {
           { name: "AC 100A MCB", unit: "pcs", qty: a.acMcb, checked: true },
           { name: "AC SPD", unit: "pcs", qty: a.acSpd, checked: true },
           { name: "Combiner Box", unit: "", qty: 1, checked: true },
-          { name: "4mm PV Wire", unit: "roll", qty: 1, checked: true },
-          { name: "25mm HDPE", unit: "roll", qty: 1, checked: true },
+          { name: "4mm PV Wire", unit: "roll", qty: a.pvWireRolls ?? 1, checked: true },
+          { name: a.hdpeName ?? "25mm HDPE", unit: "roll", qty: 1, checked: true },
           { name: "ATS", unit: "A", qty: 125, checked: true },
           { name: "DC MCCB", unit: "A", qty: 200, checked: true },
           { name: "Cable Tray 4x2", unit: "", qty: 1, checked: true },
@@ -279,6 +293,35 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
           acMcb: 3,
           acSpd: 1,
           mc4: 30,
+        },
+      }),
+  },
+  {
+    id: "12kw-628ah",
+    label: "12kwh + 628ah Battery Hybrid",
+    build: () =>
+      buildPackage({
+        packageName: "12kwh + 628ah Battery Hybrid",
+        netPrice: 745000,
+        discountedPrice: 685000,
+        panelQty: 20,
+        inverterKw: 12,
+        battery: "2 pcs 314AH 16kWh battery",
+        batteryQty: 2,
+        batteryMaterial: "314AH 16kWh Battery",
+        batteryCapacity: "628ah",
+        accessories: {
+          railings: 20,
+          lfoot: 60,
+          midclamp: 40,
+          endclamp: 20,
+          dcMcb: 2,
+          dcSpd: 2,
+          acMcb: 3,
+          acSpd: 2,
+          mc4: 30,
+          pvWireRolls: 2,
+          hdpeName: "30mm HDPE",
         },
       }),
   },
