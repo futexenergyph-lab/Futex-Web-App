@@ -63,37 +63,37 @@ export interface InstallationPackage {
 export const INSTALLATION_PACKAGES: InstallationPackage[] = [
   {
     id: "standard",
-    label: "Standard Installation",
+    label: "Standard 2-Way Protection",
     lines: [...LABOR, ...BASE_MATERIALS],
   },
   {
     id: "smart",
-    label: "Smart Installation",
+    label: "Futex Smart 3-Way Protection",
     lines: [...LABOR, ...SMART_MATERIALS],
   },
   {
     id: "smart-enclosure",
-    label: "Smart Installation with Enclosure",
+    label: "Futex Smart 3-Way Protection (with Enclosure)",
     lines: [...LABOR, ...SMART_MATERIALS, GLASS_ENCLOSURE],
   },
   {
     id: "smart-enclosure-stand",
-    label: "Smart Installation with Enclosure & Stand",
+    label: "Futex Smart 3-Way Protection (with Enclosure + Stand)",
     lines: [...LABOR, ...SMART_MATERIALS, GLASS_ENCLOSURE, METAL_STAND],
   },
   {
     id: "futex-installation",
-    label: "Futex Charger with Installation",
+    label: "Futex 7kW Smart Charger + Installation",
     lines: [...LABOR, ...BASE_MATERIALS, FUTEX_CHARGER],
   },
   {
     id: "futex-enclosure",
-    label: "Futex Charger with Enclosure",
+    label: "Futex 7kW Smart Charger + Installation (With Enclosure)",
     lines: [...LABOR, ...BASE_MATERIALS, GLASS_ENCLOSURE, FUTEX_CHARGER],
   },
   {
     id: "futex-enclosure-stand",
-    label: "Futex Charger with Enclosure & Stand",
+    label: "Futex 7kW Smart Charger + Installation (With Enclosure + Stand)",
     lines: [...LABOR, ...BASE_MATERIALS, GLASS_ENCLOSURE, FUTEX_CHARGER, METAL_STAND],
   },
 ];
