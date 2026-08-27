@@ -175,6 +175,7 @@ export function ClientFinancialsTracker({
   payment,
   installDate = null,
   bookedPackage = null,
+  bookedEnclosure = null,
   finalizedAt = null,
   finalizedByName = null,
 }: {
@@ -183,6 +184,7 @@ export function ClientFinancialsTracker({
   payment: number;
   installDate?: string | null;
   bookedPackage?: string | null;
+  bookedEnclosure?: string | null;
   finalizedAt?: string | null;
   finalizedByName?: string | null;
 }) {
@@ -468,6 +470,9 @@ export function ClientFinancialsTracker({
               <div className="min-w-0">
                 <p className="text-sm font-medium">
                   Booked package: {bookedPackage}
+                  {bookedEnclosure
+                    ? ` · Enclosure: ${bookedEnclosure}`
+                    : " · No enclosure billed"}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Pre-fills this client&apos;s expenses from their booked

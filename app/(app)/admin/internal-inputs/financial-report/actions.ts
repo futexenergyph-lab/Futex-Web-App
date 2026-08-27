@@ -209,11 +209,14 @@ export async function prefillClientExpenses(bookingId: string) {
   const packageId = joRow?.package_id ?? bk?.preferred_package_id ?? null;
   if (!packageId)
     return { error: "No booked package found for this client." };
-  // The job order is the final on-site record: when one exists, only ITS
-  // enclosure choice counts — the booking's earlier preference must not
-  // add an enclosure the client didn't actually avail.
+  // The job order is the final on-site record: an enclosure only counts when
+  // it was actually CHARGED there (add_separate_enclosure) — a lingering
+  // enclosure selection that was never billed must not count, and neither
+  // must the booking's earlier preference.
   const enclosureId = joRow
-    ? joRow.enclosure_id
+    ? joRow.add_separate_enclosure
+      ? joRow.enclosure_id
+      : null
     : (bk?.preferred_enclosure_id ?? null);
 
   const [{ data: pkg }, encRes] = await Promise.all([
@@ -254,8 +257,11 @@ export async function prefillClientExpenses(bookingId: string) {
       !!enclosureId ||
       !!joRow?.add_separate_enclosure ||
       // The package-level flag only counts when no job order pinned down
-      // the actual equipment.
+      // the actual billed equipment.
       (!joRow && !!pkgRow.enclosure_included),
+    // (When a job order exists but billed no enclosure, only a package NAME
+    // that itself says "enclosure" can still add one — handled in the
+    // resolver.)
     standHint: jobWorksText,
   });
   if (!template)
