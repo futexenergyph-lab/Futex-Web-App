@@ -81,6 +81,88 @@ const EMPTY: ClientFinancialValues = {
   remarks: "",
 };
 
+// Shared cell inputs for the add / edit rows. Defined at module level so the
+// inputs keep focus while typing (re-declaring this inside the tracker made
+// React remount the fields on every keystroke).
+function RowInputs({
+  value,
+  onChange,
+}: {
+  value: ClientFinancialValues;
+  onChange: (v: ClientFinancialValues) => void;
+}) {
+  return (
+    <>
+      <TableCell>
+        <Input
+          type="date"
+          value={value.entry_date}
+          onChange={(e) => onChange({ ...value, entry_date: e.target.value })}
+          className="h-9"
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          value={value.project_name}
+          onChange={(e) => onChange({ ...value, project_name: e.target.value })}
+          placeholder="Project"
+          className="h-9 min-w-[110px]"
+        />
+      </TableCell>
+      <TableCell>
+        <select
+          value={value.expense_type}
+          onChange={(e) => onChange({ ...value, expense_type: e.target.value })}
+          className="h-9 w-full min-w-[110px] rounded-md border border-input bg-background px-2 text-sm"
+        >
+          {EXPENSE_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </TableCell>
+      <TableCell>
+        <Input
+          value={value.description}
+          onChange={(e) => onChange({ ...value, description: e.target.value })}
+          placeholder="e.g. 10 meters no. 8 wire"
+          className="h-9 min-w-[180px]"
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          type="number"
+          min={0}
+          step="0.01"
+          value={value.amount || ""}
+          onChange={(e) =>
+            onChange({ ...value, amount: Number(e.target.value) || 0 })
+          }
+          placeholder="0.00"
+          className="h-9 w-28 text-right"
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          value={value.charge_to}
+          onChange={(e) => onChange({ ...value, charge_to: e.target.value })}
+          placeholder="CASH"
+          className="h-9 w-24"
+        />
+      </TableCell>
+      <TableCell>
+        <Input
+          value={value.remarks}
+          onChange={(e) => onChange({ ...value, remarks: e.target.value })}
+          placeholder="Remarks"
+          className="h-9 min-w-[120px]"
+        />
+      </TableCell>
+    </>
+  );
+}
+
 export function ClientFinancialsTracker({
   bookingId,
   lines,
@@ -286,84 +368,6 @@ export function ClientFinancialsTracker({
 
   const allSelected = lines.length > 0 && selected.size === lines.length;
   const colCount = locked ? 8 : 9;
-
-  // Shared cell inputs for the add / edit rows.
-  const RowInputs = ({
-    value,
-    onChange,
-  }: {
-    value: ClientFinancialValues;
-    onChange: (v: ClientFinancialValues) => void;
-  }) => (
-    <>
-      <TableCell>
-        <Input
-          type="date"
-          value={value.entry_date}
-          onChange={(e) => onChange({ ...value, entry_date: e.target.value })}
-          className="h-9"
-        />
-      </TableCell>
-      <TableCell>
-        <Input
-          value={value.project_name}
-          onChange={(e) => onChange({ ...value, project_name: e.target.value })}
-          placeholder="Project"
-          className="h-9 min-w-[110px]"
-        />
-      </TableCell>
-      <TableCell>
-        <select
-          value={value.expense_type}
-          onChange={(e) => onChange({ ...value, expense_type: e.target.value })}
-          className="h-9 w-full min-w-[110px] rounded-md border border-input bg-background px-2 text-sm"
-        >
-          {EXPENSE_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </TableCell>
-      <TableCell>
-        <Input
-          value={value.description}
-          onChange={(e) => onChange({ ...value, description: e.target.value })}
-          placeholder="e.g. 10 meters no. 8 wire"
-          className="h-9 min-w-[180px]"
-        />
-      </TableCell>
-      <TableCell>
-        <Input
-          type="number"
-          min={0}
-          step="0.01"
-          value={value.amount || ""}
-          onChange={(e) =>
-            onChange({ ...value, amount: Number(e.target.value) || 0 })
-          }
-          placeholder="0.00"
-          className="h-9 w-28 text-right"
-        />
-      </TableCell>
-      <TableCell>
-        <Input
-          value={value.charge_to}
-          onChange={(e) => onChange({ ...value, charge_to: e.target.value })}
-          placeholder="CASH"
-          className="h-9 w-24"
-        />
-      </TableCell>
-      <TableCell>
-        <Input
-          value={value.remarks}
-          onChange={(e) => onChange({ ...value, remarks: e.target.value })}
-          placeholder="Remarks"
-          className="h-9 min-w-[120px]"
-        />
-      </TableCell>
-    </>
-  );
 
   return (
     <div className="space-y-4">
