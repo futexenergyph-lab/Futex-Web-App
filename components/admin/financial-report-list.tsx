@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, ChevronRight, ArrowUpDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ export interface ClientFinancialRow {
   status: BookingStatus;
   preferred_date: string | null;
   created_at: string;
+  field_officer: string | null;
   payment: number;
   expenses: number;
   profit: number;
@@ -59,6 +60,9 @@ function weekStart(today: string): string {
     .slice(0, 10);
 }
 
+// Filters survive navigating into a client and coming back (per browser tab).
+const STATE_KEY = "financial-report-list-state";
+
 export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<BookingStatus | "all">("all");
@@ -69,6 +73,41 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
   // At most one active sort; null = default order (newest first).
   const [numSort, setNumSort] = useState<"asc" | "desc" | null>(null);
   const [dateSort, setDateSort] = useState<"asc" | "desc" | null>(null);
+  const [restored, setRestored] = useState(false);
+
+  // Restore the last view once on mount, then keep it saved on every change.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(STATE_KEY);
+      if (raw) {
+        const s = JSON.parse(raw) as Record<string, unknown>;
+        if (typeof s.q === "string") setQ(s.q);
+        if (typeof s.status === "string") setStatus(s.status as BookingStatus | "all");
+        if (s.tracked === "all" || s.tracked === "yes" || s.tracked === "no")
+          setTracked(s.tracked);
+        if (typeof s.from === "string") setFrom(s.from);
+        if (typeof s.to === "string") setTo(s.to);
+        if (s.numSort === "asc" || s.numSort === "desc") setNumSort(s.numSort);
+        else if (s.dateSort === "asc" || s.dateSort === "desc")
+          setDateSort(s.dateSort);
+      }
+    } catch {
+      // Ignore corrupted saved state; start from defaults.
+    }
+    setRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      sessionStorage.setItem(
+        STATE_KEY,
+        JSON.stringify({ q, status, tracked, from, to, numSort, dateSort }),
+      );
+    } catch {
+      // Storage full/unavailable — filters just won't persist.
+    }
+  }, [restored, q, status, tracked, from, to, numSort, dateSort]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -83,7 +122,7 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
         if (to && d > to) return false;
       }
       if (!needle) return true;
-      return [r.client_name, r.client_number, r.address]
+      return [r.client_name, r.client_number, r.address, r.field_officer]
         .filter(Boolean)
         .some((v) => (v as string).toLowerCase().includes(needle));
     });
@@ -130,6 +169,7 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
     client_number: r.client_number ?? "",
     client: r.client_name,
     address: r.address,
+    field_officer: r.field_officer ?? "",
     status: BOOKING_STATUS_LABELS[r.status],
     payment: r.payment,
     expenses: r.expenses,
@@ -318,6 +358,7 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
                 </button>
               </TableHead>
               <TableHead>Client</TableHead>
+              <TableHead>Field Officer</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>
                 <button
@@ -372,6 +413,9 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
                     {r.address}
                   </span>
                 </TableCell>
+                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                  {r.field_officer ?? "—"}
+                </TableCell>
                 <TableCell>
                   <StatusBadge status={r.status} />
                 </TableCell>
@@ -396,7 +440,7 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
             {filtered.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={8}
                   className="py-10 text-center text-muted-foreground"
                 >
                   No clients match your filter.

@@ -26,7 +26,7 @@ export default async function FinancialReportPage() {
     supabase
       .from("bookings")
       .select(
-        "id, client_number, client_name, address, status, preferred_date, created_at",
+        "id, client_number, client_name, address, status, preferred_date, created_at, assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(full_name)",
       )
       .order("created_at", { ascending: false }),
     supabase
@@ -71,7 +71,7 @@ export default async function FinancialReportPage() {
   }
 
   const rows: ClientFinancialRow[] = (
-    (bookings as
+    (bookings as unknown as
       | {
           id: string;
           client_number: string | null;
@@ -80,6 +80,7 @@ export default async function FinancialReportPage() {
           status: BookingStatus;
           preferred_date: string | null;
           created_at: string;
+          assigned_field_officer: { full_name: string } | null;
         }[]
       | null) ?? []
   ).map((b) => {
@@ -93,6 +94,7 @@ export default async function FinancialReportPage() {
       status: b.status,
       preferred_date: b.preferred_date,
       created_at: b.created_at,
+      field_officer: b.assigned_field_officer?.full_name ?? null,
       payment,
       expenses,
       profit: payment - expenses,
@@ -121,6 +123,7 @@ export default async function FinancialReportPage() {
       status: "completed",
       preferred_date: ic.install_date,
       created_at: ic.created_at,
+      field_officer: null,
       payment,
       expenses,
       profit: payment - expenses,
