@@ -372,7 +372,6 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
                 </button>
               </TableHead>
               <TableHead>Client</TableHead>
-              <TableHead>Field Officer</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>
                 <button
@@ -398,6 +397,7 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
                   )}
                 </button>
               </TableHead>
+              <TableHead>Field Officer</TableHead>
               <TableHead className="text-right">Payment</TableHead>
               <TableHead className="text-right">Expenses</TableHead>
               <TableHead className="text-right">Profit</TableHead>
@@ -427,14 +427,14 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
                     {r.address}
                   </span>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                  {r.field_officer ?? "—"}
-                </TableCell>
                 <TableCell>
                   <StatusBadge status={r.status} />
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                   {r.preferred_date ? formatDate(r.preferred_date) : "—"}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                  {r.field_officer ?? "—"}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {php(r.payment)}
