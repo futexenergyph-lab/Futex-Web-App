@@ -209,7 +209,12 @@ export async function prefillClientExpenses(bookingId: string) {
   const packageId = joRow?.package_id ?? bk?.preferred_package_id ?? null;
   if (!packageId)
     return { error: "No booked package found for this client." };
-  const enclosureId = joRow?.enclosure_id ?? bk?.preferred_enclosure_id ?? null;
+  // The job order is the final on-site record: when one exists, only ITS
+  // enclosure choice counts — the booking's earlier preference must not
+  // add an enclosure the client didn't actually avail.
+  const enclosureId = joRow
+    ? joRow.enclosure_id
+    : (bk?.preferred_enclosure_id ?? null);
 
   const [{ data: pkg }, encRes] = await Promise.all([
     supabase
@@ -248,7 +253,9 @@ export async function prefillClientExpenses(bookingId: string) {
     hasEnclosure:
       !!enclosureId ||
       !!joRow?.add_separate_enclosure ||
-      !!pkgRow.enclosure_included,
+      // The package-level flag only counts when no job order pinned down
+      // the actual equipment.
+      (!joRow && !!pkgRow.enclosure_included),
     standHint: jobWorksText,
   });
   if (!template)

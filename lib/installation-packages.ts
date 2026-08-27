@@ -139,7 +139,9 @@ export function resolveInstallationPackage(input: {
     /no stand|without stand/g,
     "",
   );
-  const hasEnclosure = input.hasEnclosure || /enclosure/.test(extras);
+  // Enclosure only from an explicit equipment choice (hasEnclosure) or the
+  // package NAME itself — never from descriptions, which over-detect.
+  const hasEnclosure = input.hasEnclosure || /enclosure/.test(name);
   // Word-bounded so "Standard Glass" never reads as having a stand.
   const hasStand = hasEnclosure && /\bstand\b/.test(extras);
 
