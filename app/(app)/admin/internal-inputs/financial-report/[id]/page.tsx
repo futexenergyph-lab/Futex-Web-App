@@ -68,7 +68,7 @@ export default async function ClientFinancialsPage({
     supabase
       .from("bookings")
       .select(
-        "id, client_number, client_name, address, contact_number, status, preferred_date, preferred_package_id",
+        "id, client_number, client_name, address, contact_number, status, preferred_date, preferred_package_id, preferred_enclosure_id, assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(full_name)",
       )
       .eq("id", params.id)
       .maybeSingle(),
@@ -123,7 +123,7 @@ export default async function ClientFinancialsPage({
   const isInternal = !booking && !!ic;
   if (!booking && !ic) notFound();
   const b = booking
-    ? (booking as {
+    ? (booking as unknown as {
         id: string;
         client_number: string | null;
         client_name: string;
@@ -132,6 +132,7 @@ export default async function ClientFinancialsPage({
         status: BookingStatus;
         preferred_date: string | null;
         preferred_package_id: string | null;
+        assigned_field_officer: { full_name: string } | null;
       })
     : {
         id: ic!.id,
@@ -142,6 +143,7 @@ export default async function ClientFinancialsPage({
         status: "completed" as BookingStatus,
         preferred_date: ic!.install_date,
         preferred_package_id: null,
+        assigned_field_officer: null,
       };
 
   // Payment: confirmed payments when present, otherwise whatever is recorded.
@@ -229,6 +231,9 @@ export default async function ClientFinancialsPage({
           )}
           {b.preferred_date && (
             <span>Install: {formatDate(b.preferred_date)}</span>
+          )}
+          {b.assigned_field_officer?.full_name && (
+            <span>Field Officer: {b.assigned_field_officer.full_name}</span>
           )}
         </CardContent>
       </Card>
@@ -415,6 +420,13 @@ export default async function ClientFinancialsPage({
           pkgName.get(
             joRow?.package_id ?? b.preferred_package_id ?? "",
           ) ?? null
+        }
+        bookedEnclosure={
+          joRow
+            ? joRow.add_separate_enclosure && joRow.enclosure_id
+              ? (encName.get(joRow.enclosure_id) ?? "Enclosure")
+              : null
+            : null
         }
         finalizedAt={
           (status as { finalized_at: string | null } | null)?.finalized_at ??
