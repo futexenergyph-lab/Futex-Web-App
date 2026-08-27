@@ -550,6 +550,46 @@ export function ClientFinancialsTracker({
             </TableRow>
           </TableHeader>
           <TableBody>
+            {/* New-line inputs stay at the top of the list. */}
+            {!locked && adding && (
+              <TableRow className="bg-secondary/30">
+                <TableCell />
+                <RowInputs
+                  value={draft}
+                  onChange={setDraft}
+                  action={
+                    <>
+                      <Button
+                        type="button"
+                        size="icon"
+                        onClick={submitNew}
+                        disabled={pending}
+                        title="Add to the record"
+                        className="shrink-0"
+                      >
+                        {pending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setAdding(false)}
+                        title="Cancel"
+                        className="shrink-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  }
+                />
+                <TableCell />
+              </TableRow>
+            )}
+
             {lines.map((l) =>
               !locked && editingId === l.id ? (
                 <TableRow key={l.id} className="bg-secondary/30">
@@ -650,45 +690,6 @@ export function ClientFinancialsTracker({
                   )}
                 </TableRow>
               ),
-            )}
-
-            {!locked && adding && (
-              <TableRow className="bg-secondary/30">
-                <TableCell />
-                <RowInputs
-                  value={draft}
-                  onChange={setDraft}
-                  action={
-                    <>
-                      <Button
-                        type="button"
-                        size="icon"
-                        onClick={submitNew}
-                        disabled={pending}
-                        title="Add to the record"
-                        className="shrink-0"
-                      >
-                        {pending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Check className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setAdding(false)}
-                        title="Cancel"
-                        className="shrink-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </>
-                  }
-                />
-                <TableCell />
-              </TableRow>
             )}
 
             {lines.length === 0 && !adding && (
