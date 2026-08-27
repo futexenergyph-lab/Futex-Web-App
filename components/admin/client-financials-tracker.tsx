@@ -21,6 +21,7 @@ import {
   deleteClientFinancial,
   deleteClientFinancials,
   applyInstallationPackage,
+  prefillClientExpenses,
   finalizeClientFinancials,
   reopenClientFinancials,
   type ClientFinancialValues,
@@ -173,6 +174,7 @@ export function ClientFinancialsTracker({
   lines,
   payment,
   installDate = null,
+  bookedPackage = null,
   finalizedAt = null,
   finalizedByName = null,
 }: {
@@ -180,6 +182,7 @@ export function ClientFinancialsTracker({
   lines: FinancialLine[];
   payment: number;
   installDate?: string | null;
+  bookedPackage?: string | null;
   finalizedAt?: string | null;
   finalizedByName?: string | null;
 }) {
@@ -218,6 +221,20 @@ export function ClientFinancialsTracker({
     setPackageId(id);
     setPkgChecks(target.lines.map(() => true));
     setPkgOpen(true);
+  }
+
+  function prefill() {
+    start(async () => {
+      const res = await prefillClientExpenses(bookingId);
+      if (res?.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(
+        `${res.count} cost line${res.count === 1 ? "" : "s"} pre-filled from ${res.label}`,
+      );
+      router.refresh();
+    });
   }
 
   function addPackageLines() {
@@ -444,6 +461,33 @@ export function ClientFinancialsTracker({
       {/* Package availed — opens the contents popup */}
       {!locked && (
         <Card>
+          {bookedPackage && (
+            <CardContent className="flex flex-col gap-3 border-b pb-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">
+                  Booked package: {bookedPackage}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Pre-fills this client&apos;s expenses from their booked
+                  package — including extra wire from the job order — no manual
+                  picking needed. Lines stay editable afterwards.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={prefill}
+                disabled={pending}
+                className="shrink-0 gap-1"
+              >
+                {pending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <PackagePlus className="h-4 w-4" />
+                )}
+                Pre-fill expenses
+              </Button>
+            </CardContent>
+          )}
           <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-end">
             <div className="min-w-0 flex-1 space-y-1.5">
               <label
