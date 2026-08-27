@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { requireRole } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
 import {
@@ -16,27 +17,50 @@ export default async function FinancialReportPage() {
   await requireRole(["owner"]);
   const supabase = createClient();
 
-  const [
-    { data: bookings },
-    { data: internals },
-    { data: pays },
-    { data: fins },
-    { data: stats },
-  ] = await Promise.all([
-    supabase
-      .from("bookings")
-      .select(
-        "id, client_number, client_name, address, status, preferred_date, created_at, assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(full_name)",
-      )
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("internal_clients")
-      .select("id, client_name, address, install_date, payment_amount, created_at"),
-    supabase.from("payments").select("booking_id, amount, status"),
-    supabase.from("client_financials").select("booking_id, amount"),
-    supabase
-      .from("client_financial_status")
-      .select("booking_id, finalized_at"),
+  // These tables grow past PostgREST's 1,000-row cap, so page through all of
+  // them — otherwise recently added expense lines silently drop out of the
+  // per-client totals.
+  const [bookings, internals, pays, fins, stats] = await Promise.all([
+    fetchAllRows((f, t) =>
+      supabase
+        .from("bookings")
+        .select(
+          "id, client_number, client_name, address, status, preferred_date, created_at, assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(full_name)",
+        )
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(f, t),
+    ),
+    fetchAllRows((f, t) =>
+      supabase
+        .from("internal_clients")
+        .select(
+          "id, client_name, address, install_date, payment_amount, created_at",
+        )
+        .order("id")
+        .range(f, t),
+    ),
+    fetchAllRows((f, t) =>
+      supabase
+        .from("payments")
+        .select("booking_id, amount, status")
+        .order("id")
+        .range(f, t),
+    ),
+    fetchAllRows((f, t) =>
+      supabase
+        .from("client_financials")
+        .select("booking_id, amount")
+        .order("id")
+        .range(f, t),
+    ),
+    fetchAllRows((f, t) =>
+      supabase
+        .from("client_financial_status")
+        .select("booking_id, finalized_at")
+        .order("booking_id")
+        .range(f, t),
+    ),
   ]);
 
   const finalized = new Set(

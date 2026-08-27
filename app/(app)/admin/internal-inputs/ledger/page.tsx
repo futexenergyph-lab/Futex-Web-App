@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { requireRole } from "@/lib/auth";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -16,15 +17,19 @@ export default async function InternalInputsPage() {
   await requireRole(["owner"]);
   const supabase = createClient();
 
-  const { data } = await supabase
-    .from("internal_inputs")
-    .select(
-      "id, entry_date, direction, category, description, amount, payee, reference_no, notes, attachment_path, created_by_name",
-    )
-    .order("entry_date", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  const raw = (data as Omit<InternalInputRow, "attachment_url">[] | null) ?? [];
+  // Page through the full ledger — a single query is capped at 1,000 rows.
+  const raw = await fetchAllRows<Omit<InternalInputRow, "attachment_url">>(
+    (f, t) =>
+      supabase
+        .from("internal_inputs")
+        .select(
+          "id, entry_date, direction, category, description, amount, payee, reference_no, notes, attachment_path, created_by_name",
+        )
+        .order("entry_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(f, t),
+  );
 
   // Sign the attachment paths in one batch so the page stays fast.
   const paths = [...new Set(raw.map((r) => r.attachment_path).filter(Boolean))] as string[];
