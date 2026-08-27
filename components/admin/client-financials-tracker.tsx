@@ -87,9 +87,11 @@ const EMPTY: ClientFinancialValues = {
 function RowInputs({
   value,
   onChange,
+  action,
 }: {
   value: ClientFinancialValues;
   onChange: (v: ClientFinancialValues) => void;
+  action?: React.ReactNode;
 }) {
   return (
     <>
@@ -152,12 +154,15 @@ function RowInputs({
         />
       </TableCell>
       <TableCell>
-        <Input
-          value={value.remarks}
-          onChange={(e) => onChange({ ...value, remarks: e.target.value })}
-          placeholder="Remarks"
-          className="h-9 min-w-[120px]"
-        />
+        <div className="flex items-center gap-1">
+          <Input
+            value={value.remarks}
+            onChange={(e) => onChange({ ...value, remarks: e.target.value })}
+            placeholder="Remarks"
+            className="h-9 min-w-[120px]"
+          />
+          {action}
+        </div>
       </TableCell>
     </>
   );
@@ -167,12 +172,14 @@ export function ClientFinancialsTracker({
   bookingId,
   lines,
   payment,
+  installDate = null,
   finalizedAt = null,
   finalizedByName = null,
 }: {
   bookingId: string;
   lines: FinancialLine[];
   payment: number;
+  installDate?: string | null;
   finalizedAt?: string | null;
   finalizedByName?: string | null;
 }) {
@@ -500,9 +507,13 @@ export function ClientFinancialsTracker({
                 setAdding(true);
                 setDraft({
                   ...EMPTY,
-                  entry_date: new Date().toLocaleDateString("en-CA", {
-                    timeZone: "Asia/Manila",
-                  }),
+                  // Default to the client's installation record date; fall
+                  // back to today when no install date is on file.
+                  entry_date:
+                    installDate ??
+                    new Date().toLocaleDateString("en-CA", {
+                      timeZone: "Asia/Manila",
+                    }),
                 });
               }}
               className="gap-1"
@@ -543,34 +554,39 @@ export function ClientFinancialsTracker({
               !locked && editingId === l.id ? (
                 <TableRow key={l.id} className="bg-secondary/30">
                   <TableCell />
-                  <RowInputs value={editDraft} onChange={setEditDraft} />
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={submitEdit}
-                        disabled={pending}
-                        title="Save"
-                      >
-                        {pending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Check className="h-4 w-4 text-emerald-600" />
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setEditingId(null)}
-                        title="Cancel"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  <RowInputs
+                    value={editDraft}
+                    onChange={setEditDraft}
+                    action={
+                      <>
+                        <Button
+                          type="button"
+                          size="icon"
+                          onClick={submitEdit}
+                          disabled={pending}
+                          title="Save changes"
+                          className="shrink-0"
+                        >
+                          {pending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setEditingId(null)}
+                          title="Cancel"
+                          className="shrink-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </>
+                    }
+                  />
+                  <TableCell />
                 </TableRow>
               ) : (
                 <TableRow
@@ -639,34 +655,39 @@ export function ClientFinancialsTracker({
             {!locked && adding && (
               <TableRow className="bg-secondary/30">
                 <TableCell />
-                <RowInputs value={draft} onChange={setDraft} />
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={submitNew}
-                      disabled={pending}
-                      title="Save"
-                    >
-                      {pending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Check className="h-4 w-4 text-emerald-600" />
-                      )}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setAdding(false)}
-                      title="Cancel"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
+                <RowInputs
+                  value={draft}
+                  onChange={setDraft}
+                  action={
+                    <>
+                      <Button
+                        type="button"
+                        size="icon"
+                        onClick={submitNew}
+                        disabled={pending}
+                        title="Add to the record"
+                        className="shrink-0"
+                      >
+                        {pending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setAdding(false)}
+                        title="Cancel"
+                        className="shrink-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  }
+                />
+                <TableCell />
               </TableRow>
             )}
 

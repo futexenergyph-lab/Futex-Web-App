@@ -408,6 +408,7 @@ export default async function ClientFinancialsPage({
         bookingId={b.id}
         lines={financialLines}
         payment={payment}
+        installDate={b.preferred_date}
         finalizedAt={
           (status as { finalized_at: string | null } | null)?.finalized_at ??
           null
