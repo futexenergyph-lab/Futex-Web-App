@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileBarChart, PiggyBank, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { requireRole } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,12 +15,20 @@ export default async function InternalInputsHub() {
   await requireRole(["owner"]);
   const supabase = createClient();
 
-  const [{ count: clientCount }, { data: fin }, { data: ledger }] =
-    await Promise.all([
-      supabase.from("bookings").select("id", { count: "exact", head: true }),
-      supabase.from("client_financials").select("amount"),
-      supabase.from("internal_inputs").select("direction, amount"),
-    ]);
+  // Aggregate tables can exceed the 1,000-row query cap — page through them.
+  const [{ count: clientCount }, fin, ledger] = await Promise.all([
+    supabase.from("bookings").select("id", { count: "exact", head: true }),
+    fetchAllRows((f, t) =>
+      supabase.from("client_financials").select("amount").order("id").range(f, t),
+    ),
+    fetchAllRows((f, t) =>
+      supabase
+        .from("internal_inputs")
+        .select("direction, amount")
+        .order("id")
+        .range(f, t),
+    ),
+  ]);
 
   const trackedExpenses = ((fin as { amount: number }[] | null) ?? []).reduce(
     (t, r) => t + Number(r.amount || 0),
