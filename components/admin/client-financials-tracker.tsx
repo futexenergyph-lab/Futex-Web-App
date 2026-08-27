@@ -231,7 +231,9 @@ export function ClientFinancialsTracker({
         return;
       }
       toast.success(
-        `${res.count} cost line${res.count === 1 ? "" : "s"} pre-filled from ${res.label}`,
+        res.replaced
+          ? `Replaced ${res.replaced} old line${res.replaced === 1 ? "" : "s"} — ${res.count} cost line${res.count === 1 ? "" : "s"} loaded from ${res.label}`
+          : `${res.count} cost line${res.count === 1 ? "" : "s"} pre-filled from ${res.label}`,
       );
       router.refresh();
     });

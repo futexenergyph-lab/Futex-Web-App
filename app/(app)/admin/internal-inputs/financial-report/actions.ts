@@ -243,7 +243,7 @@ export async function prefillClientExpenses(bookingId: string) {
   const jobWorksText = (joRow?.additional_job_works ?? [])
     .map((w) => w?.description ?? "")
     .join(" ");
-  const { resolveInstallationPackage } = await import(
+  const { resolveInstallationPackage, INSTALLATION_PACKAGES } = await import(
     "@/lib/installation-packages"
   );
   const template = resolveInstallationPackage({
@@ -263,17 +263,35 @@ export async function prefillClientExpenses(bookingId: string) {
       error: `Couldn't match "${pkgRow.name}" to a cost template. Pick one manually instead.`,
     };
 
-  // Don't load the same template twice for one client.
+  // Existing template-loaded lines for this client (their project_name is a
+  // template label). Same template already loaded → nothing to do; a
+  // DIFFERENT template (e.g. an earlier wrong auto-fill) → replace it with
+  // the corrected one.
   const { data: existing } = await supabase
     .from("client_financials")
-    .select("id")
+    .select("id, project_name")
     .eq("booking_id", bookingId)
-    .eq("project_name", template.label)
-    .limit(1);
-  if (existing?.length)
+    .in(
+      "project_name",
+      INSTALLATION_PACKAGES.map((p) => p.label),
+    );
+  const existingRows =
+    (existing as { id: string; project_name: string }[] | null) ?? [];
+  if (existingRows.some((r) => r.project_name === template.label))
     return {
       error: `${template.label} costs are already loaded for this client.`,
     };
+  const replaced = existingRows.length;
+  if (replaced > 0) {
+    const { error: delError } = await supabase
+      .from("client_financials")
+      .delete()
+      .in(
+        "id",
+        existingRows.map((r) => r.id),
+      );
+    if (delError) return { error: delError.message };
+  }
 
   const entryDate = bk?.preferred_date ?? null;
   const base = Date.now();
@@ -314,7 +332,7 @@ export async function prefillClientExpenses(bookingId: string) {
   if (error) return { error: error.message };
 
   refresh(bookingId);
-  return { ok: true, label: template.label, count: rows.length };
+  return { ok: true, label: template.label, count: rows.length, replaced };
 }
 
 /** Delete several expense lines at once (checkbox selection). */
