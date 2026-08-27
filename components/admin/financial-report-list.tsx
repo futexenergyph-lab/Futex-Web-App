@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Search, ChevronRight, ArrowUpDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -74,6 +75,19 @@ export function FinancialReportList({ rows }: { rows: ClientFinancialRow[] }) {
   const [numSort, setNumSort] = useState<"asc" | "desc" | null>(null);
   const [dateSort, setDateSort] = useState<"asc" | "desc" | null>(null);
   const [restored, setRestored] = useState(false);
+  const router = useRouter();
+
+  // Pull fresh figures whenever the list is shown — covers coming back from a
+  // client page (router cache) and Safari restoring the page from memory on
+  // the back button (bfcache), so newly submitted expenses always reflect.
+  useEffect(() => {
+    router.refresh();
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) router.refresh();
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, [router]);
 
   // Restore the last view once on mount, then keep it saved on every change.
   useEffect(() => {
