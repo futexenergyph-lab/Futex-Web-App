@@ -68,7 +68,7 @@ export default async function ClientFinancialsPage({
     supabase
       .from("bookings")
       .select(
-        "id, client_number, client_name, address, contact_number, status, preferred_date",
+        "id, client_number, client_name, address, contact_number, status, preferred_date, preferred_package_id",
       )
       .eq("id", params.id)
       .maybeSingle(),
@@ -131,6 +131,7 @@ export default async function ClientFinancialsPage({
         contact_number: string;
         status: BookingStatus;
         preferred_date: string | null;
+        preferred_package_id: string | null;
       })
     : {
         id: ic!.id,
@@ -140,6 +141,7 @@ export default async function ClientFinancialsPage({
         contact_number: "",
         status: "completed" as BookingStatus,
         preferred_date: ic!.install_date,
+        preferred_package_id: null,
       };
 
   // Payment: confirmed payments when present, otherwise whatever is recorded.
@@ -409,6 +411,11 @@ export default async function ClientFinancialsPage({
         lines={financialLines}
         payment={payment}
         installDate={b.preferred_date}
+        bookedPackage={
+          pkgName.get(
+            joRow?.package_id ?? b.preferred_package_id ?? "",
+          ) ?? null
+        }
         finalizedAt={
           (status as { finalized_at: string | null } | null)?.finalized_at ??
           null

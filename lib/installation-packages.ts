@@ -101,3 +101,59 @@ export const INSTALLATION_PACKAGES: InstallationPackage[] = [
 export function packageTotal(p: InstallationPackage): number {
   return p.lines.reduce((t, l) => t + l.amount, 0);
 }
+
+/**
+ * Match a client's booked package (from their job order / booking) to the
+ * right cost template, including the enclosure / stand variants. Matching is
+ * by wording so it survives package renames in the admin pricing settings.
+ */
+export function resolveInstallationPackage(input: {
+  packageName: string | null;
+  /** Extra text from the package record (description / inclusions). */
+  packageText?: string | null;
+  enclosureName?: string | null;
+  /** Enclosure chosen on the job order / booking or included in the package. */
+  hasEnclosure: boolean;
+  /** Any other text that may mention a stand (e.g. additional job works). */
+  standHint?: string | null;
+}): InstallationPackage | null {
+  const name = (input.packageName ?? "").toLowerCase();
+  if (!name.trim()) return null;
+  const text = `${name} ${(input.packageText ?? "").toLowerCase()}`;
+
+  // Family: check the charger family first — its names also contain "smart".
+  const family = /7\s*kw|smart charger/.test(text)
+    ? "futex"
+    : /3-way|smart/.test(text)
+      ? "smart"
+      : /2-way|standard/.test(text)
+        ? "standard"
+        : null;
+  if (!family) return null;
+  if (family === "standard") {
+    return INSTALLATION_PACKAGES.find((p) => p.id === "standard") ?? null;
+  }
+
+  // "no stand" / "without stand" must not count as having a stand.
+  const extras = `${text} ${(input.enclosureName ?? "").toLowerCase()} ${(input.standHint ?? "").toLowerCase()}`.replace(
+    /no stand|without stand/g,
+    "",
+  );
+  const hasEnclosure = input.hasEnclosure || /enclosure/.test(extras);
+  // Word-bounded so "Standard Glass" never reads as having a stand.
+  const hasStand = hasEnclosure && /\bstand\b/.test(extras);
+
+  const id =
+    family === "smart"
+      ? hasEnclosure
+        ? hasStand
+          ? "smart-enclosure-stand"
+          : "smart-enclosure"
+        : "smart"
+      : hasEnclosure
+        ? hasStand
+          ? "futex-enclosure-stand"
+          : "futex-enclosure"
+        : "futex-installation";
+  return INSTALLATION_PACKAGES.find((p) => p.id === id) ?? null;
+}

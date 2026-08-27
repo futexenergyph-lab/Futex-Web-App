@@ -163,6 +163,153 @@ export async function applyInstallationPackage(
   return { ok: true, count: rows.length };
 }
 
+/**
+ * Pre-fill a client's expenses from the package they actually availed —
+ * no manual template picking. Reads the job order (falling back to the
+ * booking's preferred package), matches it to a cost template, loads the
+ * template lines, and adds the additional-wire cost:
+ * X extra meters on the job order → (X − 10) × ₱100 (first 10 m are already
+ * in the base template's wire line).
+ */
+export async function prefillClientExpenses(bookingId: string) {
+  const profile = await requireRole(["owner"]);
+  const locked = await finalizedError(bookingId);
+  if (locked) return { error: locked };
+  const supabase = createClient();
+
+  const [{ data: jo }, { data: booking }] = await Promise.all([
+    supabase
+      .from("job_orders")
+      .select(
+        "package_id, enclosure_id, add_separate_enclosure, additional_wire_meters, additional_job_works",
+      )
+      .eq("booking_id", bookingId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("bookings")
+      .select("preferred_package_id, preferred_enclosure_id, preferred_date")
+      .eq("id", bookingId)
+      .maybeSingle(),
+  ]);
+  const joRow = jo as {
+    package_id: string | null;
+    enclosure_id: string | null;
+    add_separate_enclosure: boolean;
+    additional_wire_meters: number | string;
+    additional_job_works: { description?: string }[] | null;
+  } | null;
+  const bk = booking as {
+    preferred_package_id: string | null;
+    preferred_enclosure_id: string | null;
+    preferred_date: string | null;
+  } | null;
+
+  const packageId = joRow?.package_id ?? bk?.preferred_package_id ?? null;
+  if (!packageId)
+    return { error: "No booked package found for this client." };
+  const enclosureId = joRow?.enclosure_id ?? bk?.preferred_enclosure_id ?? null;
+
+  const [{ data: pkg }, encRes] = await Promise.all([
+    supabase
+      .from("packages")
+      .select("name, description, inclusions, enclosure_included")
+      .eq("id", packageId)
+      .maybeSingle(),
+    enclosureId
+      ? supabase
+          .from("enclosures")
+          .select("name")
+          .eq("id", enclosureId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const pkgRow = pkg as {
+    name: string;
+    description: string | null;
+    inclusions: unknown;
+    enclosure_included: boolean;
+  } | null;
+  if (!pkgRow) return { error: "The booked package no longer exists." };
+  const encName =
+    (encRes.data as { name: string } | null)?.name ?? null;
+
+  const jobWorksText = (joRow?.additional_job_works ?? [])
+    .map((w) => w?.description ?? "")
+    .join(" ");
+  const { resolveInstallationPackage } = await import(
+    "@/lib/installation-packages"
+  );
+  const template = resolveInstallationPackage({
+    packageName: pkgRow.name,
+    packageText: `${pkgRow.description ?? ""} ${JSON.stringify(pkgRow.inclusions ?? "")}`,
+    enclosureName: encName,
+    hasEnclosure:
+      !!enclosureId ||
+      !!joRow?.add_separate_enclosure ||
+      !!pkgRow.enclosure_included,
+    standHint: jobWorksText,
+  });
+  if (!template)
+    return {
+      error: `Couldn't match "${pkgRow.name}" to a cost template. Pick one manually instead.`,
+    };
+
+  // Don't load the same template twice for one client.
+  const { data: existing } = await supabase
+    .from("client_financials")
+    .select("id")
+    .eq("booking_id", bookingId)
+    .eq("project_name", template.label)
+    .limit(1);
+  if (existing?.length)
+    return {
+      error: `${template.label} costs are already loaded for this client.`,
+    };
+
+  const entryDate = bk?.preferred_date ?? null;
+  const base = Date.now();
+  const rows = template.lines.map((l, i) => ({
+    booking_id: bookingId,
+    entry_date: entryDate,
+    project_name: template.label,
+    expense_type: l.expense_type,
+    description: l.description,
+    amount: l.amount,
+    charge_to: null as string | null,
+    remarks: null as string | null,
+    created_by: profile.id,
+    created_by_name: profile.full_name,
+    created_at: new Date(base + i * 10).toISOString(),
+  }));
+
+  // Additional wire beyond the 10 m already in the base wire line.
+  const wireMeters = Number(joRow?.additional_wire_meters ?? 0);
+  const extraMeters = wireMeters - 10;
+  if (extraMeters > 0) {
+    rows.push({
+      booking_id: bookingId,
+      entry_date: entryDate,
+      project_name: template.label,
+      expense_type: "Materials",
+      description: `Additional no. 8 wire (${extraMeters}m @ ₱100)`,
+      amount: extraMeters * 100,
+      charge_to: null,
+      remarks: `Job order wire: ${wireMeters}m`,
+      created_by: profile.id,
+      created_by_name: profile.full_name,
+      created_at: new Date(base + rows.length * 10).toISOString(),
+    });
+  }
+
+  const { error } = await supabase.from("client_financials").insert(rows);
+  if (error) return { error: error.message };
+
+  refresh(bookingId);
+  return { ok: true, label: template.label, count: rows.length };
+}
+
 /** Delete several expense lines at once (checkbox selection). */
 export async function deleteClientFinancials(ids: string[], bookingId: string) {
   await requireRole(["owner"]);
