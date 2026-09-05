@@ -84,11 +84,12 @@ export async function addFieldExpense(input: {
   });
   if (error) return { error: error.message };
   revalidatePath("/field/expenses");
+  if (input.bookingId) revalidatePath(`/field/bookings/${input.bookingId}`);
   return { ok: true };
 }
 
 /** Field officer deletes one of their own DRAFT expenses. */
-export async function deleteFieldExpense(id: string) {
+export async function deleteFieldExpense(id: string, bookingId?: string | null) {
   const profile = await requireRole(["field_officer"]);
   const supabase = createClient();
   const { error } = await supabase
@@ -99,17 +100,19 @@ export async function deleteFieldExpense(id: string) {
     .eq("status", "draft");
   if (error) return { error: error.message };
   revalidatePath("/field/expenses");
+  if (bookingId) revalidatePath(`/field/bookings/${bookingId}`);
   return { ok: true };
 }
 
 /**
- * Submit all the field officer's draft expenses to the admin for review.
+ * Submit the field officer's draft expenses to the admin for review.
+ * With a bookingId, only that client deployment's drafts are submitted.
  * Once submitted they can no longer be edited by the field officer.
  */
-export async function submitFieldExpenses() {
+export async function submitFieldExpenses(bookingId?: string | null) {
   const profile = await requireRole(["field_officer"]);
   const supabase = createClient();
-  const { error } = await supabase
+  let query = supabase
     .from("expenses")
     .update({
       status: "submitted",
@@ -118,9 +121,12 @@ export async function submitFieldExpenses() {
     })
     .eq("created_by", profile.id)
     .eq("status", "draft");
+  if (bookingId) query = query.eq("booking_id", bookingId);
+  const { error } = await query;
   if (error) return { error: error.message };
   revalidatePath("/field/expenses");
   revalidatePath("/accounting/expenses");
+  if (bookingId) revalidatePath(`/field/bookings/${bookingId}`);
   return { ok: true };
 }
 
