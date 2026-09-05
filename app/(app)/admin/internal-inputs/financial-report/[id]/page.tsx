@@ -37,9 +37,13 @@ interface JoRow {
   enclosure_id: string | null;
   add_separate_enclosure: boolean;
   additional_wire_meters: number;
+  wire_rate_per_meter: number | string | null;
   additional_job_works: JobWork[] | null;
   final_total: number | string;
 }
+
+/** First 10 m of wire are included in the package — only the rest is billed. */
+const FREE_WIRE_METERS = 10;
 
 const PAY_STATUS: Record<PaymentStatus, string> = {
   pending: "Pending",
@@ -101,7 +105,7 @@ export default async function ClientFinancialsPage({
     supabase
       .from("job_orders")
       .select(
-        "package_id, enclosure_id, add_separate_enclosure, additional_wire_meters, additional_job_works, final_total",
+        "package_id, enclosure_id, add_separate_enclosure, additional_wire_meters, wire_rate_per_meter, additional_job_works, final_total",
       )
       .eq("booking_id", params.id)
       .order("created_at", { ascending: false })
@@ -270,14 +274,45 @@ export default async function ClientFinancialsPage({
                   </div>
                 )}
                 {Number(joRow.additional_wire_meters || 0) > 0 && (
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-muted-foreground">
-                      Additional wire
-                    </span>
-                    <span className="text-right">
-                      {joRow.additional_wire_meters} m
-                    </span>
-                  </div>
+                  <>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-muted-foreground">Total wire</span>
+                      <span className="text-right">
+                        {joRow.additional_wire_meters} m
+                      </span>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-muted-foreground">
+                        Additional wire
+                      </span>
+                      <span className="text-right">
+                        {Math.max(
+                          0,
+                          Number(joRow.additional_wire_meters) -
+                            FREE_WIRE_METERS,
+                        )}{" "}
+                        m
+                      </span>
+                    </div>
+                    {Number(joRow.additional_wire_meters) >
+                      FREE_WIRE_METERS && (
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-muted-foreground">
+                          Additional wire cost (
+                          {Number(joRow.additional_wire_meters) -
+                            FREE_WIRE_METERS}{" "}
+                          m × {php(Number(joRow.wire_rate_per_meter || 200))})
+                        </span>
+                        <span className="text-right tabular-nums">
+                          {php(
+                            (Number(joRow.additional_wire_meters) -
+                              FREE_WIRE_METERS) *
+                              Number(joRow.wire_rate_per_meter || 200),
+                          )}
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
                 {(joRow.additional_job_works ?? []).map((w, i) => (
                   <div

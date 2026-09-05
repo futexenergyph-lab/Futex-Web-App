@@ -22,10 +22,16 @@ export interface ClientPayment {
     finalTotal: number;
     packageName: string | null;
     enclosureName: string | null;
+    /** Total wire the field officer used on the deployment (meters). */
     wireMeters: number;
+    /** Billing rate per chargeable meter (snapshot from the job order). */
+    wireRate: number;
     works: { description: string; amount: number }[];
   } | null;
 }
+
+/** First 10 m of wire are included in the package — only the rest is billed. */
+const FREE_WIRE_METERS = 10;
 
 const STATUS_LABEL: Record<PaymentStatus, string> = {
   pending: "Pending",
@@ -117,10 +123,21 @@ export function PaymentJobOrderDialog({
                     <Line label="Separate enclosure" value={jo.enclosureName} />
                   )}
                   {jo.wireMeters > 0 && (
-                    <Line
-                      label="Additional wire"
-                      value={`${jo.wireMeters} m`}
-                    />
+                    <>
+                      <Line label="Total wire" value={`${jo.wireMeters} m`} />
+                      <Line
+                        label="Additional wire"
+                        value={`${Math.max(0, jo.wireMeters - FREE_WIRE_METERS)} m`}
+                      />
+                      {jo.wireMeters > FREE_WIRE_METERS && (
+                        <Line
+                          label={`Additional wire cost (${jo.wireMeters - FREE_WIRE_METERS} m × ${php(jo.wireRate)})`}
+                          value={php(
+                            (jo.wireMeters - FREE_WIRE_METERS) * jo.wireRate,
+                          )}
+                        />
+                      )}
+                    </>
                   )}
                   {jo.works.map((w, i) => (
                     <Line
