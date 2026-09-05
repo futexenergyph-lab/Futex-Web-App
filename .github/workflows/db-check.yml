@@ -1,7 +1,6 @@
 name: DB Check
 
-# Diagnostic: inspects the Supabase schema and runs the exact queries the
-# dashboard uses, printing results so we can see what's failing.
+# Diagnostic: list available database backups + current July figures.
 
 on:
   workflow_dispatch:
@@ -21,38 +20,19 @@ jobs:
             REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
           fi
           echo "project ref: $REF"
-          URL="https://$REF.supabase.co"
-          SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
+          run_sql() {
+            local SQL="$1"
+            local RESP
+            RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
+              -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
+              -d "$(jq -nc --arg q "$SQL" '{query:$q}')")
+            echo "HTTP $(echo "$RESP" | tail -n1)"
+            echo "$RESP" | sed '$d' | head -c 2000; echo
+          }
 
-          echo "============================================================"
-          echo "1) Tables exposed by PostgREST:"
-          curl -s "$URL/rest/v1/" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
-            | jq -r '(.definitions // {}) | keys[]' 2>/dev/null | sort | tr '\n' ' '
-          echo
+          echo "== Available backups =="
+          curl -s "https://api.supabase.com/v1/projects/$REF/database/backups" -H "Authorization: Bearer $SAT" | head -c 3000; echo
 
-          echo "============================================================"
-          echo "2) profiles row count + sample:"
-          curl -s "$URL/rest/v1/profiles?select=id,full_name,role,active&limit=5" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
-          echo
-
-          echo "============================================================"
-          echo "3) bookings simple select (HTTP + body):"
-          curl -s -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings?select=*&limit=1" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
-          echo
-
-          echo "============================================================"
-          echo "4) bookings EMBED select (the dashboard query):"
-          SEL='*,preferred_package:packages!bookings_preferred_package_id_fkey(id,name,base_price),preferred_enclosure:enclosures!bookings_preferred_enclosure_id_fkey(id,name,price),assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(id,full_name),assigned_installer:profiles!bookings_assigned_installer_id_fkey(id,full_name)'
-          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings" \
-            --data-urlencode "select=$SEL" --data-urlencode "limit=1" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1200
-          echo
-
-          echo "============================================================"
-          echo "5) packages / enclosures counts:"
-          for t in packages enclosures addons settings job_orders payments; do
-            C=$(curl -s -w '%{http_code}' -o /tmp/b "$URL/rest/v1/$t?select=*&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE")
-            echo "  $t -> HTTP $C  $(head -c 120 /tmp/b)"
-          done
+          echo "== Current July 2026 figures (per current data) =="
+          run_sql "with july_clients as (select id, client_name from public.bookings where preferred_date >= '2026-07-01' and preferred_date <= '2026-07-31' union select id, client_name from public.internal_clients where install_date >= '2026-07-01' and install_date <= '2026-07-31') select count(*) as clients from july_clients;"
+          run_sql "with july_clients as (select id from public.bookings where preferred_date >= '2026-07-01' and preferred_date <= '2026-07-31' union select id from public.internal_clients where install_date >= '2026-07-01' and install_date <= '2026-07-31'), pay as (select coalesce(sum(amount),0) s from public.payments where booking_id in (select id from july_clients) and status = 'confirmed'), ipay as (select coalesce(sum(payment_amount),0) s from public.internal_clients where install_date >= '2026-07-01' and install_date <= '2026-07-31'), exp as (select coalesce(sum(amount),0) s from public.client_financials where booking_id in (select id from july_clients)) select (select s from pay) + (select s from ipay) as payments, (select s from exp) as expenses, (select s from pay) + (select s from ipay) - (select s from exp) as profit;"
