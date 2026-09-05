@@ -11,6 +11,10 @@ import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { JobOrderForm } from "@/components/field/job-order-form";
 import { CommissioningForm } from "@/components/field/commissioning-form";
+import {
+  BookingExpenses,
+  type BookingExpenseRow,
+} from "@/components/field/booking-expenses";
 import { DoneInstallationButton } from "@/components/field/done-installation-button";
 import { AcknowledgementForm } from "@/components/field/acknowledgement-form";
 import { BackJobOrderNote } from "@/components/field/back-job-order-note";
@@ -81,6 +85,7 @@ export default async function FieldBookingDetail({
     { data: updates },
     { data: commissioning },
     { data: documentation },
+    { data: bookingExpenses },
   ] = await Promise.all([
     supabase.from("packages").select("*").eq("active", true).order("sort_order"),
     supabase.from("enclosures").select("*").eq("active", true).order("sort_order"),
@@ -117,7 +122,18 @@ export default async function FieldBookingDetail({
       .select("file_urls")
       .eq("booking_id", params.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("expenses")
+      .select("id, expense_date, type, description, amount, status")
+      .eq("booking_id", params.id)
+      .eq("created_by", profile.id)
+      .order("created_at", { ascending: false }),
   ]);
+
+  const expenseRows = (bookingExpenses as BookingExpenseRow[] | null) ?? [];
+  const today = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Asia/Manila",
+  });
 
   const wireRate = Number(wireSetting?.value ?? 200);
   const jo = (jobOrder as JobOrder | null) ?? null;
@@ -422,11 +438,12 @@ export default async function FieldBookingDetail({
       </Card>
 
       <Tabs defaultValue="updates">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="updates">Updates</TabsTrigger>
           <TabsTrigger value="joborder">Job Order</TabsTrigger>
           <TabsTrigger value="commissioning">Commissioning</TabsTrigger>
           <TabsTrigger value="payment">Payment</TabsTrigger>
+          <TabsTrigger value="expenses">Expenses</TabsTrigger>
           <TabsTrigger value="docs">Docs</TabsTrigger>
         </TabsList>
 
@@ -537,6 +554,21 @@ export default async function FieldBookingDetail({
                   />
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="expenses">
+          <Card>
+            <CardHeader>
+              <CardTitle>Expenses for this deployment</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BookingExpenses
+                bookingId={b.id}
+                today={today}
+                expenses={expenseRows}
+              />
             </CardContent>
           </Card>
         </TabsContent>
