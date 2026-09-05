@@ -1,7 +1,7 @@
 name: DB Check
 
-# One-off: copy client_financials rows from the backup-restored project back
-# into production. Purely additive (ON CONFLICT DO NOTHING).
+# Diagnostic: inspects the Supabase schema and runs the exact queries the
+# dashboard uses, printing results so we can see what's failing.
 
 on:
   workflow_dispatch:
@@ -13,59 +13,46 @@ jobs:
       SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
     steps:
-      - name: Copy back
+      - name: Inspect
         run: |
           set +e
-          DST="$REF_IN"
-          if [ -z "$DST" ]; then DST="wuurffynjmpkntxydlcr"; fi
-          SRC="zayhyynvzjevmpsjvtxx"   # "Futex restore" (Sep 4 backup)
-          echo "src $SRC -> dst $DST"
+          REF="$REF_IN"
+          if [ -z "$REF" ]; then
+            REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
+          fi
+          echo "project ref: $REF"
+          URL="https://$REF.supabase.co"
+          SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
 
-          q() { # q <ref> <sql-file-or-string>
-            local SQLFILE=/tmp/q.sql
-            printf '%s' "$2" > "$SQLFILE"
-            jq -nc --rawfile q "$SQLFILE" '{query:$q}' > /tmp/qbody.json
-            local RESP
-            RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$1/database/query" \
-              -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
-              --data-binary @/tmp/qbody.json)
-            echo "HTTP $(echo "$RESP" | tail -n1)" >&2
-            echo "$RESP" | sed '$d'
-          }
+          echo "============================================================"
+          echo "1) Tables exposed by PostgREST:"
+          curl -s "$URL/rest/v1/" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+            | jq -r '(.definitions // {}) | keys[]' 2>/dev/null | sort | tr '\n' ' '
+          echo
 
-          JULY="with july_clients as (select id from public.bookings where preferred_date >= '2026-07-01' and preferred_date <= '2026-07-31' union select id from public.internal_clients where install_date >= '2026-07-01' and install_date <= '2026-07-31'), pay as (select coalesce(sum(amount),0) s from public.payments where booking_id in (select id from july_clients) and status = 'confirmed'), ipay as (select coalesce(sum(payment_amount),0) s from public.internal_clients where install_date >= '2026-07-01' and install_date <= '2026-07-31'), exp as (select coalesce(sum(amount),0) s from public.client_financials where booking_id in (select id from july_clients)) select (select s from pay) + (select s from ipay) as payments, (select s from exp) as expenses, (select s from pay) + (select s from ipay) - (select s from exp) as profit;"
+          echo "============================================================"
+          echo "2) profiles row count + sample:"
+          curl -s "$URL/rest/v1/profiles?select=id,full_name,role,active&limit=5" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
+          echo
 
-          echo "== July figures IN THE BACKUP COPY =="
-          q "$SRC" "$JULY"
+          echo "============================================================"
+          echo "3) bookings simple select (HTTP + body):"
+          curl -s -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings?select=*&limit=1" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
+          echo
 
-          N=$(q "$SRC" "select count(*) as n from public.client_financials;" | jq -r '.[0].n')
-          BEFORE=$(q "$DST" "select count(*) as n from public.client_financials;" | jq -r '.[0].n')
-          echo "source rows: $N · production rows before: $BEFORE"
+          echo "============================================================"
+          echo "4) bookings EMBED select (the dashboard query):"
+          SEL='*,preferred_package:packages!bookings_preferred_package_id_fkey(id,name,base_price),preferred_enclosure:enclosures!bookings_preferred_enclosure_id_fkey(id,name,price),assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(id,full_name),assigned_installer:profiles!bookings_assigned_installer_id_fkey(id,full_name)'
+          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings" \
+            --data-urlencode "select=$SEL" --data-urlencode "limit=1" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1200
+          echo
 
-          COLS="id, booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks, created_by, created_by_name, created_at, updated_at"
-          STEP=400
-          OFF=0
-          while [ "$OFF" -lt "$N" ]; do
-            q "$SRC" "select coalesce(jsonb_agg(t), '[]'::jsonb) as rows from (select $COLS from public.client_financials order by id limit $STEP offset $OFF) t" | jq -c '.[0].rows' > /tmp/rows.json
-            CNT=$(jq 'length' /tmp/rows.json)
-            if [ "$CNT" = "0" ] || [ -z "$CNT" ]; then break; fi
-            {
-              printf 'insert into public.client_financials (%s) select %s from jsonb_populate_recordset(null::public.client_financials, $fx9$' "$COLS" "$COLS"
-              cat /tmp/rows.json
-              printf '$fx9$::jsonb) on conflict (id) do nothing;'
-            } > /tmp/ins.sql
-            jq -nc --rawfile q /tmp/ins.sql '{query:$q}' > /tmp/insbody.json
-            RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$DST/database/query" \
-              -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
-              --data-binary @/tmp/insbody.json)
-            CODE=$(echo "$RESP" | tail -n1)
-            echo "offset $OFF ($CNT rows) -> HTTP $CODE"
-            if [ "$CODE" != "200" ] && [ "$CODE" != "201" ]; then echo "$RESP" | sed '$d' | head -c 400; echo; fi
-            OFF=$((OFF + STEP))
+          echo "============================================================"
+          echo "5) packages / enclosures counts:"
+          for t in packages enclosures addons settings job_orders payments; do
+            C=$(curl -s -w '%{http_code}' -o /tmp/b "$URL/rest/v1/$t?select=*&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE")
+            echo "  $t -> HTTP $C  $(head -c 120 /tmp/b)"
           done
-
-          AFTER=$(q "$DST" "select count(*) as n from public.client_financials;" | jq -r '.[0].n')
-          echo "production rows after: $AFTER (added $((AFTER - BEFORE)))"
-
-          echo "== July figures IN PRODUCTION after copy =="
-          q "$DST" "$JULY"
