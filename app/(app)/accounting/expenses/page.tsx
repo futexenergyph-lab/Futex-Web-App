@@ -267,13 +267,16 @@ export default async function ExpensesPage({
   }
   const batches = [...batchMap.values()];
 
+  // Group by display label so merged categories (e.g. legacy Rental into
+  // Rent, Lease and Utilities) chart as one bar.
   const byType = new Map<string, number>();
   for (const e of expenses) {
-    byType.set(e.type, (byType.get(e.type) ?? 0) + Number(e.amount));
+    const label = EXPENSE_TYPE_LABELS[e.type] ?? e.type;
+    byType.set(label, (byType.get(label) ?? 0) + Number(e.amount));
   }
-  const typeData = [...byType.entries()].map(([k, v]) => ({
-    label: EXPENSE_TYPE_LABELS[k as ExpenseType] ?? k,
-    value: v,
+  const typeData = [...byType.entries()].map(([label, value]) => ({
+    label,
+    value,
   }));
 
   const csvRows = expenses.map((e) => ({

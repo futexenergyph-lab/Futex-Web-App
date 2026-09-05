@@ -286,9 +286,13 @@ export type ExpenseType =
   | "labors"
   | "repairs_maintenance"
   | "supplies"
-  | "rental"
+  | "salaries_wages"
+  | "professional_fees"
+  | "marketing_advertising"
+  | "rental" // legacy key — old records display under "Rent, Lease and Utilities"
   | "others";
 
+// Options offered when recording an expense ("rental" merged into utilities).
 export const EXPENSE_TYPES: ExpenseType[] = [
   "meals",
   "transportation",
@@ -296,19 +300,24 @@ export const EXPENSE_TYPES: ExpenseType[] = [
   "labors",
   "repairs_maintenance",
   "supplies",
-  "rental",
+  "salaries_wages",
+  "professional_fees",
+  "marketing_advertising",
   "others",
 ];
 
 export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
   meals: "Meals",
-  transportation: "Transportation",
-  utilities: "Utilities",
+  transportation: "Transportation, Fuels and Tolls",
+  utilities: "Rent, Lease and Utilities",
   labors: "Labors",
   repairs_maintenance: "Repairs & Maintenance",
-  supplies: "Supplies",
-  rental: "Rental",
-  others: "Others",
+  supplies: "Office Supplies and Materials",
+  salaries_wages: "Salaries and Wages",
+  professional_fees: "Professional Fees",
+  marketing_advertising: "Marketing and Advertising",
+  rental: "Rent, Lease and Utilities",
+  others: "Miscellaneous",
 };
 
 export type RetailPurchaseType =
