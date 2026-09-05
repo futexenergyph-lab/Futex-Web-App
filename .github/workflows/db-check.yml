@@ -1,8 +1,7 @@
 name: DB Check
 
-# One-off cleanup: remove Internal Inputs expense lines (client_financials)
-# dated Aug 1 - Sep 5 2026 (plus undated lines created in that window).
-# The owner will re-enter them manually. Accounting expenses are untouched.
+# Diagnostic: inspects the Supabase schema and runs the exact queries the
+# dashboard uses, printing results so we can see what's failing.
 
 on:
   workflow_dispatch:
@@ -14,7 +13,7 @@ jobs:
       SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
     steps:
-      - name: Cleanup
+      - name: Inspect
         run: |
           set +e
           REF="$REF_IN"
@@ -22,24 +21,38 @@ jobs:
             REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
           fi
           echo "project ref: $REF"
-          run_sql() {
-            local SQL="$1"
-            local RESP
-            RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
-              -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
-              -d "$(jq -nc --arg q "$SQL" '{query:$q}')")
-            echo "HTTP $(echo "$RESP" | tail -n1)"
-            echo "$RESP" | sed '$d' | head -c 1500; echo
-          }
+          URL="https://$REF.supabase.co"
+          SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
 
-          echo "== BEFORE: rows in the removal window =="
-          run_sql "select count(*) as dated from public.client_financials where entry_date >= '2026-08-01' and entry_date <= '2026-09-05';"
-          run_sql "select count(*) as undated_created_in_window from public.client_financials where entry_date is null and created_at >= timestamptz '2026-08-01 00:00:00+08' and created_at < timestamptz '2026-09-06 00:00:00+08';"
-          run_sql "select count(*) as total_all from public.client_financials;"
+          echo "============================================================"
+          echo "1) Tables exposed by PostgREST:"
+          curl -s "$URL/rest/v1/" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+            | jq -r '(.definitions // {}) | keys[]' 2>/dev/null | sort | tr '\n' ' '
+          echo
 
-          echo "== DELETE =="
-          run_sql "delete from public.client_financials where (entry_date >= '2026-08-01' and entry_date <= '2026-09-05') or (entry_date is null and created_at >= timestamptz '2026-08-01 00:00:00+08' and created_at < timestamptz '2026-09-06 00:00:00+08');"
+          echo "============================================================"
+          echo "2) profiles row count + sample:"
+          curl -s "$URL/rest/v1/profiles?select=id,full_name,role,active&limit=5" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
+          echo
 
-          echo "== AFTER =="
-          run_sql "select count(*) as remaining_in_window from public.client_financials where (entry_date >= '2026-08-01' and entry_date <= '2026-09-05') or (entry_date is null and created_at >= timestamptz '2026-08-01 00:00:00+08' and created_at < timestamptz '2026-09-06 00:00:00+08');"
-          run_sql "select count(*) as total_all from public.client_financials;"
+          echo "============================================================"
+          echo "3) bookings simple select (HTTP + body):"
+          curl -s -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings?select=*&limit=1" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
+          echo
+
+          echo "============================================================"
+          echo "4) bookings EMBED select (the dashboard query):"
+          SEL='*,preferred_package:packages!bookings_preferred_package_id_fkey(id,name,base_price),preferred_enclosure:enclosures!bookings_preferred_enclosure_id_fkey(id,name,price),assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(id,full_name),assigned_installer:profiles!bookings_assigned_installer_id_fkey(id,full_name)'
+          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings" \
+            --data-urlencode "select=$SEL" --data-urlencode "limit=1" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1200
+          echo
+
+          echo "============================================================"
+          echo "5) packages / enclosures counts:"
+          for t in packages enclosures addons settings job_orders payments; do
+            C=$(curl -s -w '%{http_code}' -o /tmp/b "$URL/rest/v1/$t?select=*&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE")
+            echo "  $t -> HTTP $C  $(head -c 120 /tmp/b)"
+          done
