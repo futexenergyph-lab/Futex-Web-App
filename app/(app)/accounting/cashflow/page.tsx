@@ -128,13 +128,16 @@ export default async function FinancialOverviewPage({
       outflow: v.outflow,
     }));
 
-  // Expenses by type
+  // Expenses by type — grouped by display label so merged categories
+  // (legacy Rental into Rent, Lease and Utilities) chart as one bar.
   const byType = new Map<string, number>();
-  for (const x of outflow)
-    byType.set(x.type, (byType.get(x.type) ?? 0) + x.amount);
-  const typeData = [...byType.entries()].map(([k, v]) => ({
-    label: EXPENSE_TYPE_LABELS[k as ExpenseType] ?? k,
-    value: v,
+  for (const x of outflow) {
+    const label = EXPENSE_TYPE_LABELS[x.type as ExpenseType] ?? x.type;
+    byType.set(label, (byType.get(label) ?? 0) + x.amount);
+  }
+  const typeData = [...byType.entries()].map(([label, value]) => ({
+    label,
+    value,
   }));
 
   const rangeLabel =

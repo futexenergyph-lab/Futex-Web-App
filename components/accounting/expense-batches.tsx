@@ -51,14 +51,12 @@ export function ExpenseBatches({
     >();
     for (const b of batches) {
       for (const e of b.items) {
-        const g = map.get(e.type) ?? {
-          label: EXPENSE_TYPE_LABELS[e.type] ?? e.type,
-          total: 0,
-          items: [],
-        };
+        // Key by display label so merged categories group as one.
+        const label = EXPENSE_TYPE_LABELS[e.type] ?? e.type;
+        const g = map.get(label) ?? { label, total: 0, items: [] };
         g.total += Number(e.amount);
         g.items.push({ ...e, userName: b.userName });
-        map.set(e.type, g);
+        map.set(label, g);
       }
     }
     const arr = [...map.values()];
