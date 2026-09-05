@@ -67,12 +67,6 @@ export function JobOrderForm({
   const [packageId, setPackageId] = useState(
     existing?.package_id ?? defaults.packageId ?? packages[0]?.id ?? "",
   );
-  const [enclosureId, setEnclosureId] = useState(
-    existing?.enclosure_id ?? defaults.enclosureId ?? "",
-  );
-  const [addSeparateEnclosure, setAddSeparate] = useState(
-    existing?.add_separate_enclosure ?? true,
-  );
   const [wireMeters, setWireMeters] = useState(
     existing?.additional_wire_meters
       ? String(existing.additional_wire_meters)
@@ -101,8 +95,10 @@ export function JobOrderForm({
   const [showConfirm, setShowConfirm] = useState(false);
 
   const pkg = packages.find((p) => p.id === packageId) ?? null;
-  const enc = enclosures.find((e) => e.id === enclosureId) ?? null;
-  const bundled = pkg?.enclosure_included ?? false;
+  // Enclosures are no longer picked on the job order; new orders submit
+  // without one. Only a previously locked order's enclosure is still shown.
+  const enc =
+    enclosures.find((e) => e.id === (existing?.enclosure_id ?? "")) ?? null;
 
   // Charges are positive; adjustments are negated so they reduce the total.
   const jobWorksNum: JobWork[] = [
@@ -120,14 +116,14 @@ export function JobOrderForm({
     () =>
       computePricing({
         pkg,
-        enclosure: enc,
-        addSeparateEnclosure,
+        enclosure: null,
+        addSeparateEnclosure: false,
         additionalWireMeters: Number(wireMeters) || 0,
         wireRatePerMeter: wireRate,
         additionalJobWorks: jobWorksNum,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pkg, enc, addSeparateEnclosure, wireMeters, jobWorks, adjustments, wireRate],
+    [pkg, wireMeters, jobWorks, adjustments, wireRate],
   );
 
   // A submitted/locked order is read-only until management approves a change.
@@ -176,8 +172,8 @@ export function JobOrderForm({
         bookingId,
         jobOrderId: editable ? existing?.id : undefined,
         packageId,
-        enclosureId: enclosureId || null,
-        addSeparateEnclosure,
+        enclosureId: null,
+        addSeparateEnclosure: false,
         additionalWireMeters: Number(wireMeters) || 0,
         additionalJobWorks: jobWorksNum.filter((w) => w.description.trim()),
         notes,
@@ -330,57 +326,21 @@ export function JobOrderForm({
           </p>
         </div>
       )}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="package">Package</Label>
-          <select
-            id="package"
-            value={packageId}
-            onChange={(e) => setPackageId(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          >
-            {packages.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {php(p.base_price)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="enclosure">Enclosure</Label>
-          <select
-            id="enclosure"
-            value={enclosureId}
-            onChange={(e) => setEnclosureId(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="">None</option>
-            {enclosures.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name} — {php(e.price)}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="package">Package</Label>
+        <select
+          id="package"
+          value={packageId}
+          onChange={(e) => setPackageId(e.target.value)}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        >
+          {packages.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name} — {php(p.base_price)}
+            </option>
+          ))}
+        </select>
       </div>
-
-      {bundled ? (
-        <p className="rounded-md bg-accent/10 px-3 py-2 text-xs text-accent-foreground">
-          This package already includes an enclosure — it won&apos;t be charged
-          separately.
-        </p>
-      ) : (
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={addSeparateEnclosure}
-            onChange={(e) => setAddSeparate(e.target.checked)}
-            className="h-4 w-4"
-            disabled={!enclosureId}
-          />
-          Charge selected enclosure as a separate line item
-        </label>
-      )}
 
       <div className="space-y-2">
         <Label htmlFor="wire">Total Wire</Label>
