@@ -1,16 +1,10 @@
 name: DB Check
 
-# One-off: copy client_financials rows from a backup-restored project back
-# into production. Purely additive (ON CONFLICT DO NOTHING) — restores the
-# pre-Sep-5 internal expense lines without touching anything else.
+# One-off: copy client_financials rows from the backup-restored project back
+# into production. Purely additive (ON CONFLICT DO NOTHING).
 
 on:
   workflow_dispatch:
-    inputs:
-      src_ref:
-        description: "Project ref of the restored copy (leave blank to auto-detect the newest non-production project)"
-        required: false
-        default: ""
 
 jobs:
   check:
@@ -18,64 +12,60 @@ jobs:
     env:
       SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
-      SRC_IN: ${{ github.event.inputs.src_ref }}
     steps:
       - name: Copy back
         run: |
           set +e
           DST="$REF_IN"
           if [ -z "$DST" ]; then DST="wuurffynjmpkntxydlcr"; fi
-          echo "production ref: $DST"
+          SRC="zayhyynvzjevmpsjvtxx"   # "Futex restore" (Sep 4 backup)
+          echo "src $SRC -> dst $DST"
 
-          PROJECTS=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT")
-          SRC="$SRC_IN"
-          if [ -z "$SRC" ]; then
-            SRC=$(echo "$PROJECTS" | jq -r --arg dst "$DST" '[.[] | select(.id != $dst)] | sort_by(.created_at) | last | .id // empty')
-          fi
-          echo "source (restored) ref: $SRC"
-          echo "$PROJECTS" | jq -r '.[] | "\(.id)  \(.name)  \(.status)  \(.created_at)"'
-          if [ -z "$SRC" ] || [ "$SRC" = "$DST" ]; then echo "NO SOURCE PROJECT FOUND"; exit 1; fi
-
-          q() { # q <ref> <sql> -> body to stdout, HTTP code to stderr
+          q() { # q <ref> <sql-file-or-string>
+            local SQLFILE=/tmp/q.sql
+            printf '%s' "$2" > "$SQLFILE"
+            jq -nc --rawfile q "$SQLFILE" '{query:$q}' > /tmp/qbody.json
             local RESP
             RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$1/database/query" \
               -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
-              -d "$(jq -nc --arg q "$2" '{query:$q}')")
+              --data-binary @/tmp/qbody.json)
             echo "HTTP $(echo "$RESP" | tail -n1)" >&2
             echo "$RESP" | sed '$d'
           }
 
-          # Wait for the restored project to answer queries (max ~5 min).
-          for i in $(seq 1 20); do
-            OUT=$(q "$SRC" "select count(*) as n from public.client_financials;")
-            N=$(echo "$OUT" | jq -r '.[0].n // empty' 2>/dev/null)
-            if [ -n "$N" ]; then break; fi
-            echo "source not ready yet ($i)…"; sleep 15
-          done
-          echo "source client_financials rows: $N"
-          if [ -z "$N" ]; then echo "SOURCE NEVER BECAME READY"; exit 1; fi
+          JULY="with july_clients as (select id from public.bookings where preferred_date >= '2026-07-01' and preferred_date <= '2026-07-31' union select id from public.internal_clients where install_date >= '2026-07-01' and install_date <= '2026-07-31'), pay as (select coalesce(sum(amount),0) s from public.payments where booking_id in (select id from july_clients) and status = 'confirmed'), ipay as (select coalesce(sum(payment_amount),0) s from public.internal_clients where install_date >= '2026-07-01' and install_date <= '2026-07-31'), exp as (select coalesce(sum(amount),0) s from public.client_financials where booking_id in (select id from july_clients)) select (select s from pay) + (select s from ipay) as payments, (select s from exp) as expenses, (select s from pay) + (select s from ipay) - (select s from exp) as profit;"
 
+          echo "== July figures IN THE BACKUP COPY =="
+          q "$SRC" "$JULY"
+
+          N=$(q "$SRC" "select count(*) as n from public.client_financials;" | jq -r '.[0].n')
           BEFORE=$(q "$DST" "select count(*) as n from public.client_financials;" | jq -r '.[0].n')
-          echo "production rows before: $BEFORE"
+          echo "source rows: $N · production rows before: $BEFORE"
 
           COLS="id, booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks, created_by, created_by_name, created_at, updated_at"
           STEP=400
           OFF=0
-          COPIED=0
           while [ "$OFF" -lt "$N" ]; do
-            ROWS=$(q "$SRC" "select coalesce(jsonb_agg(t), '[]'::jsonb) as rows from (select $COLS from public.client_financials order by id limit $STEP offset $OFF) t" | jq -c '.[0].rows')
-            CNT=$(echo "$ROWS" | jq 'length')
+            q "$SRC" "select coalesce(jsonb_agg(t), '[]'::jsonb) as rows from (select $COLS from public.client_financials order by id limit $STEP offset $OFF) t" | jq -c '.[0].rows' > /tmp/rows.json
+            CNT=$(jq 'length' /tmp/rows.json)
             if [ "$CNT" = "0" ] || [ -z "$CNT" ]; then break; fi
-            SQL="insert into public.client_financials ($COLS) select $COLS from jsonb_populate_recordset(null::public.client_financials, \$fx9\$${ROWS}\$fx9\$::jsonb) on conflict (id) do nothing;"
-            q "$DST" "$SQL" > /dev/null
-            COPIED=$((COPIED + CNT))
-            echo "copied batch at offset $OFF ($CNT rows)"
+            {
+              printf 'insert into public.client_financials (%s) select %s from jsonb_populate_recordset(null::public.client_financials, $fx9$' "$COLS" "$COLS"
+              cat /tmp/rows.json
+              printf '$fx9$::jsonb) on conflict (id) do nothing;'
+            } > /tmp/ins.sql
+            jq -nc --rawfile q /tmp/ins.sql '{query:$q}' > /tmp/insbody.json
+            RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$DST/database/query" \
+              -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
+              --data-binary @/tmp/insbody.json)
+            CODE=$(echo "$RESP" | tail -n1)
+            echo "offset $OFF ($CNT rows) -> HTTP $CODE"
+            if [ "$CODE" != "200" ] && [ "$CODE" != "201" ]; then echo "$RESP" | sed '$d' | head -c 400; echo; fi
             OFF=$((OFF + STEP))
           done
-          echo "total rows sent: $COPIED"
 
           AFTER=$(q "$DST" "select count(*) as n from public.client_financials;" | jq -r '.[0].n')
-          echo "production rows after: $AFTER"
+          echo "production rows after: $AFTER (added $((AFTER - BEFORE)))"
 
-          echo "== July 2026 figures after restore =="
-          q "$DST" "with july_clients as (select id from public.bookings where preferred_date >= '2026-07-01' and preferred_date <= '2026-07-31' union select id from public.internal_clients where install_date >= '2026-07-01' and install_date <= '2026-07-31'), pay as (select coalesce(sum(amount),0) s from public.payments where booking_id in (select id from july_clients) and status = 'confirmed'), ipay as (select coalesce(sum(payment_amount),0) s from public.internal_clients where install_date >= '2026-07-01' and install_date <= '2026-07-31'), exp as (select coalesce(sum(amount),0) s from public.client_financials where booking_id in (select id from july_clients)) select (select s from pay) + (select s from ipay) as payments, (select s from exp) as expenses, (select s from pay) + (select s from ipay) - (select s from exp) as profit;"
+          echo "== July figures IN PRODUCTION after copy =="
+          q "$DST" "$JULY"
