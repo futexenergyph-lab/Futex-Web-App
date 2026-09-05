@@ -55,6 +55,7 @@ interface JoRow {
   enclosure_id: string | null;
   add_separate_enclosure: boolean;
   additional_wire_meters: number;
+  wire_rate_per_meter: number | string | null;
   additional_job_works: JobWork[] | null;
   final_total: number | string;
 }
@@ -90,7 +91,7 @@ export default async function ClientMasterListPage() {
       supabase
         .from("job_orders")
         .select(
-          "booking_id, package_id, enclosure_id, add_separate_enclosure, additional_wire_meters, additional_job_works, final_total, created_at",
+          "booking_id, package_id, enclosure_id, add_separate_enclosure, additional_wire_meters, wire_rate_per_meter, additional_job_works, final_total, created_at",
         )
         .order("created_at", { ascending: false }),
     ]);
@@ -156,6 +157,7 @@ export default async function ClientMasterListPage() {
                 ? (encName.get(jo.enclosure_id) ?? null)
                 : null,
             wireMeters: Number(jo.additional_wire_meters || 0),
+            wireRate: Number(jo.wire_rate_per_meter || 200),
             works: jo.additional_job_works ?? [],
           }
         : null,
