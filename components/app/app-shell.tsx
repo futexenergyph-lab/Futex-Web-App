@@ -42,7 +42,15 @@ interface NavItem {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** Sub-links shown while this section is open (parent or child active). */
+  children?: { href: string; label: string }[];
 }
+
+// Expenses splits into two filtered views by who recorded the entry.
+const EXPENSE_CHILDREN = [
+  { href: "/accounting/expenses/client-tl", label: "Client/TL Expense" },
+  { href: "/accounting/expenses/operational", label: "Operational Expense" },
+];
 
 export type AppArea = "admin" | "field" | "accounting" | "hr" | "admin_staff";
 
@@ -67,7 +75,7 @@ const AREAS: Record<
       // Accounting module (admins have full access)
       { href: "/accounting/cashflow", label: "Accounting Overview", icon: ArrowLeftRight },
       { href: "/accounting", label: "Payments", icon: Wallet },
-      { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
+      { href: "/accounting/expenses", label: "Expenses", icon: Receipt, children: EXPENSE_CHILDREN },
       { href: "/accounting/retail", label: "Retail Purchases", icon: ShoppingCart },
       { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
       { href: "/announcements", label: "Announcements", icon: Megaphone },
@@ -80,7 +88,7 @@ const AREAS: Record<
     nav: [
       { href: "/accounting/cashflow", label: "Overview", icon: ArrowLeftRight },
       { href: "/accounting", label: "Payments", icon: Wallet },
-      { href: "/accounting/expenses", label: "Expenses", icon: Receipt },
+      { href: "/accounting/expenses", label: "Expenses", icon: Receipt, children: EXPENSE_CHILDREN },
       { href: "/accounting/retail", label: "Retail Purchases", icon: ShoppingCart },
       { href: "/accounting/profitability", label: "Profitability", icon: TrendingUp },
     ],
@@ -173,27 +181,54 @@ export function AppShell({
   const NavLinks = () => (
     <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3">
       {nav.map((item) => {
+        const childActive = !!item.children?.some((c) =>
+          pathname.startsWith(c.href),
+        );
         const active =
-          pathname === item.href ||
-          (item.href !== "/" &&
-            pathname.startsWith(item.href) &&
-            item.href.split("/").length > 2);
+          !childActive &&
+          (pathname === item.href ||
+            (item.href !== "/" &&
+              pathname.startsWith(item.href) &&
+              item.href.split("/").length > 2));
         const Icon = item.icon;
+        // Sub-links appear while their section is open (parent or child page).
+        const showChildren =
+          !!item.children && (active || childActive) && item.href !== "/";
         return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => setOpen(false)}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              active
-                ? "bg-primary text-primary-foreground"
-                : "text-foreground/70 hover:bg-secondary hover:text-foreground",
+          <div key={item.href}>
+            <Link
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground/70 hover:bg-secondary hover:text-foreground",
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </Link>
+            {showChildren && (
+              <div className="mt-1 space-y-1 pl-9">
+                {item.children!.map((c) => (
+                  <Link
+                    key={c.href}
+                    href={c.href}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "block rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      pathname.startsWith(c.href)
+                        ? "bg-primary text-primary-foreground"
+                        : "text-foreground/70 hover:bg-secondary hover:text-foreground",
+                    )}
+                  >
+                    {c.label}
+                  </Link>
+                ))}
+              </div>
             )}
-          >
-            <Icon className="h-4 w-4" />
-            {item.label}
-          </Link>
+          </div>
         );
       })}
     </nav>
