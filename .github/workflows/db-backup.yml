@@ -1,0 +1,73 @@
+name: DB Backup
+
+# On-demand backup: exports every table in the database (all rows, as
+# newline-delimited JSON) plus the storage file listing, and attaches the
+# result to this run as a downloadable artifact (kept 90 days).
+# Run it from the Actions tab any time you want a backup.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Export all tables
+        run: |
+          set -e
+          REF="$REF_IN"
+          if [ -z "$REF" ]; then
+            REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
+          fi
+          echo "project ref: $REF"
+          q() {
+            curl -s -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
+              -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
+              -d "$(jq -nc --arg q "$1" '{query:$q}')"
+          }
+
+          mkdir -p backup
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > backup/BACKUP_TIMESTAMP.txt
+
+          TABLES=$(q "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' order by table_name" | jq -r '.[].table_name')
+          echo "tables: $TABLES"
+
+          STEP=500
+          for T in $TABLES; do
+            : > "backup/$T.ndjson"
+            OFF=0
+            while :; do
+              q "select coalesce(jsonb_agg(t), '[]'::jsonb) as rows from (select * from public.\"$T\" order by 1 limit $STEP offset $OFF) t" | jq -c '.[0].rows' > /tmp/part.json
+              CNT=$(jq 'length' /tmp/part.json 2>/dev/null || echo 0)
+              if [ "$CNT" = "0" ] || [ -z "$CNT" ]; then break; fi
+              jq -c '.[]' /tmp/part.json >> "backup/$T.ndjson"
+              if [ "$CNT" -lt "$STEP" ]; then break; fi
+              OFF=$((OFF + STEP))
+            done
+            echo "$T: $(wc -l < "backup/$T.ndjson") rows"
+          done
+
+          # Storage FILE LISTING (metadata only — the files themselves live in
+          # Supabase storage and are not part of this export).
+          : > backup/_storage_file_list.ndjson
+          OFF=0
+          while :; do
+            q "select coalesce(jsonb_agg(t), '[]'::jsonb) as rows from (select bucket_id, name, created_at, metadata->>'size' as size_bytes from storage.objects order by bucket_id, name limit $STEP offset $OFF) t" | jq -c '.[0].rows' > /tmp/part.json
+            CNT=$(jq 'length' /tmp/part.json 2>/dev/null || echo 0)
+            if [ "$CNT" = "0" ] || [ -z "$CNT" ]; then break; fi
+            jq -c '.[]' /tmp/part.json >> backup/_storage_file_list.ndjson
+            if [ "$CNT" -lt "$STEP" ]; then break; fi
+            OFF=$((OFF + STEP))
+          done
+          echo "storage files listed: $(wc -l < backup/_storage_file_list.ndjson)"
+          du -sh backup
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: futex-db-backup-${{ github.run_number }}
+          path: backup/
+          retention-days: 90
