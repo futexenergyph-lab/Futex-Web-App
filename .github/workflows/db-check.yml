@@ -1,16 +1,21 @@
 name: DB Check
 
-# Encode field officer expenses into Internal Inputs for the given dates
-# (one client per officer per day), plus an additional-wire cost line for
-# every client of that day: (total wire − 10 m) × ₱100. Idempotent.
+# Encode field officer expenses into Internal Inputs: expenses dated
+# EXPENSE_DATES go to each officer's client installed on CLIENT_DATE
+# (one client per officer). Also adds a wire line for every CLIENT_DATE
+# client: (total wire − 10 m) × ₱100. Idempotent.
 
 on:
   workflow_dispatch:
     inputs:
-      dates:
-        description: "Space-separated dates (YYYY-MM-DD)"
+      expense_dates:
+        description: "Space-separated expense dates (YYYY-MM-DD)"
         required: false
-        default: "2026-07-07"
+        default: "2026-07-08 2026-07-09"
+      client_date:
+        description: "Install date of the target clients"
+        required: false
+        default: "2026-07-09"
 
 jobs:
   check:
@@ -18,7 +23,8 @@ jobs:
     env:
       SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
-      DATES: ${{ github.event.inputs.dates }}
+      EXP_DATES: ${{ github.event.inputs.expense_dates }}
+      CLIENT_DATE: ${{ github.event.inputs.client_date }}
     steps:
       - name: Encode
         run: |
@@ -28,7 +34,10 @@ jobs:
             REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
           fi
           echo "project ref: $REF"
-          if [ -z "$DATES" ]; then DATES="2026-07-07"; fi
+          if [ -z "$EXP_DATES" ]; then EXP_DATES="2026-07-08 2026-07-09"; fi
+          if [ -z "$CLIENT_DATE" ]; then CLIENT_DATE="2026-07-09"; fi
+          DLIST=$(for d in $EXP_DATES; do printf "'%s'," "$d"; done); DLIST=${DLIST%,}
+          echo "expense dates: $DLIST -> clients of $CLIENT_DATE"
           run_sql() {
             local RESP
             RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
@@ -38,23 +47,20 @@ jobs:
             echo "$RESP" | sed '$d' | head -c 3000; echo
           }
 
-          for D in $DATES; do
-            echo "########## $D ##########"
-            echo "== PLAN 1: per-officer target client + expense totals =="
-            run_sql "with tgt as (select distinct on (b.assigned_field_officer_id) b.assigned_field_officer_id as officer, b.id as booking_id, b.client_name from public.bookings b where b.preferred_date = '$D' and b.assigned_field_officer_id is not null order by b.assigned_field_officer_id, (b.status = 'completed') desc, b.client_number nulls last, b.created_at) select p.full_name as officer, t.client_name as target_client, count(e.id) as expense_lines, coalesce(sum(e.amount),0) as total from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' join tgt t on t.officer = e.created_by where e.expense_date = '$D' and e.status <> 'draft' group by p.full_name, t.client_name order by p.full_name;"
+          echo "== PLAN 1: per-officer target client + expense totals =="
+          run_sql "with tgt as (select distinct on (b.assigned_field_officer_id) b.assigned_field_officer_id as officer, b.id as booking_id, b.client_name from public.bookings b where b.preferred_date = '$CLIENT_DATE' and b.assigned_field_officer_id is not null order by b.assigned_field_officer_id, (b.status = 'completed') desc, b.client_number nulls last, b.created_at) select p.full_name as officer, t.client_name as target_client, count(e.id) as expense_lines, coalesce(sum(e.amount),0) as total from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' join tgt t on t.officer = e.created_by where e.expense_date in ($DLIST) and e.status <> 'draft' group by p.full_name, t.client_name order by p.full_name;"
 
-            echo "== FO expenses with NO assignment that day (skipped) =="
-            run_sql "select p.full_name, count(*) as lines, coalesce(sum(e.amount),0) as total from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' where e.expense_date = '$D' and e.status <> 'draft' and e.created_by not in (select assigned_field_officer_id from public.bookings where preferred_date = '$D' and assigned_field_officer_id is not null) group by p.full_name;"
+          echo "== FO expenses with NO $CLIENT_DATE assignment (skipped) =="
+          run_sql "select p.full_name, count(*) as lines, coalesce(sum(e.amount),0) as total from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' where e.expense_date in ($DLIST) and e.status <> 'draft' and e.created_by not in (select assigned_field_officer_id from public.bookings where preferred_date = '$CLIENT_DATE' and assigned_field_officer_id is not null) group by p.full_name;"
 
-            echo "== PLAN 2: per-client wire lines (total wire − 10 m) × ₱100 =="
-            run_sql "with jo as (select distinct on (booking_id) booking_id, additional_wire_meters from public.job_orders order by booking_id, created_at desc) select b.client_name, jo.additional_wire_meters as total_wire, (jo.additional_wire_meters - 10) as additional_wire, round((jo.additional_wire_meters - 10) * 100, 2) as amount from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date = '$D' and jo.additional_wire_meters > 10 order by b.client_number;"
+          echo "== PLAN 2: per-client wire lines (total wire − 10 m) × ₱100 =="
+          run_sql "with jo as (select distinct on (booking_id) booking_id, additional_wire_meters from public.job_orders order by booking_id, created_at desc) select b.client_name, jo.additional_wire_meters as total_wire, (jo.additional_wire_meters - 10) as additional_wire, round((jo.additional_wire_meters - 10) * 100, 2) as amount from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date = '$CLIENT_DATE' and jo.additional_wire_meters > 10 order by b.client_number;"
 
-            echo "== INSERT 1: officer expenses =="
-            run_sql "with tgt as (select distinct on (b.assigned_field_officer_id) b.assigned_field_officer_id as officer, b.id as booking_id from public.bookings b where b.preferred_date = '$D' and b.assigned_field_officer_id is not null order by b.assigned_field_officer_id, (b.status = 'completed') desc, b.client_number nulls last, b.created_at) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks, created_by, created_by_name, source_expense_id) select t.booking_id, e.expense_date, null, public.expense_type_label(e.type), coalesce(e.description, ''), e.amount, null, 'Field officer expense — ' || p.full_name, e.created_by, p.full_name, e.id from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' join tgt t on t.officer = e.created_by where e.expense_date = '$D' and e.status <> 'draft' on conflict (source_expense_id) do nothing;"
+          echo "== INSERT 1: officer expenses =="
+          run_sql "with tgt as (select distinct on (b.assigned_field_officer_id) b.assigned_field_officer_id as officer, b.id as booking_id from public.bookings b where b.preferred_date = '$CLIENT_DATE' and b.assigned_field_officer_id is not null order by b.assigned_field_officer_id, (b.status = 'completed') desc, b.client_number nulls last, b.created_at) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks, created_by, created_by_name, source_expense_id) select t.booking_id, e.expense_date, null, public.expense_type_label(e.type), coalesce(e.description, ''), e.amount, null, 'Field officer expense — ' || p.full_name, e.created_by, p.full_name, e.id from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' join tgt t on t.officer = e.created_by where e.expense_date in ($DLIST) and e.status <> 'draft' on conflict (source_expense_id) do nothing;"
 
-            echo "== INSERT 2: wire lines =="
-            run_sql "with jo as (select distinct on (booking_id) booking_id, additional_wire_meters from public.job_orders order by booking_id, created_at desc) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks) select b.id, '$D', null, 'Materials', 'Additional wire (' || (jo.additional_wire_meters - 10) || 'm × ₱100)', round((jo.additional_wire_meters - 10) * 100, 2), null, 'Job order total wire: ' || jo.additional_wire_meters || 'm' from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date = '$D' and jo.additional_wire_meters > 10 and not exists (select 1 from public.client_financials cf where cf.booking_id = b.id and cf.entry_date = '$D' and cf.description like 'Additional wire%');"
+          echo "== INSERT 2: wire lines =="
+          run_sql "with jo as (select distinct on (booking_id) booking_id, additional_wire_meters from public.job_orders order by booking_id, created_at desc) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks) select b.id, '$CLIENT_DATE', null, 'Materials', 'Additional wire (' || (jo.additional_wire_meters - 10) || 'm × ₱100)', round((jo.additional_wire_meters - 10) * 100, 2), null, 'Job order total wire: ' || jo.additional_wire_meters || 'm' from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date = '$CLIENT_DATE' and jo.additional_wire_meters > 10 and not exists (select 1 from public.client_financials cf where cf.booking_id = b.id and cf.entry_date = '$CLIENT_DATE' and cf.description like 'Additional wire%');"
 
-            echo "== AFTER: internal input lines dated $D =="
-            run_sql "select count(*) as lines, coalesce(sum(amount),0) as total from public.client_financials where entry_date = '$D';"
-          done
+          echo "== AFTER: internal input lines dated in ($DLIST) =="
+          run_sql "select count(*) as lines, coalesce(sum(amount),0) as total from public.client_financials where entry_date in ($DLIST);"
