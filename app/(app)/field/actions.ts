@@ -207,10 +207,152 @@ export async function markInstallationDone(bookingId: string) {
     })
     .eq("id", bookingId);
   if (error) return { error: error.message };
+
+  // Automation: encode this deployment's package costs, extra wire and
+  // additional purchases into Internal Inputs (best-effort — never blocks
+  // the Done Installation flow).
+  await encodeJobOrderToInternal(bookingId, profile.full_name);
+
   revalidatePath(`/field/bookings/${bookingId}`);
   revalidatePath("/field");
   revalidatePath("/field/customers");
   return { ok: true };
+}
+
+/**
+ * On "Done installation": load the client's package cost template (matched
+ * from the job order's package name), the additional-wire cost
+ * ((total − 10 m) × ₱100), and any ticked purchases (Extension ₱1,500,
+ * Portable Charger ₱3,800) into the owner's Internal Inputs. Inserts go
+ * through a dedicated definer function that verifies the caller is the
+ * booking's assigned field officer and dedupes every line kind.
+ */
+async function encodeJobOrderToInternal(bookingId: string, officerName: string) {
+  try {
+    const supabase = createClient();
+    const [{ data: jo }, { data: bk }] = await Promise.all([
+      supabase
+        .from("job_orders")
+        .select(
+          "package_id, enclosure_id, add_separate_enclosure, additional_wire_meters, additional_job_works",
+        )
+        .eq("booking_id", bookingId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("bookings")
+        .select("preferred_date")
+        .eq("id", bookingId)
+        .maybeSingle(),
+    ]);
+    const joRow = jo as {
+      package_id: string | null;
+      enclosure_id: string | null;
+      add_separate_enclosure: boolean;
+      additional_wire_meters: number | string;
+      additional_job_works: { description?: string }[] | null;
+    } | null;
+    if (!joRow?.package_id) return;
+
+    const { data: pkg } = await supabase
+      .from("packages")
+      .select("name")
+      .eq("id", joRow.package_id)
+      .maybeSingle();
+    const pkgName = (pkg as { name: string } | null)?.name;
+    if (!pkgName) return;
+
+    const { resolveInstallationPackage } = await import(
+      "@/lib/installation-packages"
+    );
+    const works = Array.isArray(joRow.additional_job_works)
+      ? joRow.additional_job_works
+      : [];
+    const worksText = works
+      .map((w) => w?.description ?? "")
+      .join(" ")
+      .toLowerCase();
+    const template = resolveInstallationPackage({
+      packageName: pkgName,
+      hasEnclosure: !!(joRow.add_separate_enclosure && joRow.enclosure_id),
+      standHint: worksText,
+    });
+
+    const entryDate =
+      (bk as { preferred_date: string | null } | null)?.preferred_date ??
+      new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+
+    interface AutoLine {
+      entry_date: string;
+      project_name: string | null;
+      expense_type: string;
+      description: string;
+      amount: number;
+      remarks: string | null;
+      created_by_name: string;
+    }
+    const lines: AutoLine[] = [];
+    if (template) {
+      for (const l of template.lines) {
+        lines.push({
+          entry_date: entryDate,
+          project_name: template.label,
+          expense_type: l.expense_type,
+          description: l.description,
+          amount: l.amount,
+          remarks: null,
+          created_by_name: officerName,
+        });
+      }
+    }
+
+    const wire = Number(joRow.additional_wire_meters ?? 0);
+    const extra = wire - 10;
+    if (extra > 0) {
+      lines.push({
+        entry_date: entryDate,
+        project_name: null,
+        expense_type: "Materials",
+        description: `Additional wire (${extra}m × ₱100)`,
+        amount: extra * 100,
+        remarks: `Job order total wire: ${wire}m`,
+        created_by_name: officerName,
+      });
+    }
+
+    if (/portable extension/.test(worksText)) {
+      lines.push({
+        entry_date: entryDate,
+        project_name: null,
+        expense_type: "Materials",
+        description: "Extension",
+        amount: 1500,
+        remarks: "Portable extension from job order",
+        created_by_name: officerName,
+      });
+    }
+    if (/portable charger|3kw/.test(worksText)) {
+      lines.push({
+        entry_date: entryDate,
+        project_name: null,
+        expense_type: "Materials",
+        description: "Portable Charger",
+        amount: 3800,
+        remarks: "3kw portable charger from job order",
+        created_by_name: officerName,
+      });
+    }
+
+    if (lines.length > 0) {
+      await supabase.rpc("insert_internal_lines", {
+        p_booking: bookingId,
+        p_lines: lines,
+      });
+    }
+  } catch {
+    // Best-effort: the owner can still encode manually if this ever fails.
+  }
 }
 
 /**
