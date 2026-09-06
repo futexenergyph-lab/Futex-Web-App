@@ -1,29 +1,11 @@
 name: DB Check
 
-# Encode Jul 14-30 field officer expenses into Internal Inputs:
-# - each officer's expenses per day go to ONE of their clients that day;
-#   if the officer has no client that day, they roll to the officer's next
-#   day with a client (entry keeps its real expense date)
-# - every client in range with wire > 10 m gets a wire line ((total-10) x P100)
-# - every client whose job order has a portable extension gets an
-#   "Extension" line at P1,500
-# Idempotent.
+# One-off (owner request): delete the TEST client "Jeffrey Lois Talla" and
+# every record tied to that booking (job orders, payments, expenses,
+# internal expense lines, updates, documents).
 
 on:
   workflow_dispatch:
-    inputs:
-      start:
-        description: "Range start (YYYY-MM-DD)"
-        required: false
-        default: "2026-07-14"
-      end:
-        description: "Range end (YYYY-MM-DD)"
-        required: false
-        default: "2026-07-30"
-      roll_limit:
-        description: "Latest date an officer's rolled expenses may land on"
-        required: false
-        default: "2026-07-31"
 
 jobs:
   check:
@@ -31,11 +13,8 @@ jobs:
     env:
       SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
-      S: ${{ github.event.inputs.start }}
-      E: ${{ github.event.inputs.end }}
-      RL: ${{ github.event.inputs.roll_limit }}
     steps:
-      - name: Encode
+      - name: Remove test client
         run: |
           set +e
           REF="$REF_IN"
@@ -43,42 +22,27 @@ jobs:
             REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
           fi
           echo "project ref: $REF"
-          if [ -z "$S" ]; then S="2026-07-14"; fi
-          if [ -z "$E" ]; then E="2026-07-30"; fi
-          if [ -z "$RL" ]; then RL="2026-07-31"; fi
-          echo "range: $S .. $E (roll limit $RL)"
           run_sql() {
             local RESP
             RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
               -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
               -d "$(jq -nc --arg q "$1" '{query:$q}')")
             echo "HTTP $(echo "$RESP" | tail -n1)"
-            echo "$RESP" | sed '$d' | head -c 6000; echo
+            echo "$RESP" | sed '$d' | head -c 2000; echo
           }
 
-          DAYTGT="select distinct on (b.assigned_field_officer_id, b.preferred_date) b.assigned_field_officer_id as officer, b.preferred_date as d, b.id as booking_id, b.client_name from public.bookings b where b.preferred_date between '$S' and '$RL' and b.assigned_field_officer_id is not null order by b.assigned_field_officer_id, b.preferred_date, (b.status = 'completed') desc, b.client_number nulls last, b.created_at"
+          T="select id from public.bookings where client_name ilike 'Jeffrey Lois Talla'"
 
-          echo "== PLAN 1: officer expense mapping (rolled = landed on a later day) =="
-          run_sql "with day_tgt as ($DAYTGT), exp as (select e.id, e.expense_date, e.amount, e.created_by, p.full_name from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' where e.expense_date between '$S' and '$E' and e.status <> 'draft'), m as (select ex.*, (select dt.booking_id from day_tgt dt where dt.officer = ex.created_by and dt.d >= ex.expense_date order by dt.d limit 1) as booking_id, (select dt.d from day_tgt dt where dt.officer = ex.created_by and dt.d >= ex.expense_date order by dt.d limit 1) as tgt_date, (select dt.client_name from day_tgt dt where dt.officer = ex.created_by and dt.d >= ex.expense_date order by dt.d limit 1) as client from exp ex) select full_name as officer, expense_date, client as target_client, tgt_date as target_day, count(*) as lines, sum(amount) as total from m where booking_id is not null group by full_name, expense_date, client, tgt_date order by expense_date, full_name;"
+          echo "== BEFORE: the test client bookings =="
+          run_sql "select id, client_name, client_number, status, preferred_date from public.bookings where client_name ilike 'Jeffrey Lois Talla';"
+          echo "== Related record counts =="
+          run_sql "select (select count(*) from public.job_orders where booking_id in ($T)) as job_orders, (select count(*) from public.payments where booking_id in ($T)) as payments, (select count(*) from public.expenses where booking_id in ($T)) as expenses, (select count(*) from public.client_financials where booking_id in ($T)) as internal_lines, (select count(*) from public.client_financial_status where booking_id in ($T)) as final_status, (select count(*) from public.job_updates where booking_id in ($T)) as updates, (select count(*) from public.documentation where booking_id in ($T)) as documentation, (select count(*) from public.booking_documents where booking_id in ($T)) as documents;"
 
-          echo "== UNMATCHED expenses (no same/later client day for the officer) =="
-          run_sql "with day_tgt as ($DAYTGT) select p.full_name, e.expense_date, count(*) as lines, sum(e.amount) as total from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' where e.expense_date between '$S' and '$E' and e.status <> 'draft' and not exists (select 1 from day_tgt dt where dt.officer = e.created_by and dt.d >= e.expense_date) group by p.full_name, e.expense_date order by e.expense_date;"
+          echo "== DELETE (tables without cascade first, then the booking) =="
+          run_sql "delete from public.client_financials where booking_id in ($T);"
+          run_sql "delete from public.client_financial_status where booking_id in ($T);"
+          run_sql "delete from public.expenses where booking_id in ($T);"
+          run_sql "delete from public.bookings where client_name ilike 'Jeffrey Lois Talla';"
 
-          echo "== PLAN 2: wire lines =="
-          run_sql "with jo as (select distinct on (booking_id) booking_id, additional_wire_meters from public.job_orders order by booking_id, created_at desc) select b.preferred_date, b.client_name, jo.additional_wire_meters as total_wire, (jo.additional_wire_meters - 10) as additional_wire, round((jo.additional_wire_meters - 10) * 100, 2) as amount from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date between '$S' and '$E' and jo.additional_wire_meters > 10 order by b.preferred_date, b.client_number;"
-
-          echo "== PLAN 3: extension lines (portable extension on job order = ₱1,500) =="
-          run_sql "with jo as (select distinct on (booking_id) booking_id, additional_job_works from public.job_orders order by booking_id, created_at desc), ext as (select jo.booking_id, count(*) as n from jo cross join lateral jsonb_array_elements(coalesce(jo.additional_job_works, '[]'::jsonb)) w where lower(w->>'description') like '%extension%' group by jo.booking_id) select b.preferred_date, b.client_name, ext.n as extensions, 1500 * ext.n as amount from public.bookings b join ext on ext.booking_id = b.id where b.preferred_date between '$S' and '$E' order by b.preferred_date;"
-
-          echo "== INSERT 1: officer expenses (rollover-aware) =="
-          run_sql "with day_tgt as ($DAYTGT) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks, created_by, created_by_name, source_expense_id) select (select dt.booking_id from day_tgt dt where dt.officer = e.created_by and dt.d >= e.expense_date order by dt.d limit 1), e.expense_date, null, public.expense_type_label(e.type), coalesce(e.description, ''), e.amount, null, 'Field officer expense — ' || p.full_name, e.created_by, p.full_name, e.id from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' where e.expense_date between '$S' and '$E' and e.status <> 'draft' and exists (select 1 from day_tgt dt where dt.officer = e.created_by and dt.d >= e.expense_date) on conflict (source_expense_id) do nothing;"
-
-          echo "== INSERT 2: wire lines =="
-          run_sql "with jo as (select distinct on (booking_id) booking_id, additional_wire_meters from public.job_orders order by booking_id, created_at desc) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks) select b.id, b.preferred_date, null, 'Materials', 'Additional wire (' || (jo.additional_wire_meters - 10) || 'm × ₱100)', round((jo.additional_wire_meters - 10) * 100, 2), null, 'Job order total wire: ' || jo.additional_wire_meters || 'm' from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date between '$S' and '$E' and jo.additional_wire_meters > 10 and not exists (select 1 from public.client_financials cf where cf.booking_id = b.id and cf.description like 'Additional wire%');"
-
-          echo "== INSERT 3: extension lines =="
-          run_sql "with jo as (select distinct on (booking_id) booking_id, additional_job_works from public.job_orders order by booking_id, created_at desc), ext as (select jo.booking_id, count(*) as n from jo cross join lateral jsonb_array_elements(coalesce(jo.additional_job_works, '[]'::jsonb)) w where lower(w->>'description') like '%extension%' group by jo.booking_id) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks) select b.id, b.preferred_date, null, 'Materials', 'Extension', 1500 * ext.n, null, 'Portable extension from job order' from public.bookings b join ext on ext.booking_id = b.id where b.preferred_date between '$S' and '$E' and not exists (select 1 from public.client_financials cf where cf.booking_id = b.id and cf.description = 'Extension');"
-
-          echo "== AFTER: internal input lines dated $S..$E per day =="
-          run_sql "select entry_date, count(*) as lines, sum(amount) as total from public.client_financials where entry_date between '$S' and '$E' group by entry_date order by entry_date;"
-          run_sql "select count(*) as lines, sum(amount) as grand_total from public.client_financials where entry_date between '$S' and '$E';"
+          echo "== AFTER: verify all gone =="
+          run_sql "select (select count(*) from public.bookings where client_name ilike 'Jeffrey Lois Talla') as bookings, (select count(*) from public.client_financials where booking_id in ($T)) as internal_lines, (select count(*) from public.expenses where booking_id in ($T)) as expenses;"
