@@ -451,18 +451,6 @@ export default async function ClientFinancialsPage({
         lines={financialLines}
         payment={payment}
         installDate={b.preferred_date}
-        bookedPackage={
-          pkgName.get(
-            joRow?.package_id ?? b.preferred_package_id ?? "",
-          ) ?? null
-        }
-        bookedEnclosure={
-          joRow
-            ? joRow.add_separate_enclosure && joRow.enclosure_id
-              ? (encName.get(joRow.enclosure_id) ?? "Enclosure")
-              : null
-            : null
-        }
         finalizedAt={
           (status as { finalized_at: string | null } | null)?.finalized_at ??
           null
