@@ -147,12 +147,18 @@ export default async function FieldBookingDetail({
   // The acknowledgement receipt is generated in the Payment tab; once filed it
   // becomes the latest commissioning document (title carries "Acknowledgement").
   const ackDone = !!commDoc?.title?.includes("Acknowledgement");
+  // Expenses: at least one recorded AND submitted for this deployment, with
+  // no drafts left hanging.
+  const expensesOk =
+    expenseRows.some((e) => e.status !== "draft") &&
+    !expenseRows.some((e) => e.status === "draft");
   const doneModules = [
     { label: "Job Order submitted", ok: !!jo },
     { label: "Commissioning checklist filed", ok: !!commDoc },
     { label: "Payment confirmed by management", ok: pay?.status === "confirmed" },
     { label: "Acknowledgement receipt generated", ok: ackDone },
     { label: "Documentation uploaded", ok: docsOk },
+    { label: "Expenses submitted to admin", ok: expensesOk },
   ];
   const alreadyCompleted = b.status === "completed" || b.status === "closed";
   let commDownloadUrl: string | null = null;

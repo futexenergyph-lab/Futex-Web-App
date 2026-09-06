@@ -821,7 +821,7 @@ export async function completeInstallation(bookingId: string) {
   await assertAssigned(bookingId, profile.id);
   const supabase = createClient();
 
-  const [{ data: jo }, { data: pay }, { data: comm }, { data: docs }] =
+  const [{ data: jo }, { data: pay }, { data: comm }, { data: docs }, { data: exp }] =
     await Promise.all([
       supabase
         .from("job_orders")
@@ -849,18 +849,28 @@ export async function completeInstallation(bookingId: string) {
         .select("file_urls")
         .eq("booking_id", bookingId)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("expenses")
+        .select("status")
+        .eq("booking_id", bookingId)
+        .eq("created_by", profile.id),
     ]);
 
   const docsOk =
     ((docs as { file_urls: string[] }[] | null) ?? []).some(
       (d) => (d.file_urls ?? []).length > 0,
     );
+  const expRows = (exp as { status: string }[] | null) ?? [];
+  const expensesOk =
+    expRows.some((e) => e.status !== "draft") &&
+    !expRows.some((e) => e.status === "draft");
 
   const missing: string[] = [];
   if (!jo) missing.push("Job Order");
   if (!comm) missing.push("Commissioning");
   if (!pay) missing.push("Confirmed payment");
   if (!docsOk) missing.push("Documentation");
+  if (!expensesOk) missing.push("Expenses submitted to admin");
   if (missing.length > 0) {
     return { error: `Incomplete: ${missing.join(", ")}` };
   }
@@ -873,6 +883,10 @@ export async function completeInstallation(bookingId: string) {
     })
     .eq("id", bookingId);
   if (error) return { error: error.message };
+
+  // Automation: encode this deployment's package costs, extra wire and
+  // additional purchases into Internal Inputs (best-effort).
+  await encodeJobOrderToInternal(bookingId, profile.full_name);
 
   revalidatePath(`/field/bookings/${bookingId}`);
   revalidatePath("/field");
