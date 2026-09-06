@@ -1,7 +1,8 @@
 name: DB Check
 
-# Diagnostic: inspects the Supabase schema and runs the exact queries the
-# dashboard uses, printing results so we can see what's failing.
+# One-off: encode Jul 6 2026 field officer expenses into Internal Inputs
+# (one client per officer), plus an additional-wire cost line for every
+# Jul 6 client based on their job order: (total wire − 10 m) × ₱100.
 
 on:
   workflow_dispatch:
@@ -13,7 +14,7 @@ jobs:
       SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
     steps:
-      - name: Inspect
+      - name: Encode
         run: |
           set +e
           REF="$REF_IN"
@@ -21,38 +22,30 @@ jobs:
             REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
           fi
           echo "project ref: $REF"
-          URL="https://$REF.supabase.co"
-          SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
+          D='2026-07-06'
+          run_sql() {
+            local RESP
+            RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
+              -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
+              -d "$(jq -nc --arg q "$1" '{query:$q}')")
+            echo "HTTP $(echo "$RESP" | tail -n1)"
+            echo "$RESP" | sed '$d' | head -c 3000; echo
+          }
 
-          echo "============================================================"
-          echo "1) Tables exposed by PostgREST:"
-          curl -s "$URL/rest/v1/" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
-            | jq -r '(.definitions // {}) | keys[]' 2>/dev/null | sort | tr '\n' ' '
-          echo
+          echo "== PLAN 1: per-officer target client + $D expense totals =="
+          run_sql "with tgt as (select distinct on (b.assigned_field_officer_id) b.assigned_field_officer_id as officer, b.id as booking_id, b.client_name from public.bookings b where b.preferred_date = '$D' and b.assigned_field_officer_id is not null order by b.assigned_field_officer_id, (b.status = 'completed') desc, b.client_number nulls last, b.created_at) select p.full_name as officer, t.client_name as target_client, count(e.id) as expense_lines, coalesce(sum(e.amount),0) as total from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' join tgt t on t.officer = e.created_by where e.expense_date = '$D' and e.status <> 'draft' group by p.full_name, t.client_name order by p.full_name;"
 
-          echo "============================================================"
-          echo "2) profiles row count + sample:"
-          curl -s "$URL/rest/v1/profiles?select=id,full_name,role,active&limit=5" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
-          echo
+          echo "== $D FO expenses with NO $D assignment (skipped) =="
+          run_sql "select p.full_name, count(*) as lines, coalesce(sum(e.amount),0) as total from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' where e.expense_date = '$D' and e.status <> 'draft' and e.created_by not in (select assigned_field_officer_id from public.bookings where preferred_date = '$D' and assigned_field_officer_id is not null) group by p.full_name;"
 
-          echo "============================================================"
-          echo "3) bookings simple select (HTTP + body):"
-          curl -s -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings?select=*&limit=1" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
-          echo
+          echo "== PLAN 2: per-client wire lines (total wire − 10 m) × ₱100 =="
+          run_sql "with jo as (select distinct on (booking_id) booking_id, additional_wire_meters from public.job_orders order by booking_id, created_at desc) select b.client_name, jo.additional_wire_meters as total_wire, (jo.additional_wire_meters - 10) as additional_wire, round((jo.additional_wire_meters - 10) * 100, 2) as amount from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date = '$D' and jo.additional_wire_meters > 10 order by b.client_number;"
 
-          echo "============================================================"
-          echo "4) bookings EMBED select (the dashboard query):"
-          SEL='*,preferred_package:packages!bookings_preferred_package_id_fkey(id,name,base_price),preferred_enclosure:enclosures!bookings_preferred_enclosure_id_fkey(id,name,price),assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(id,full_name),assigned_installer:profiles!bookings_assigned_installer_id_fkey(id,full_name)'
-          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings" \
-            --data-urlencode "select=$SEL" --data-urlencode "limit=1" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1200
-          echo
+          echo "== INSERT 1: officer expenses =="
+          run_sql "with tgt as (select distinct on (b.assigned_field_officer_id) b.assigned_field_officer_id as officer, b.id as booking_id from public.bookings b where b.preferred_date = '$D' and b.assigned_field_officer_id is not null order by b.assigned_field_officer_id, (b.status = 'completed') desc, b.client_number nulls last, b.created_at) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks, created_by, created_by_name, source_expense_id) select t.booking_id, e.expense_date, null, public.expense_type_label(e.type), coalesce(e.description, ''), e.amount, null, 'Field officer expense — ' || p.full_name, e.created_by, p.full_name, e.id from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' join tgt t on t.officer = e.created_by where e.expense_date = '$D' and e.status <> 'draft' on conflict (source_expense_id) do nothing;"
 
-          echo "============================================================"
-          echo "5) packages / enclosures counts:"
-          for t in packages enclosures addons settings job_orders payments; do
-            C=$(curl -s -w '%{http_code}' -o /tmp/b "$URL/rest/v1/$t?select=*&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE")
-            echo "  $t -> HTTP $C  $(head -c 120 /tmp/b)"
-          done
+          echo "== INSERT 2: wire lines =="
+          run_sql "with jo as (select distinct on (booking_id) booking_id, additional_wire_meters from public.job_orders order by booking_id, created_at desc) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks) select b.id, '$D', null, 'Materials', 'Additional wire (' || (jo.additional_wire_meters - 10) || 'm × ₱100)', round((jo.additional_wire_meters - 10) * 100, 2), null, 'Job order total wire: ' || jo.additional_wire_meters || 'm' from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date = '$D' and jo.additional_wire_meters > 10 and not exists (select 1 from public.client_financials cf where cf.booking_id = b.id and cf.entry_date = '$D' and cf.description like 'Additional wire%');"
+
+          echo "== AFTER: internal input lines dated $D =="
+          run_sql "select count(*) as lines, coalesce(sum(amount),0) as total from public.client_financials where entry_date = '$D';"
