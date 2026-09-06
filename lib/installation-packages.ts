@@ -66,6 +66,15 @@ export const INSTALLATION_PACKAGES: InstallationPackage[] = [
     lines: [...LABOR, ...BASE_MATERIALS],
   },
   {
+    id: "standard-enclosure",
+    label: "Standard 2-Way Protection (with Enclosure)",
+    lines: [
+      ...LABOR,
+      ...BASE_MATERIALS,
+      { expense_type: "Materials", description: "Enclosure", amount: 4000 },
+    ],
+  },
+  {
     id: "smart",
     label: "Futex Smart 3-Way Protection",
     lines: [...LABOR, ...SMART_MATERIALS],
@@ -129,9 +138,6 @@ export function resolveInstallationPackage(input: {
         ? "standard"
         : null;
   if (!family) return null;
-  if (family === "standard") {
-    return INSTALLATION_PACKAGES.find((p) => p.id === "standard") ?? null;
-  }
 
   // "no stand" / "without stand" must not count as having a stand.
   const extras = `${text} ${(input.enclosureName ?? "").toLowerCase()} ${(input.standHint ?? "").toLowerCase()}`.replace(
@@ -143,6 +149,14 @@ export function resolveInstallationPackage(input: {
   const hasEnclosure = input.hasEnclosure || /enclosure/.test(name);
   // Word-bounded so "Standard Glass" never reads as having a stand.
   const hasStand = hasEnclosure && /\bstand\b/.test(extras);
+
+  if (family === "standard") {
+    return (
+      INSTALLATION_PACKAGES.find(
+        (p) => p.id === (hasEnclosure ? "standard-enclosure" : "standard"),
+      ) ?? null
+    );
+  }
 
   const id =
     family === "smart"
