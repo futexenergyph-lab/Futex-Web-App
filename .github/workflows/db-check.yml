@@ -1,8 +1,7 @@
 name: DB Check
 
-# One-off (owner request): delete the TEST client "Jeffrey Lois Talla" and
-# every record tied to that booking (job orders, payments, expenses,
-# internal expense lines, updates, documents).
+# Diagnostic: inspects the Supabase schema and runs the exact queries the
+# dashboard uses, printing results so we can see what's failing.
 
 on:
   workflow_dispatch:
@@ -14,7 +13,7 @@ jobs:
       SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
     steps:
-      - name: Remove test client
+      - name: Inspect
         run: |
           set +e
           REF="$REF_IN"
@@ -22,27 +21,38 @@ jobs:
             REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
           fi
           echo "project ref: $REF"
-          run_sql() {
-            local RESP
-            RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
-              -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
-              -d "$(jq -nc --arg q "$1" '{query:$q}')")
-            echo "HTTP $(echo "$RESP" | tail -n1)"
-            echo "$RESP" | sed '$d' | head -c 2000; echo
-          }
+          URL="https://$REF.supabase.co"
+          SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
 
-          T="select id from public.bookings where client_name ilike 'Jeffrey Lois Talla'"
+          echo "============================================================"
+          echo "1) Tables exposed by PostgREST:"
+          curl -s "$URL/rest/v1/" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
+            | jq -r '(.definitions // {}) | keys[]' 2>/dev/null | sort | tr '\n' ' '
+          echo
 
-          echo "== BEFORE: the test client bookings =="
-          run_sql "select id, client_name, client_number, status, preferred_date from public.bookings where client_name ilike 'Jeffrey Lois Talla';"
-          echo "== Related record counts =="
-          run_sql "select (select count(*) from public.job_orders where booking_id in ($T)) as job_orders, (select count(*) from public.payments where booking_id in ($T)) as payments, (select count(*) from public.expenses where booking_id in ($T)) as expenses, (select count(*) from public.client_financials where booking_id in ($T)) as internal_lines, (select count(*) from public.client_financial_status where booking_id in ($T)) as final_status, (select count(*) from public.job_updates where booking_id in ($T)) as updates, (select count(*) from public.documentation where booking_id in ($T)) as documentation, (select count(*) from public.booking_documents where booking_id in ($T)) as documents;"
+          echo "============================================================"
+          echo "2) profiles row count + sample:"
+          curl -s "$URL/rest/v1/profiles?select=id,full_name,role,active&limit=5" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
+          echo
 
-          echo "== DELETE (tables without cascade first, then the booking) =="
-          run_sql "delete from public.client_financials where booking_id in ($T);"
-          run_sql "delete from public.client_financial_status where booking_id in ($T);"
-          run_sql "delete from public.expenses where booking_id in ($T);"
-          run_sql "delete from public.bookings where client_name ilike 'Jeffrey Lois Talla';"
+          echo "============================================================"
+          echo "3) bookings simple select (HTTP + body):"
+          curl -s -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings?select=*&limit=1" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
+          echo
 
-          echo "== AFTER: verify all gone =="
-          run_sql "select (select count(*) from public.bookings where client_name ilike 'Jeffrey Lois Talla') as bookings, (select count(*) from public.client_financials where booking_id in ($T)) as internal_lines, (select count(*) from public.expenses where booking_id in ($T)) as expenses;"
+          echo "============================================================"
+          echo "4) bookings EMBED select (the dashboard query):"
+          SEL='*,preferred_package:packages!bookings_preferred_package_id_fkey(id,name,base_price),preferred_enclosure:enclosures!bookings_preferred_enclosure_id_fkey(id,name,price),assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(id,full_name),assigned_installer:profiles!bookings_assigned_installer_id_fkey(id,full_name)'
+          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings" \
+            --data-urlencode "select=$SEL" --data-urlencode "limit=1" \
+            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1200
+          echo
+
+          echo "============================================================"
+          echo "5) packages / enclosures counts:"
+          for t in packages enclosures addons settings job_orders payments; do
+            C=$(curl -s -w '%{http_code}' -o /tmp/b "$URL/rest/v1/$t?select=*&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE")
+            echo "  $t -> HTTP $C  $(head -c 120 /tmp/b)"
+          done
