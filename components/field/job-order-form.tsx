@@ -37,6 +37,12 @@ interface WorkInput {
   amount: string;
 }
 
+// Quick-tick purchases billed as additional job works at fixed prices.
+const PURCHASE_ITEMS: { name: string; price: number }[] = [
+  { name: "Portable Extension", price: 2800 },
+  { name: "3kw Portable Charger", price: 9500 },
+];
+
 export function JobOrderForm({
   bookingId,
   packages,
@@ -89,6 +95,8 @@ export function JobOrderForm({
         amount: String(Math.abs(w.amount)),
       })),
   );
+  // Additional Purchase ticks (fixed prices, added to the billing).
+  const [purchases, setPurchases] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState(existing?.notes ?? "");
   // The client must re-sign on each (re)submission to acknowledge the order.
   const [signature, setSignature] = useState<string | null>(null);
@@ -102,6 +110,10 @@ export function JobOrderForm({
 
   // Charges are positive; adjustments are negated so they reduce the total.
   const jobWorksNum: JobWork[] = [
+    ...PURCHASE_ITEMS.filter((i) => purchases[i.name]).map((i) => ({
+      description: i.name,
+      amount: i.price,
+    })),
     ...jobWorks.map((w) => ({
       description: w.description,
       amount: Number(w.amount) || 0,
@@ -123,7 +135,7 @@ export function JobOrderForm({
         additionalJobWorks: jobWorksNum,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pkg, wireMeters, jobWorks, adjustments, wireRate],
+    [pkg, wireMeters, jobWorks, adjustments, purchases, wireRate],
   );
 
   // A submitted/locked order is read-only until management approves a change.
@@ -355,6 +367,37 @@ export function JobOrderForm({
         <p className="text-xs text-muted-foreground">
           Note: The first 10 linear meters are included in the package;
           succeeding wire is charged at {php(wireRate)} per linear meter.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Additional Purchase</Label>
+        {PURCHASE_ITEMS.map((item) => (
+          <label
+            key={item.name}
+            className="flex items-center justify-between gap-3 text-sm"
+          >
+            <span className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={purchases[item.name] ?? false}
+                onChange={(e) =>
+                  setPurchases((p) => ({
+                    ...p,
+                    [item.name]: e.target.checked,
+                  }))
+                }
+                className="h-4 w-4"
+              />
+              {item.name}
+            </span>
+            <span className="tabular-nums text-muted-foreground">
+              {php(item.price)}
+            </span>
+          </label>
+        ))}
+        <p className="text-xs text-muted-foreground">
+          Tick what the client purchased — the amount is added to the total.
         </p>
       </div>
 
