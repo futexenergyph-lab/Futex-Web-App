@@ -75,6 +75,16 @@ export const INSTALLATION_PACKAGES: InstallationPackage[] = [
     ],
   },
   {
+    id: "standard-enclosure-stand",
+    label: "Standard 2-Way Protection (with Enclosure + Stand)",
+    lines: [
+      ...LABOR,
+      ...BASE_MATERIALS,
+      { expense_type: "Materials", description: "Enclosure", amount: 4000 },
+      METAL_STAND,
+    ],
+  },
+  {
     id: "smart",
     label: "Futex Smart 3-Way Protection",
     lines: [...LABOR, ...SMART_MATERIALS],
@@ -151,11 +161,12 @@ export function resolveInstallationPackage(input: {
   const hasStand = hasEnclosure && /\bstand\b/.test(extras);
 
   if (family === "standard") {
-    return (
-      INSTALLATION_PACKAGES.find(
-        (p) => p.id === (hasEnclosure ? "standard-enclosure" : "standard"),
-      ) ?? null
-    );
+    const id = hasEnclosure
+      ? hasStand
+        ? "standard-enclosure-stand"
+        : "standard-enclosure"
+      : "standard";
+    return INSTALLATION_PACKAGES.find((p) => p.id === id) ?? null;
   }
 
   const id =
