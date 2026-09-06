@@ -283,6 +283,10 @@ async function encodeJobOrderToInternal(bookingId: string, officerName: string) 
       (bk as { preferred_date: string | null } | null)?.preferred_date ??
       new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
 
+    // The automation covers clients installed from Sep 6, 2026 onwards —
+    // earlier deployments were encoded manually by the owner.
+    if (entryDate < "2026-09-06") return;
+
     interface AutoLine {
       entry_date: string;
       project_name: string | null;
