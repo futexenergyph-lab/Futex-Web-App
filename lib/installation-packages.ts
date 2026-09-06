@@ -12,7 +12,6 @@ export interface PackageCostLine {
 }
 
 const LABOR: PackageCostLine[] = [
-  { expense_type: "Labor", description: "Installation Team", amount: 5000 },
   { expense_type: "Food", description: "lunch", amount: 0 },
 ];
 
@@ -25,10 +24,10 @@ const BASE_MATERIALS: PackageCostLine[] = [
   { expense_type: "Materials", description: "PVC Fitting 3/4 & 1/2 6pcs", amount: 198 },
   { expense_type: "Materials", description: "Nail Gun", amount: 80 },
   { expense_type: "Materials", description: "15 meters Liquid Tight", amount: 600 },
-  { expense_type: "Materials", description: "Nema 3R Outdoor Case", amount: 350 },
+  { expense_type: "Materials", description: "Nema 3R Outdoor Case", amount: 175 },
   { expense_type: "Materials", description: "60A Breaker", amount: 750 },
   { expense_type: "Materials", description: "RCBO 40A", amount: 460 },
-  { expense_type: "Materials", description: "Ground Rod", amount: 700 },
+  { expense_type: "Materials", description: "Ground Rod", amount: 325 },
 ];
 
 // Smart list = standard with the Smart Breaker inserted after the RCBO Box.
