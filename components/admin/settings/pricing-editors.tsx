@@ -371,7 +371,7 @@ export function PackageList({ packages }: { packages: Package[] }) {
           Drag <GripVertical className="inline h-3 w-3" /> to set the order on the
           public pricing page &amp; booking form.
         </p>
-        <PackageDialog />
+        <PackageDialog templates={packages} />
       </div>
       <SortableList
         kind="packages"
@@ -403,12 +403,23 @@ export function PackageList({ packages }: { packages: Package[] }) {
   );
 }
 
-function PackageDialog({ pkg }: { pkg?: Package }) {
+function PackageDialog({
+  pkg,
+  templates,
+}: {
+  pkg?: Package;
+  /** Existing packages offered as "duplicate from" starters (add mode). */
+  templates?: Package[];
+}) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [imageUrl, setImageUrl] = useState<string | null>(
     pkg?.image_url ?? null,
   );
+  // When duplicating, the chosen package pre-fills the form (still saved as
+  // a NEW package — the original is untouched).
+  const [copyFrom, setCopyFrom] = useState<Package | null>(null);
+  const base = pkg ?? copyFrom;
   const router = useRouter();
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -441,7 +452,16 @@ function PackageDialog({ pkg }: { pkg?: Package }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) {
+          setCopyFrom(null);
+          setImageUrl(pkg?.image_url ?? null);
+        }
+      }}
+    >
       <DialogTrigger asChild>
         {pkg ? (
           <Button size="icon" variant="ghost">
@@ -457,17 +477,55 @@ function PackageDialog({ pkg }: { pkg?: Package }) {
         <DialogHeader>
           <DialogTitle>{pkg ? "Edit" : "New"} package</DialogTitle>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="space-y-4">
+        {!pkg && templates && templates.length > 0 && (
+          <div className="space-y-2">
+            <Label htmlFor="copy-from">Duplicate existing package</Label>
+            <select
+              id="copy-from"
+              value={copyFrom?.id ?? ""}
+              onChange={(e) => {
+                const t =
+                  templates.find((x) => x.id === e.target.value) ?? null;
+                setCopyFrom(t);
+                setImageUrl(t?.image_url ?? null);
+              }}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">Start blank</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} — {php(t.base_price)}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Picking one copies its details below — edit anything, then Save
+              creates a new package (the original stays as is).
+            </p>
+          </div>
+        )}
+        <form
+          key={base?.id ?? "blank"}
+          onSubmit={onSubmit}
+          className="space-y-4"
+        >
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
-            <Input id="name" name="name" defaultValue={pkg?.name} required />
+            <Input
+              id="name"
+              name="name"
+              defaultValue={
+                copyFrom ? `${copyFrom.name} (Copy)` : pkg?.name
+              }
+              required
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Input
               id="description"
               name="description"
-              defaultValue={pkg?.description ?? ""}
+              defaultValue={base?.description ?? ""}
             />
           </div>
           <div className="space-y-2">
@@ -475,7 +533,7 @@ function PackageDialog({ pkg }: { pkg?: Package }) {
             <Textarea
               id="inclusions"
               name="inclusions"
-              defaultValue={(pkg?.inclusions ?? []).join("\n")}
+              defaultValue={(base?.inclusions ?? []).join("\n")}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -486,7 +544,7 @@ function PackageDialog({ pkg }: { pkg?: Package }) {
                 name="base_price"
                 type="number"
                 min={0}
-                defaultValue={pkg?.base_price ?? 0}
+                defaultValue={base?.base_price ?? 0}
                 required
               />
             </div>
@@ -497,7 +555,7 @@ function PackageDialog({ pkg }: { pkg?: Package }) {
                 name="original_price"
                 type="number"
                 min={0}
-                defaultValue={pkg?.original_price ?? ""}
+                defaultValue={base?.original_price ?? ""}
               />
             </div>
           </div>
@@ -507,7 +565,7 @@ function PackageDialog({ pkg }: { pkg?: Package }) {
               <input
                 type="checkbox"
                 name="enclosure_included"
-                defaultChecked={pkg?.enclosure_included ?? false}
+                defaultChecked={base?.enclosure_included ?? false}
                 className="h-4 w-4"
               />
               Enclosure included in this package
@@ -516,7 +574,7 @@ function PackageDialog({ pkg }: { pkg?: Package }) {
               <input
                 type="checkbox"
                 name="is_promo"
-                defaultChecked={pkg?.is_promo ?? false}
+                defaultChecked={base?.is_promo ?? false}
                 className="h-4 w-4"
               />
               Promo headline package
@@ -525,7 +583,7 @@ function PackageDialog({ pkg }: { pkg?: Package }) {
               <input
                 type="checkbox"
                 name="active"
-                defaultChecked={pkg?.active ?? true}
+                defaultChecked={base?.active ?? true}
                 className="h-4 w-4"
               />
               Active
