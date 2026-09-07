@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { MapPin, Phone, Calendar, Wrench, ChevronRight } from "lucide-react";
+import {
+  MapPin,
+  Phone,
+  Calendar,
+  Wrench,
+  User,
+  ChevronRight,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { BOOKING_SELECT } from "@/lib/queries";
@@ -48,14 +55,21 @@ export default async function FieldHomePage() {
 
       <div className="space-y-3">
         {active.map((b) => (
-          <JobCard key={b.id} b={b} />
+          <JobCard key={b.id} b={b} installerView={profile.role === "installer"} />
         ))}
       </div>
     </div>
   );
 }
 
-function JobCard({ b }: { b: BookingWithRelations }) {
+function JobCard({
+  b,
+  installerView,
+}: {
+  b: BookingWithRelations;
+  /** Installers see their field officer, never the client's number. */
+  installerView: boolean;
+}) {
   return (
     <Link href={`/field/bookings/${b.id}`}>
       <Card className="transition-colors hover:border-primary">
@@ -75,20 +89,30 @@ function JobCard({ b }: { b: BookingWithRelations }) {
               <span className="truncate">{b.address}</span>
             </p>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Phone className="h-3 w-3" /> {b.contact_number}
-              </span>
+              {!installerView && (
+                <span className="flex items-center gap-1">
+                  <Phone className="h-3 w-3" /> {b.contact_number}
+                </span>
+              )}
               {b.preferred_date && (
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" /> {formatDate(b.preferred_date)}
                   {b.preferred_time ? ` · ${formatTime12h(b.preferred_time)}` : ""}
                 </span>
               )}
-              {b.assigned_installer && (
-                <span className="flex items-center gap-1">
-                  <Wrench className="h-3 w-3" /> {b.assigned_installer.full_name}
-                </span>
-              )}
+              {installerView
+                ? b.assigned_field_officer && (
+                    <span className="flex items-center gap-1">
+                      <User className="h-3 w-3" /> FO:{" "}
+                      {b.assigned_field_officer.full_name}
+                    </span>
+                  )
+                : b.assigned_installer && (
+                    <span className="flex items-center gap-1">
+                      <Wrench className="h-3 w-3" /> Installer:{" "}
+                      {b.assigned_installer.full_name}
+                    </span>
+                  )}
             </div>
           </div>
           <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />

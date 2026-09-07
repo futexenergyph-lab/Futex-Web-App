@@ -69,6 +69,11 @@ export function InstallerBookingView({
               Package: {b.preferred_package.name}
             </p>
           )}
+          {b.assigned_field_officer && (
+            <p className="text-muted-foreground">
+              Field Officer: {b.assigned_field_officer.full_name}
+            </p>
+          )}
           {b.notes && (
             <div className="rounded-md border bg-secondary/40 p-3">
               <p className="text-xs font-semibold text-muted-foreground">
