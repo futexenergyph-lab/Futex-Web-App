@@ -1,10 +1,28 @@
 name: DB Check
 
-# Diagnostic: inspects the Supabase schema and runs the exact queries the
-# dashboard uses, printing results so we can see what's failing.
+# Encode Aug 1 - Sep 6 2026 field officer expenses into Internal Inputs:
+# - each officer's expenses per day go to ONE of their clients that day;
+#   no client that day -> rolls to the officer's next day with a client
+# - every client in range with wire > 10 m gets ((total-10) x P100)
+# - portable extension on the job order -> "Extension" P1,500
+# - stand on the job order -> "Stand" P2,420
+# Idempotent.
 
 on:
   workflow_dispatch:
+    inputs:
+      start:
+        description: "Range start (YYYY-MM-DD)"
+        required: false
+        default: "2026-08-01"
+      end:
+        description: "Range end (YYYY-MM-DD)"
+        required: false
+        default: "2026-09-06"
+      roll_limit:
+        description: "Latest date rolled expenses may land on"
+        required: false
+        default: "2026-09-06"
 
 jobs:
   check:
@@ -12,8 +30,11 @@ jobs:
     env:
       SAT: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       REF_IN: ${{ secrets.SUPABASE_PROJECT_REF }}
+      S: ${{ github.event.inputs.start }}
+      E: ${{ github.event.inputs.end }}
+      RL: ${{ github.event.inputs.roll_limit }}
     steps:
-      - name: Inspect
+      - name: Encode
         run: |
           set +e
           REF="$REF_IN"
@@ -21,38 +42,45 @@ jobs:
             REF=$(curl -s https://api.supabase.com/v1/projects -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[0].id // empty) else empty end')
           fi
           echo "project ref: $REF"
-          URL="https://$REF.supabase.co"
-          SERVICE=$(curl -s "https://api.supabase.com/v1/projects/$REF/api-keys" -H "Authorization: Bearer $SAT" | jq -r 'if type=="array" then (.[]|select(.name=="service_role")|.api_key) else empty end')
+          if [ -z "$S" ]; then S="2026-08-01"; fi
+          if [ -z "$E" ]; then E="2026-09-06"; fi
+          if [ -z "$RL" ]; then RL="2026-09-06"; fi
+          echo "range: $S .. $E (roll limit $RL)"
+          run_sql() {
+            local RESP
+            RESP=$(curl -s -w $'\n%{http_code}' -X POST "https://api.supabase.com/v1/projects/$REF/database/query" \
+              -H "Authorization: Bearer $SAT" -H "Content-Type: application/json" \
+              -d "$(jq -nc --arg q "$1" '{query:$q}')")
+            echo "HTTP $(echo "$RESP" | tail -n1)"
+            echo "$RESP" | sed '$d' | head -c 8000; echo
+          }
 
-          echo "============================================================"
-          echo "1) Tables exposed by PostgREST:"
-          curl -s "$URL/rest/v1/" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" \
-            | jq -r '(.definitions // {}) | keys[]' 2>/dev/null | sort | tr '\n' ' '
-          echo
+          DAYTGT="select distinct on (b.assigned_field_officer_id, b.preferred_date) b.assigned_field_officer_id as officer, b.preferred_date as d, b.id as booking_id, b.client_name from public.bookings b where b.preferred_date between '$S' and '$RL' and b.assigned_field_officer_id is not null order by b.assigned_field_officer_id, b.preferred_date, (b.status = 'completed') desc, b.client_number nulls last, b.created_at"
 
-          echo "============================================================"
-          echo "2) profiles row count + sample:"
-          curl -s "$URL/rest/v1/profiles?select=id,full_name,role,active&limit=5" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
-          echo
+          echo "== PLAN 1: officer expense mapping (rolled = later target day) =="
+          run_sql "with day_tgt as ($DAYTGT), exp as (select e.id, e.expense_date, e.amount, e.created_by, p.full_name from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' where e.expense_date between '$S' and '$E' and e.status <> 'draft'), m as (select ex.*, (select dt.booking_id from day_tgt dt where dt.officer = ex.created_by and dt.d >= ex.expense_date order by dt.d limit 1) as booking_id, (select dt.d from day_tgt dt where dt.officer = ex.created_by and dt.d >= ex.expense_date order by dt.d limit 1) as tgt_date, (select dt.client_name from day_tgt dt where dt.officer = ex.created_by and dt.d >= ex.expense_date order by dt.d limit 1) as client from exp ex) select full_name as officer, expense_date, client as target_client, tgt_date as target_day, count(*) as lines, sum(amount) as total from m where booking_id is not null group by full_name, expense_date, client, tgt_date order by expense_date, full_name;"
 
-          echo "============================================================"
-          echo "3) bookings simple select (HTTP + body):"
-          curl -s -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings?select=*&limit=1" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 800
-          echo
+          echo "== UNMATCHED expenses (no same/later client day for the officer) =="
+          run_sql "with day_tgt as ($DAYTGT) select p.full_name, e.expense_date, count(*) as lines, sum(e.amount) as total from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' where e.expense_date between '$S' and '$E' and e.status <> 'draft' and not exists (select 1 from day_tgt dt where dt.officer = e.created_by and dt.d >= e.expense_date) group by p.full_name, e.expense_date order by e.expense_date;"
 
-          echo "============================================================"
-          echo "4) bookings EMBED select (the dashboard query):"
-          SEL='*,preferred_package:packages!bookings_preferred_package_id_fkey(id,name,base_price),preferred_enclosure:enclosures!bookings_preferred_enclosure_id_fkey(id,name,price),assigned_field_officer:profiles!bookings_assigned_field_officer_id_fkey(id,full_name),assigned_installer:profiles!bookings_assigned_installer_id_fkey(id,full_name)'
-          curl -s -G -w $'\nHTTP %{http_code}\n' "$URL/rest/v1/bookings" \
-            --data-urlencode "select=$SEL" --data-urlencode "limit=1" \
-            -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" | head -c 1200
-          echo
+          echo "== PLAN 2: wire lines =="
+          run_sql "with jo as (select distinct on (booking_id) booking_id, additional_wire_meters from public.job_orders order by booking_id, created_at desc) select b.preferred_date, b.client_name, jo.additional_wire_meters as total_wire, (jo.additional_wire_meters - 10) as additional_wire, round((jo.additional_wire_meters - 10) * 100, 2) as amount from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date between '$S' and '$E' and jo.additional_wire_meters > 10 order by b.preferred_date, b.client_number;"
 
-          echo "============================================================"
-          echo "5) packages / enclosures counts:"
-          for t in packages enclosures addons settings job_orders payments; do
-            C=$(curl -s -w '%{http_code}' -o /tmp/b "$URL/rest/v1/$t?select=*&limit=1" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE")
-            echo "  $t -> HTTP $C  $(head -c 120 /tmp/b)"
-          done
+          echo "== PLAN 3: extension (P1,500) and stand (P2,420) lines =="
+          run_sql "with jo as (select distinct on (booking_id) booking_id, package_id, additional_job_works from public.job_orders order by booking_id, created_at desc) select b.preferred_date, b.client_name, exists (select 1 from jsonb_array_elements(coalesce(jo.additional_job_works, '[]'::jsonb)) w where lower(w->>'description') like '%extension%') as has_extension, (exists (select 1 from jsonb_array_elements(coalesce(jo.additional_job_works, '[]'::jsonb)) w where lower(w->>'description') like '%stand%') or lower(coalesce((select name from public.packages where id = jo.package_id), '')) ~ '\\mstand\\M') as has_stand from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date between '$S' and '$E' and (exists (select 1 from jsonb_array_elements(coalesce(jo.additional_job_works, '[]'::jsonb)) w where lower(w->>'description') like '%extension%' or lower(w->>'description') like '%stand%') or lower(coalesce((select name from public.packages where id = jo.package_id), '')) ~ '\\mstand\\M') order by b.preferred_date;"
+
+          echo "== INSERT 1: officer expenses (rollover-aware) =="
+          run_sql "with day_tgt as ($DAYTGT) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks, created_by, created_by_name, source_expense_id) select (select dt.booking_id from day_tgt dt where dt.officer = e.created_by and dt.d >= e.expense_date order by dt.d limit 1), e.expense_date, null, public.expense_type_label(e.type), coalesce(e.description, ''), e.amount, null, 'Field officer expense — ' || p.full_name, e.created_by, p.full_name, e.id from public.expenses e join public.profiles p on p.id = e.created_by and p.role = 'field_officer' where e.expense_date between '$S' and '$E' and e.status <> 'draft' and exists (select 1 from day_tgt dt where dt.officer = e.created_by and dt.d >= e.expense_date) on conflict (source_expense_id) do nothing;"
+
+          echo "== INSERT 2: wire lines =="
+          run_sql "with jo as (select distinct on (booking_id) booking_id, additional_wire_meters from public.job_orders order by booking_id, created_at desc) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks) select b.id, b.preferred_date, null, 'Materials', 'Additional wire (' || (jo.additional_wire_meters - 10) || 'm × ₱100)', round((jo.additional_wire_meters - 10) * 100, 2), null, 'Job order total wire: ' || jo.additional_wire_meters || 'm' from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date between '$S' and '$E' and jo.additional_wire_meters > 10 and not exists (select 1 from public.client_financials cf where cf.booking_id = b.id and cf.description like 'Additional wire%');"
+
+          echo "== INSERT 3: extension lines =="
+          run_sql "with jo as (select distinct on (booking_id) booking_id, additional_job_works from public.job_orders order by booking_id, created_at desc) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks) select b.id, b.preferred_date, null, 'Materials', 'Extension', 1500, null, 'Portable extension from job order' from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date between '$S' and '$E' and exists (select 1 from jsonb_array_elements(coalesce(jo.additional_job_works, '[]'::jsonb)) w where lower(w->>'description') like '%extension%') and not exists (select 1 from public.client_financials cf where cf.booking_id = b.id and cf.description = 'Extension');"
+
+          echo "== INSERT 4: stand lines =="
+          run_sql "with jo as (select distinct on (booking_id) booking_id, package_id, additional_job_works from public.job_orders order by booking_id, created_at desc) insert into public.client_financials (booking_id, entry_date, project_name, expense_type, description, amount, charge_to, remarks) select b.id, b.preferred_date, null, 'Materials', 'Stand', 2420, null, 'Metal stand from job order' from public.bookings b join jo on jo.booking_id = b.id where b.preferred_date between '$S' and '$E' and (exists (select 1 from jsonb_array_elements(coalesce(jo.additional_job_works, '[]'::jsonb)) w where lower(w->>'description') like '%stand%') or lower(coalesce((select name from public.packages where id = jo.package_id), '')) ~ '\\mstand\\M') and not exists (select 1 from public.client_financials cf where cf.booking_id = b.id and cf.description = 'Stand');"
+
+          echo "== AFTER: internal input lines dated $S..$E per day =="
+          run_sql "select entry_date, count(*) as lines, sum(amount) as total from public.client_financials where entry_date between '$S' and '$E' group by entry_date order by entry_date;"
+          run_sql "select count(*) as lines, sum(amount) as grand_total from public.client_financials where entry_date between '$S' and '$E';"
