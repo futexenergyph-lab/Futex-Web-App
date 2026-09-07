@@ -20,7 +20,7 @@ const FIELD_LABELS: Record<string, string> = {
   client_name: "Client name",
   client_number: "Client number",
   contact_number: "Contact number",
-  preferred_date: "Preferred date",
+  preferred_date: "Installation Date",
   preferred_time: "Preferred time",
   preferred_package_id: "Package",
   preferred_enclosure_id: "Enclosure",
