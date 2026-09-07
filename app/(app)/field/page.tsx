@@ -24,9 +24,10 @@ export default async function FieldHomePage() {
     .order("preferred_date", { ascending: true });
 
   const bookings = (data as unknown as BookingWithRelations[]) ?? [];
-  // Completed/closed jobs leave My Jobs and move to the Client Master List.
+  // Completed/closed jobs move to the Client Master List; declined jobs
+  // disappear from the crew's dashboard entirely.
   const active = bookings.filter(
-    (b) => !["completed", "closed"].includes(b.status),
+    (b) => !["completed", "closed", "declined"].includes(b.status),
   );
 
   return (
