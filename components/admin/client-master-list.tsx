@@ -66,7 +66,6 @@ type SortKey =
   | "client_number"
   | "client_name"
   | "status"
-  | "created_at"
   | "preferred_date";
 
 export function ClientMasterList({
@@ -85,8 +84,13 @@ export function ClientMasterList({
 }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<BookingStatus | "all">("all");
-  const [sortKey, setSortKey] = useState<SortKey>("created_at");
+  const [sortKey, setSortKey] = useState<SortKey>("preferred_date");
   const [asc, setAsc] = useState(false);
+
+  // Date sorting follows the installation (deployment) date; rows without one
+  // fall back to the date they were recorded so older entries keep their place.
+  const dateValue = (c: ClientRow) =>
+    c.preferred_date ?? c.created_at.slice(0, 10);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -105,8 +109,14 @@ export function ClientMasterList({
         .some((v) => (v as string).toLowerCase().includes(needle));
     });
     rows = [...rows].sort((a, b) => {
-      const av = (a[sortKey] ?? "") as string;
-      const bv = (b[sortKey] ?? "") as string;
+      const av =
+        sortKey === "preferred_date"
+          ? dateValue(a)
+          : ((a[sortKey] ?? "") as string);
+      const bv =
+        sortKey === "preferred_date"
+          ? dateValue(b)
+          : ((b[sortKey] ?? "") as string);
       const cmp = av.localeCompare(bv);
       return asc ? cmp : -cmp;
     });
@@ -133,7 +143,7 @@ export function ClientMasterList({
     status: BOOKING_STATUS_LABELS[c.status],
     total_payment: c.payment ? c.payment.total : "",
     source: c.source,
-    submitted: c.created_at.slice(0, 10),
+    installation_date: c.preferred_date ?? "",
   }));
 
   const SortHead = ({ k, label }: { k: SortKey; label: string }) => (
@@ -192,7 +202,7 @@ export function ClientMasterList({
               <TableHead>Installer</TableHead>
               <SortHead k="status" label="Status" />
               {showPayment && <TableHead>Total Payment</TableHead>}
-              <SortHead k="created_at" label="Submitted" />
+              <SortHead k="preferred_date" label="Installation Date" />
               <TableHead>Commissioning &amp; Warranty</TableHead>
               <TableHead>Documentation</TableHead>
               {canManage && <TableHead>Actions</TableHead>}
@@ -233,7 +243,7 @@ export function ClientMasterList({
                   </TableCell>
                 )}
                 <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                  {formatDate(c.created_at)}
+                  {c.preferred_date ? formatDate(c.preferred_date) : "—"}
                 </TableCell>
                 <TableCell className="text-sm">
                   {c.documents.length === 0 ? (
