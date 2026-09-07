@@ -449,8 +449,8 @@ export default async function FieldBookingDetail({
           <TabsTrigger value="joborder">Job Order</TabsTrigger>
           <TabsTrigger value="commissioning">Commissioning</TabsTrigger>
           <TabsTrigger value="payment">Payment</TabsTrigger>
-          <TabsTrigger value="expenses">Expenses</TabsTrigger>
           <TabsTrigger value="docs">Docs</TabsTrigger>
+          <TabsTrigger value="expenses">Expenses</TabsTrigger>
         </TabsList>
 
         <TabsContent value="updates">
@@ -564,21 +564,6 @@ export default async function FieldBookingDetail({
           </Card>
         </TabsContent>
 
-        <TabsContent value="expenses">
-          <Card>
-            <CardHeader>
-              <CardTitle>Expenses for this deployment</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BookingExpenses
-                bookingId={b.id}
-                today={today}
-                expenses={expenseRows}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="docs">
           <Card>
             <CardHeader>
@@ -586,6 +571,21 @@ export default async function FieldBookingDetail({
             </CardHeader>
             <CardContent className="space-y-5">
               <DocumentationForm bookingId={b.id} userId={profile.id} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="expenses">
+          <Card>
+            <CardHeader>
+              <CardTitle>Expenses for this deployment</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <BookingExpenses
+                bookingId={b.id}
+                today={today}
+                expenses={expenseRows}
+              />
               <div className="border-t pt-5">
                 <DoneInstallationButton
                   bookingId={b.id}
