@@ -127,7 +127,7 @@ export function EditBookingDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="preferred_date">Preferred date</Label>
+              <Label htmlFor="preferred_date">Installation Date</Label>
               <Input
                 id="preferred_date"
                 name="preferred_date"
