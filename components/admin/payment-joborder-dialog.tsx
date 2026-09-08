@@ -52,18 +52,28 @@ export function PaymentJobOrderDialog({
 }) {
   const [open, setOpen] = useState(false);
   const jo = payment.jobOrder;
+  // A submitted job order with no payment recorded yet shows the amount due.
+  const pendingPayment = payment.total === 0 && !!jo && jo.finalTotal > 0;
+  const displayTotal = pendingPayment ? jo!.finalTotal : payment.total;
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-sm font-semibold tabular-nums hover:bg-secondary"
-        title="View job order"
-      >
-        <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
-        {php(payment.total)}
-      </button>
+      <div className="inline-flex flex-col items-start gap-0.5">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-sm font-semibold tabular-nums hover:bg-secondary"
+          title="View job order"
+        >
+          <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
+          {php(displayTotal)}
+        </button>
+        {pendingPayment && (
+          <span className="text-[11px] font-medium text-red-600">
+            Pending Payment
+          </span>
+        )}
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -75,12 +85,17 @@ export function PaymentJobOrderDialog({
             {/* Payment summary (read-only) */}
             <div className="rounded-md border bg-secondary/30 p-3">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Total payment</span>
+                <span className="text-muted-foreground">
+                  {pendingPayment ? "Amount due (job order)" : "Total payment"}
+                </span>
                 <span className="text-base font-bold tabular-nums">
-                  {php(payment.total)}
+                  {php(displayTotal)}
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
+                {pendingPayment && (
+                  <Badge variant="destructive">Pending Payment</Badge>
+                )}
                 {payment.status && (
                   <Badge
                     variant={

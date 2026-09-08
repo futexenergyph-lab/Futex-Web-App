@@ -141,7 +141,17 @@ export function ClientMasterList({
     field_officer: c.field_officer ?? "",
     installer: c.installer ?? "",
     status: BOOKING_STATUS_LABELS[c.status],
-    total_payment: c.payment ? c.payment.total : "",
+    total_payment: c.payment
+      ? c.payment.total > 0
+        ? c.payment.total
+        : (c.payment.jobOrder?.finalTotal ?? 0)
+      : "",
+    payment_note:
+      c.payment &&
+      c.payment.total === 0 &&
+      (c.payment.jobOrder?.finalTotal ?? 0) > 0
+        ? "Pending Payment"
+        : "",
     source: c.source,
     installation_date: c.preferred_date ?? "",
   }));
