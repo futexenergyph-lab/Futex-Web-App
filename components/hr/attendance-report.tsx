@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/supabase/fetch-all";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -64,34 +65,41 @@ export async function AttendanceReport({
     .in("role", ["field_officer", "installer"])
     .order("full_name");
 
-  let query = supabase
-    .from("attendance")
-    .select(
-      "id, user_id, type, timestamp, photo_url, lat, lng, profiles(full_name, role)",
-    )
-    .order("timestamp", { ascending: true });
+  // Paged fetch: a single select is capped at 1,000 rows, which silently
+  // dropped the newest punches once attendance history grew past that.
+  const rows = await fetchAllRows<AttRow>((from, to) => {
+    let query = supabase
+      .from("attendance")
+      .select(
+        "id, user_id, type, timestamp, photo_url, lat, lng, profiles(full_name, role)",
+      )
+      .order("timestamp", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (searchParams.person) query = query.eq("user_id", searchParams.person);
+    if (searchParams.from)
+      query = query.gte("timestamp", `${searchParams.from}T00:00:00`);
+    if (searchParams.to)
+      query = query.lte("timestamp", `${searchParams.to}T23:59:59`);
+    return query;
+  });
 
-  if (searchParams.person) query = query.eq("user_id", searchParams.person);
-  if (searchParams.from)
-    query = query.gte("timestamp", `${searchParams.from}T00:00:00`);
-  if (searchParams.to)
-    query = query.lte("timestamp", `${searchParams.to}T23:59:59`);
-
-  const { data } = await query;
-  const rows = (data as unknown as AttRow[]) ?? [];
-
-  // Sign photos.
+  // Sign photos (batched so large ranges stay fast).
   const signedFor = new Map<string, string>();
-  await Promise.all(
-    rows
-      .filter((r) => r.photo_url)
-      .map(async (r) => {
-        const { data: s } = await supabase.storage
-          .from("attendance")
-          .createSignedUrl(r.photo_url!, 3600);
-        if (s?.signedUrl) signedFor.set(r.id, s.signedUrl);
-      }),
-  );
+  const withPhotos = rows.filter((r) => r.photo_url);
+  const uniquePaths = [...new Set(withPhotos.map((r) => r.photo_url!))];
+  const byPath = new Map<string, string>();
+  for (let i = 0; i < uniquePaths.length; i += 100) {
+    const { data: s } = await supabase.storage
+      .from("attendance")
+      .createSignedUrls(uniquePaths.slice(i, i + 100), 3600);
+    for (const x of s ?? [])
+      if (x.signedUrl && x.path) byPath.set(x.path, x.signedUrl);
+  }
+  for (const r of withPhotos) {
+    const url = byPath.get(r.photo_url!);
+    if (url) signedFor.set(r.id, url);
+  }
 
   // Group by user+day (day evaluated in Philippine time, UTC+8).
   const groups = new Map<string, AttRow[]>();
