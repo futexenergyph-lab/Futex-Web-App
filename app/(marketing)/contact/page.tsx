@@ -15,6 +15,7 @@ export default async function ContactPage() {
           .from("packages")
           .select("id,name")
           .eq("active", true)
+          .neq("name", "Custom Job Order")
           .order("sort_order"),
         supabase
           .from("enclosures")

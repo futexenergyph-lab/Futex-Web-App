@@ -37,6 +37,7 @@ export default async function PackagesPage() {
           .from("packages")
           .select("*")
           .eq("active", true)
+          .neq("name", "Custom Job Order")
           .order("sort_order"),
         supabase
           .from("enclosures")
