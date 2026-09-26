@@ -18,6 +18,7 @@ import {
 import { DoneInstallationButton } from "@/components/field/done-installation-button";
 import { AcknowledgementForm } from "@/components/field/acknowledgement-form";
 import { BackJobOrderNote } from "@/components/field/back-job-order-note";
+import { BackJobOrderSection } from "@/components/field/back-job-order-section";
 import { DoneBackJobOrderButton } from "@/components/field/done-back-job-order-button";
 import {
   ArrivalButton,
@@ -328,9 +329,27 @@ export default async function FieldBookingDetail({
                 <CardTitle>Job Order</CardTitle>
               </CardHeader>
               <CardContent>
-                <BackJobOrderNote
-                  bookingId={b.id}
-                  initial={b.back_job_field_note ?? ""}
+                <BackJobOrderSection
+                  hasJobOrder={!!jo}
+                  note={
+                    <BackJobOrderNote
+                      bookingId={b.id}
+                      initial={b.back_job_field_note ?? ""}
+                    />
+                  }
+                  form={
+                    <JobOrderForm
+                      bookingId={b.id}
+                      packages={(packages as Package[]) ?? []}
+                      enclosures={(enclosures as Enclosure[]) ?? []}
+                      wireRate={wireRate}
+                      existing={jo}
+                      defaults={{
+                        packageId: b.preferred_package_id,
+                        enclosureId: b.preferred_enclosure_id,
+                      }}
+                    />
+                  }
                 />
               </CardContent>
             </Card>
@@ -349,7 +368,7 @@ export default async function FieldBookingDetail({
                 </p>
                 <PaymentForm
                   bookingId={b.id}
-                  jobOrder={null}
+                  jobOrder={jo}
                   userId={profile.id}
                   existingStatus={pay?.status ?? null}
                 />
