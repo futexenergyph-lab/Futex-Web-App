@@ -122,6 +122,8 @@ export interface Booking {
   is_back_job_order: boolean;
   parent_booking_id: string | null;
   back_job_field_note: string | null;
+  back_job_no_payment: boolean;
+  back_job_no_payment_confirmed_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

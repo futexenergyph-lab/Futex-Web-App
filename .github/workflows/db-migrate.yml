@@ -239,4 +239,8 @@ jobs:
           # the public website.
           run_sql "insert into public.packages (name, description, base_price, sort_order, active) values ('Custom Job Order', 'Custom job — pricing comes from the job works encoded on the job order', 0, 999, true) on conflict (name) do nothing;"
 
+          # Back job "No payment": persisted toggle + Payment-tab confirmation.
+          run_sql 'alter table public.bookings add column if not exists back_job_no_payment boolean not null default false;'
+          run_sql 'alter table public.bookings add column if not exists back_job_no_payment_confirmed_at timestamptz;'
+
           echo "Done."
