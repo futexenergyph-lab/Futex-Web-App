@@ -1,24 +1,54 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { setBackJobNoPayment } from "@/app/(app)/field/actions";
 
 /**
- * Back-job Job Order tab: "No payment" toggle on top, the work-description
- * note always available, and the full job order pricing form below — grayed
- * out (read-only) when the support visit has no payment.
+ * Back-job Job Order tab: "No payment" toggle on top (persisted to the
+ * booking so the Payment tab reflects it), the work-description note always
+ * available, and the full job order pricing form below — grayed out when the
+ * support visit has no payment.
  */
 export function BackJobOrderSection({
+  bookingId,
+  initialNoPayment,
   hasJobOrder,
   note,
   form,
 }: {
+  bookingId: string;
+  initialNoPayment: boolean;
   /** An already-submitted job order keeps the form visible regardless. */
   hasJobOrder: boolean;
   note: ReactNode;
   form: ReactNode;
 }) {
-  const [noPayment, setNoPayment] = useState(false);
+  const router = useRouter();
+  const [noPayment, setNoPayment] = useState(initialNoPayment);
+  const [saving, setSaving] = useState(false);
   const grayed = noPayment && !hasJobOrder;
+
+  async function onToggle(value: boolean) {
+    setNoPayment(value); // optimistic
+    setSaving(true);
+    try {
+      const res = await setBackJobNoPayment({ bookingId, value });
+      if (res?.error) throw new Error(res.error);
+      toast.success(
+        value
+          ? "Marked as No payment — confirm it in the Payment tab"
+          : "Payment re-enabled for this support visit",
+      );
+      router.refresh();
+    } catch (err) {
+      setNoPayment(!value);
+      toast.error(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -26,7 +56,8 @@ export function BackJobOrderSection({
         <input
           type="checkbox"
           checked={noPayment}
-          onChange={(e) => setNoPayment(e.target.checked)}
+          disabled={saving}
+          onChange={(e) => onToggle(e.target.checked)}
           className="h-4 w-4"
         />
         No payment

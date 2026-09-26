@@ -19,6 +19,7 @@ import { DoneInstallationButton } from "@/components/field/done-installation-but
 import { AcknowledgementForm } from "@/components/field/acknowledgement-form";
 import { BackJobOrderNote } from "@/components/field/back-job-order-note";
 import { BackJobOrderSection } from "@/components/field/back-job-order-section";
+import { BackJobNoPaymentConfirm } from "@/components/field/back-job-no-payment-confirm";
 import { DoneBackJobOrderButton } from "@/components/field/done-back-job-order-button";
 import {
   ArrivalButton,
@@ -330,6 +331,8 @@ export default async function FieldBookingDetail({
               </CardHeader>
               <CardContent>
                 <BackJobOrderSection
+                  bookingId={b.id}
+                  initialNoPayment={b.back_job_no_payment}
                   hasJobOrder={!!jo}
                   note={
                     <BackJobOrderNote
@@ -358,20 +361,31 @@ export default async function FieldBookingDetail({
           <TabsContent value="payment">
             <Card>
               <CardHeader>
-                <CardTitle>Payment (optional)</CardTitle>
+                <CardTitle>
+                  {b.back_job_no_payment ? "Payment" : "Payment (optional)"}
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="mb-3 text-xs text-muted-foreground">
-                  Only if the client pays for this support. Enter the amount and
-                  details — management confirms it before it reflects in
-                  accounting.
-                </p>
-                <PaymentForm
-                  bookingId={b.id}
-                  jobOrder={jo}
-                  userId={profile.id}
-                  existingStatus={pay?.status ?? null}
-                />
+                {b.back_job_no_payment ? (
+                  <BackJobNoPaymentConfirm
+                    bookingId={b.id}
+                    confirmedAt={b.back_job_no_payment_confirmed_at}
+                  />
+                ) : (
+                  <>
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      Only if the client pays for this support. Enter the
+                      amount and details — management confirms it before it
+                      reflects in accounting.
+                    </p>
+                    <PaymentForm
+                      bookingId={b.id}
+                      jobOrder={jo}
+                      userId={profile.id}
+                      existingStatus={pay?.status ?? null}
+                    />
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

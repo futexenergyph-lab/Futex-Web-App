@@ -749,6 +749,42 @@ export async function saveBackJobNote(input: {
   return { ok: true };
 }
 
+/** Toggle "No payment" on a back job order (persisted so all tabs agree). */
+export async function setBackJobNoPayment(input: {
+  bookingId: string;
+  value: boolean;
+}) {
+  const profile = await me();
+  await assertAssigned(input.bookingId, profile.id);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      back_job_no_payment: input.value,
+      // Unticking clears any earlier "no payment" confirmation.
+      ...(input.value ? {} : { back_job_no_payment_confirmed_at: null }),
+    })
+    .eq("id", input.bookingId);
+  if (error) return { error: error.message };
+  revalidatePath(`/field/bookings/${input.bookingId}`);
+  return { ok: true };
+}
+
+/** Confirm in the Payment tab that this back job collects no payment. */
+export async function confirmBackJobNoPayment(bookingId: string) {
+  const profile = await me();
+  await assertAssigned(bookingId, profile.id);
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("bookings")
+    .update({ back_job_no_payment_confirmed_at: new Date().toISOString() })
+    .eq("id", bookingId)
+    .eq("back_job_no_payment", true);
+  if (error) return { error: error.message };
+  revalidatePath(`/field/bookings/${bookingId}`);
+  return { ok: true };
+}
+
 /**
  * Mark a back job order (support ticket) done. Requires documentation photos;
  * payment is optional for support work. Sets the booking to "completed".
