@@ -52,15 +52,26 @@ export function BackJobOrderSection({
 
   return (
     <div className="space-y-5">
-      <label className="flex items-center gap-2 text-sm font-medium">
+      {/* A submitted job order means this visit bills the client — the
+          "No payment" choice is no longer available. */}
+      <label
+        className={`flex items-center gap-2 text-sm font-medium ${
+          hasJobOrder ? "cursor-not-allowed text-muted-foreground/60" : ""
+        }`}
+      >
         <input
           type="checkbox"
-          checked={noPayment}
-          disabled={saving}
+          checked={noPayment && !hasJobOrder}
+          disabled={saving || hasJobOrder}
           onChange={(e) => onToggle(e.target.checked)}
-          className="h-4 w-4"
+          className="h-4 w-4 disabled:opacity-40"
         />
         No payment
+        {hasJobOrder && (
+          <span className="text-xs font-normal">
+            (job order submitted with payment)
+          </span>
+        )}
       </label>
 
       <div className="space-y-2">
