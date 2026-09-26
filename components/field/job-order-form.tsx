@@ -97,6 +97,8 @@ export function JobOrderForm({
   );
   // Additional Purchase ticks (fixed prices, added to the billing).
   const [purchases, setPurchases] = useState<Record<string, boolean>>({});
+  // Free-form purchases (description + amount), added to the billing.
+  const [customPurchases, setCustomPurchases] = useState<WorkInput[]>([]);
   const [notes, setNotes] = useState(existing?.notes ?? "");
   // The client must re-sign on each (re)submission to acknowledge the order.
   const [signature, setSignature] = useState<string | null>(null);
@@ -113,6 +115,10 @@ export function JobOrderForm({
     ...PURCHASE_ITEMS.filter((i) => purchases[i.name]).map((i) => ({
       description: i.name,
       amount: i.price,
+    })),
+    ...customPurchases.map((w) => ({
+      description: w.description,
+      amount: Number(w.amount) || 0,
     })),
     ...jobWorks.map((w) => ({
       description: w.description,
@@ -135,7 +141,7 @@ export function JobOrderForm({
         additionalJobWorks: jobWorksNum,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pkg, wireMeters, jobWorks, adjustments, purchases, wireRate],
+    [pkg, wireMeters, jobWorks, adjustments, purchases, customPurchases, wireRate],
   );
 
   // A submitted/locked order is read-only until management approves a change.
@@ -151,6 +157,18 @@ export function JobOrderForm({
   }
   function removeWork(i: number) {
     setJobWorks((w) => w.filter((_, idx) => idx !== i));
+  }
+
+  function addPurchase() {
+    setCustomPurchases((p) => [...p, { description: "", amount: "" }]);
+  }
+  function updatePurchase(i: number, patch: Partial<WorkInput>) {
+    setCustomPurchases((p) =>
+      p.map((x, idx) => (idx === i ? { ...x, ...patch } : x)),
+    );
+  }
+  function removePurchase(i: number) {
+    setCustomPurchases((p) => p.filter((_, idx) => idx !== i));
   }
 
   function addAdjustment() {
@@ -371,7 +389,17 @@ export function JobOrderForm({
       </div>
 
       <div className="space-y-2">
-        <Label>Additional Purchase</Label>
+        <div className="flex items-center justify-between">
+          <Label>Additional Purchase</Label>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={addPurchase}
+          >
+            <Plus className="h-4 w-4" /> Add
+          </Button>
+        </div>
         {PURCHASE_ITEMS.map((item) => (
           <label
             key={item.name}
@@ -396,8 +424,37 @@ export function JobOrderForm({
             </span>
           </label>
         ))}
+        {customPurchases.map((w, i) => (
+          <div key={i} className="flex gap-2">
+            <Input
+              placeholder="Item purchased"
+              value={w.description}
+              onChange={(e) =>
+                updatePurchase(i, { description: e.target.value })
+              }
+            />
+            <Input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              placeholder="₱ amount"
+              className="w-28"
+              value={w.amount}
+              onChange={(e) => updatePurchase(i, { amount: e.target.value })}
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={() => removePurchase(i)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
         <p className="text-xs text-muted-foreground">
-          Tick what the client purchased — the amount is added to the total.
+          Tick what the client purchased, or Add other items (description +
+          amount) — the amount is added to the total.
         </p>
       </div>
 
