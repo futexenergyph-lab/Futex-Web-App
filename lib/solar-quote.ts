@@ -50,8 +50,13 @@ export const DEFAULT_PANEL_WARRANTY =
   "30 years product guarantee, 15 years warranty";
 
 const PANEL_BRANDS = ["Jinko", "Trina", "Ronma", "Seraphim", "TCL"];
-const INVERTER_BRANDS = ["Huawei", "TCL", "Deye", "Solis", "Solax"];
-const BATTERY_BRANDS = ["TCL", "SUNGROW", "CST", "PUSTUN", "LVTOPSUN"];
+const INVERTER_BRANDS = ["Sungrow", "Huawei", "TCL", "Deye", "Solis", "Solax"];
+const BATTERY_BRANDS = ["Sungrow", "TCL", "CST", "PUSTUN", "LVTOPSUN"];
+
+// Brands pre-selected on every new quotation (still editable in the form).
+const DEFAULT_PANEL_BRAND = "Seraphim";
+const DEFAULT_INVERTER_BRAND = "Sungrow";
+const DEFAULT_BATTERY_BRAND = "Sungrow";
 
 interface PackageSpec {
   packageName: string;
@@ -111,7 +116,7 @@ function buildPackage(s: PackageSpec): SolarQuoteData {
         key: "panel",
         title: "SOLAR PANEL",
         brandOptions: PANEL_BRANDS,
-        brand: PANEL_BRANDS.join(", "),
+        brand: DEFAULT_PANEL_BRAND,
         inclusion: `${s.panelQty} pcs 620 watt`,
         materials: [
           {
@@ -131,7 +136,7 @@ function buildPackage(s: PackageSpec): SolarQuoteData {
         key: "inverter",
         title: "SMART INVERTER",
         brandOptions: INVERTER_BRANDS,
-        brand: INVERTER_BRANDS.join(", "),
+        brand: DEFAULT_INVERTER_BRAND,
         inclusion: `1 pc ${s.inverterKw} kW Hybrid Smart Inverter`,
         materials: [
           {
@@ -147,7 +152,7 @@ function buildPackage(s: PackageSpec): SolarQuoteData {
         key: "battery",
         title: "BATTERY",
         brandOptions: BATTERY_BRANDS,
-        brand: BATTERY_BRANDS.join(", "),
+        brand: DEFAULT_BATTERY_BRAND,
         inclusion: s.battery,
         materials: [
           {
@@ -208,8 +213,8 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
     build: () =>
       buildPackage({
         packageName: "6kw + 214ah Battery Hybrid",
-        netPrice: 400000,
-        discountedPrice: 340000,
+        netPrice: 435000,
+        discountedPrice: 380000,
         panelQty: 10,
         inverterKw: 6,
         battery: "214AH 10kWh battery",
@@ -233,8 +238,8 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
     build: () =>
       buildPackage({
         packageName: "6kw + 314ah Battery Hybrid",
-        netPrice: 430000,
-        discountedPrice: 380000,
+        netPrice: 465000,
+        discountedPrice: 420000,
         panelQty: 10,
         inverterKw: 6,
         battery: "314AH 16kWh battery",
@@ -258,9 +263,9 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
     build: () =>
       buildPackage({
         packageName: "8kw + 214ah Battery Hybrid",
-        netPrice: 465000,
-        discountedPrice: 420000,
-        panelQty: 16,
+        netPrice: 500000,
+        discountedPrice: 460000,
+        panelQty: 14,
         inverterKw: 8,
         battery: "214AH 10kWh battery",
         batteryCapacity: "214ah",
@@ -283,9 +288,9 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
     build: () =>
       buildPackage({
         packageName: "8kw + 314ah Battery Hybrid",
-        netPrice: 480000,
-        discountedPrice: 450000,
-        panelQty: 16,
+        netPrice: 515000,
+        discountedPrice: 490000,
+        panelQty: 14,
         inverterKw: 8,
         battery: "314AH 16kWh battery",
         batteryCapacity: "316ah",
@@ -308,9 +313,9 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
     build: () =>
       buildPackage({
         packageName: "10kw + 314ah Battery Hybrid",
-        netPrice: 560000,
-        discountedPrice: 490000,
-        panelQty: 20,
+        netPrice: 595000,
+        discountedPrice: 530000,
+        panelQty: 17,
         inverterKw: 10,
         battery: "314AH 16kWh battery",
         batteryCapacity: "316ah",
@@ -335,8 +340,8 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
     build: () =>
       buildPackage({
         packageName: "12kwh + 314ah Battery Hybrid",
-        netPrice: 585000,
-        discountedPrice: 545000,
+        netPrice: 620000,
+        discountedPrice: 585000,
         panelQty: 20,
         inverterKw: 12,
         battery: "314AH 16kWh battery",
@@ -363,8 +368,8 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
     build: () =>
       buildPackage({
         packageName: "12kwh + 628ah Battery Hybrid",
-        netPrice: 745000,
-        discountedPrice: 685000,
+        netPrice: 780000,
+        discountedPrice: 725000,
         panelQty: 20,
         inverterKw: 12,
         battery: "2 pcs 314AH 16kWh battery",
@@ -392,8 +397,8 @@ export const SOLAR_PACKAGE_PRESETS: SolarPackagePreset[] = [
     build: () =>
       buildPackage({
         packageName: "16kw + 628ah Battery Hybrid",
-        netPrice: 840000,
-        discountedPrice: 735000,
+        netPrice: 875000,
+        discountedPrice: 775000,
         panelQty: 28,
         inverterKw: 16,
         battery: "2 pcs 314AH 16kWh battery",
